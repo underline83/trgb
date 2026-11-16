@@ -36,6 +36,24 @@ sys.modules["app.utils.locale_data"] = _ld
 _es = types.ModuleType("app.services.email_service")
 _es._cfg = lambda: {"host": "smtps.aruba.it", "port": "465", "user": "trgb@tregobbi.it",
                     "password": PASSWORD, "from_addr": "trgb@tregobbi.it", "from_name": "Osteria"}
+_es.mancanti = lambda: []
+INVIATE = []
+ESITO_INVIO = {"ok": True}
+
+
+class _Esito:
+    def __init__(self, ok, errore=None, message_id=None):
+        self.ok, self.errore, self.message_id = ok, errore, message_id
+
+
+def _invia(to, subject, body="", allegati=None, cc=None, reply_to=None, intestazioni=None):
+    INVIATE.append({"to": to, "subject": subject, "body": body, "cc": cc, "intestazioni": intestazioni or {}})
+    if not ESITO_INVIO["ok"]:
+        return _Esito(False, "SMTPAuthenticationError: login rifiutato")
+    return _Esito(True, message_id=f"<risp{len(INVIATE)}@tregobbi.it>")
+
+
+_es.invia_email = _invia
 sys.modules["app.services.email_service"] = _es
 
 CAMPANELLO = []
@@ -50,7 +68,7 @@ app.services.notifiche_service = _ns
 from app.services import email_in_service as E          # noqa: E402
 from app.services import preventivi_email_risposte as P  # noqa: E402
 
-E.registra_abbinatore(P.abbina, dopo=P.dopo, descrivi=P.descrivi, nome="preventivi")
+E.registra_abbinatore(P.abbina, dopo=P.dopo, descrivi=P.descrivi, nome="preventivi", dopo_risposta=P.dopo_risposta)
 
 OGGI = date.today()
 DOMANI = (OGGI + timedelta(days=1)).isoformat()
@@ -96,6 +114,7 @@ def prepara_clienti():
         INSERT INTO clienti_preventivi_invii (preventivo_id, canale, destinatario, esito, message_id, cc)
             VALUES (19, 'email', 'marta@abb.com', 'ok', '<19@tregobbi.it>', 'prenotazioni@tregobbi.it');
     """)
+    c.execute("ALTER TABLE clienti_preventivi ADD COLUMN canale TEXT")
     c.commit()
     c.close()
 
@@ -526,6 +545,80 @@ class TestLetture(Base):
         self.assertIn("WhatsApp", ids["PRE-2026-021"]["nota"])
         self.assertEqual(ids["PRE-2026-021"]["giorni_alla_scadenza"], 1)
         self.assertEqual(P.senza_risposta(giorni=0), [])   # scadono domani: non entro 0 giorni
+
+
+class TestRispondi(Base):
+    def setUp(self):
+        super().setUp()
+        INVIATE.clear()
+        ESITO_INVIO["ok"] = True
+        # registra_invio vero del modulo preventivi ha bisogno di foodcost_db: basta un finto
+        fd = types.ModuleType("app.models.foodcost_db")
+        fd.get_foodcost_connection = lambda: None
+        sys.modules.setdefault("app.models.foodcost_db", fd)
+        cas = CasellaFinta(7, {})
+        self.giro(cas)
+        cas.messaggi[1] = mail("<marta1@abb.com>", "Marta Galvani <marta@abb.com>", "RE: Proposta menù",
+                               in_reply_to="<19@tregobbi.it>", references="<19@tregobbi.it>",
+                               cc="prenotazioni@tregobbi.it, Capo <capo@abb.com>",
+                               testo="Ci tenete la data ancora qualche giorno?")
+        self.giro(cas)
+        self.mid = righe("SELECT id FROM email_in")[0]["id"]
+
+    def test_bozza(self):
+        b = E.bozza_risposta(self.mid)
+        self.assertEqual(b["a"], ["marta@abb.com"])
+        self.assertEqual(b["cc"], ["prenotazioni@tregobbi.it", "capo@abb.com"])   # la casella no
+        self.assertEqual(b["oggetto"], "RE: Proposta menù")                        # niente «RE: RE:»
+        self.assertIn("Marta Galvani <marta@abb.com> ha scritto:", b["citazione"])
+        self.assertIn("> Ci tenete la data", b["citazione"])
+
+    def test_rispondi(self):
+        r = E.rispondi(self.mid, "Certo, fino a venerdì.", "marco")
+        self.assertTrue(r["ok"])
+        inv = INVIATE[-1]
+        self.assertEqual(inv["to"], ["marta@abb.com"])
+        self.assertEqual(inv["cc"], ["prenotazioni@tregobbi.it", "capo@abb.com"])
+        self.assertEqual(inv["intestazioni"]["In-Reply-To"], "<marta1@abb.com>")
+        self.assertEqual(inv["intestazioni"]["References"], "<19@tregobbi.it> <marta1@abb.com>")
+        self.assertTrue(inv["body"].startswith("Certo, fino a venerdì.\n\nIl giorno"))
+        self.assertEqual(r["mail"]["stato"], "gestita")
+        self.assertEqual(r["mail"]["gestita_da"], "marco (risposta)")
+        self.assertEqual(len(r["mail"]["risposte_mandate"]), 1)
+        # registro invii del preventivo + storico
+        c = sqlite3.connect(os.path.join(TMP, "clienti.sqlite3"))
+        inv_db = c.execute("SELECT destinatario, message_id, cc FROM clienti_preventivi_invii WHERE preventivo_id = 19 "
+                           "ORDER BY id DESC LIMIT 1").fetchone()
+        c.close()
+        self.assertEqual(inv_db[0], "marta@abb.com")
+        self.assertTrue(inv_db[1].startswith("<risp"))
+        self.assertTrue(any("Risposta via email a marta@abb.com" in t for t in storico(19)))
+        # e la prossima risposta di Marta alla nostra si abbina da sola
+        cas = CasellaFinta(7, {})
+        self.giro(cas)  # (stesso cursore: niente di nuovo)
+
+    def test_scelte_e_errori(self):
+        r = E.rispondi(self.mid, "Ok", "marco", a="altra@abb.com", cc="", oggetto="Data 4/12", cita=False,
+                       segna_gestita=False)
+        inv = INVIATE[-1]
+        self.assertEqual((inv["to"], inv["cc"], inv["subject"], inv["body"]), (["altra@abb.com"], None, "Data 4/12", "Ok"))
+        self.assertEqual(r["mail"]["stato"], "nuova")
+        with self.assertRaises(ValueError):
+            E.rispondi(self.mid, "   ", "marco")
+        with self.assertRaises(ValueError):
+            E.rispondi(self.mid, "x", "marco", a="non-un-indirizzo")
+        self.assertIsNone(E.rispondi(9999, "x", "marco"))
+        ESITO_INVIO["ok"] = False                    # SMTP rifiuta: registrata, non gestita, niente registro invii
+        c = sqlite3.connect(os.path.join(TMP, "clienti.sqlite3"))
+        prima = c.execute("SELECT COUNT(*) FROM clienti_preventivi_invii").fetchone()[0]
+        r = E.rispondi(self.mid, "Ok", "marco")
+        dopo = c.execute("SELECT COUNT(*) FROM clienti_preventivi_invii").fetchone()[0]
+        c.close()
+        self.assertFalse(r["ok"])
+        self.assertIn("login rifiutato", r["errore"])
+        self.assertEqual(r["mail"]["stato"], "nuova")
+        self.assertEqual(r["risposta"]["esito"], "errore")
+        self.assertEqual(prima, dopo)
 
 
 if __name__ == "__main__":

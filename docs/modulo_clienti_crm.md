@@ -33,6 +33,8 @@
 14. Roadmap CL
 15. Anomalie note / punti aperti
 16. Gift Card (v3.1)
+17. WhatsApp del locale in sola lettura (v3.23)
+18. Rubrica dei clienti sul telefono (v3.39)
 
 ---
 
@@ -91,6 +93,7 @@ Colonne reali (`app/models/clienti_db.py:151-197` + ALTER `:289-308`): `id`, `cl
 | `clienti_alias` | Merge duplicati: mappa i `thefork_id` dei clienti assorbiti verso il cliente principale, così i re-import li riconoscono |
 | `clienti_no_duplicato` | Coppie marcate "non è un duplicato" (es. coniugi con stesso telefono), escluse dai suggerimenti |
 | `clienti_profilo` | Segmento e stelle calcolati, uno per cliente attivo (mig 236, §6) — scritto da `clienti_profilo_service` |
+| `clienti_rubrica_accessi` | Accessi alla rubrica del telefono, uno per telefono: `nome`, `utente` UNIQUE, `password_hash` (pbkdf2), `creato_da/il`, `ultimo_accesso`, `revocato_il` (mig 238, §18) |
 | `clienti_import_diff` | Coda revisione: differenze campo-per-campo tra CRM (cliente `protetto`) e TheFork trovate all'import o dal webhook; `stato` pending / applica / ignora (scelte di Marco) / auto_applica / auto_ignora (chiuse dalle regole, §8). UNIQUE(cliente, campo, stato): una decisione nuova sostituisce la vecchia dello stesso campo |
 | `clienti_impostazioni` | Chiave/valore: soglie segmenti `seg_*` (§6) + `preventivi_luoghi` |
 
@@ -651,3 +654,44 @@ Il foglio storico (`gift-card-lista.xlsx`, 174 righe dal dic 2021) era compilato
 1. **Da provare:** se Meta lascia collegare il proprio numero in coexistence a un'app propria senza essere Tech Provider approvato. Se no: Tech Provider (revisione app con due video) o provider (YCloud gratis da verificare, 360dialog 49 €/mese) — il codice TRGB resta lo stesso, cambia solo da dove arrivano i webhook.
 2. Webhook con l'app Meta in modalità sviluppo: da verificare alla prova se Meta li manda o serve l'app «Live».
 
+---
+
+# 18. Rubrica dei clienti sul telefono (v3.39, 2026-11-16, mig 238)
+
+**Perché.** Prima Marco esportava ogni tanto i contatti di TheFork su un account Gmail, per riconoscere i clienti quando chiamano e averli su WhatsApp Business. Ora il telefono si **abbona** alla rubrica di TRGB e la rilegge da solo. Google Contacts scartato (tetto di 25.000 contatti).
+
+**Chi entra.** I clienti attivi con un telefono valido (`telefono_valido`, su `telefono` e `telefono2`) e almeno `rubrica_stelle_min` stelle TRGB (nere + argento + oro effettiva, §6). Al 16/11/2026 circa 4.660.
+
+**Il contatto** (vCard 3.0, `clienti_rubrica_service._vcard`):
+- nome sul telefono = prefisso + nome + stelle: «TG Daniele Trentini ★★★★». Le stelle sono la somma (i colori non si vedono, il numero sì). In `N` il prefisso è titolo e le stelle suffisso, così l'ordine resta per cognome;
+- telefoni (CELL/VOICE), email, `CATEGORIES` = etichette CRM;
+- nota: stelle per colore, segmento, visite, ultima visita, allergie e restrizioni, preferenze (cibo, bevande, posto);
+- niente compleanni (4.000 compleanni nel calendario del telefono non servono).
+
+**Server CardDAV in sola lettura** (`clienti_rubrica_router.public_router`, senza JWT, Basic auth con gli accessi):
+- `/.well-known/carddav` → 301 `/rubrica/`; `PROPFIND /rubrica/` (principal e home), `PROPFIND /rubrica/clienti/` (rubrica, `getctag`, carte a depth 1), `REPORT` addressbook-multiget e addressbook-query, `GET /rubrica/clienti/trgb-cliente-<id>.vcf`;
+- `sync-collection` risponde 403 valid-sync-token: il telefono ripiega su ctag + etag;
+- `PUT`, `DELETE`, `MKCOL`, `PROPPATCH` → 403 (il telefono non scrive in TRGB);
+- rubrica costruita in memoria e tenuta 2 minuti; password verificate tenute 10 minuti; `ultimo_accesso` scritto al più ogni pochi minuti.
+
+**Accessi.** Uno per telefono, creato da **Clienti › Impostazioni › 📱 Rubrica telefono** (`ClientiRubrica.jsx`, solo admin): nome del telefono → utente e password (16 caratteri senza lettere ambigue) mostrati **una volta sola**. Revoca = quel telefono non legge più (401 alla sincronizzazione successiva). Password in pbkdf2-sha256, 200.000 giri.
+
+**Impostazioni** (`clienti_impostazioni`, mig 238): `rubrica_prefisso` (default `TG`), `rubrica_stelle_min` (default `1`), modificabili dalla stessa pagina.
+
+**Come si collega.** iPhone: Impostazioni › App › Contatti › Account contatti › Aggiungi account › Altro › Aggiungi account CardDAV → server `trgb.tregobbi.it`, utente e password. Android: DAVx5 con URL `https://trgb.tregobbi.it/rubrica/`. WhatsApp Business prende i nomi dai contatti del telefono, senza altro.
+
+**Note.** nginx passa al backend tutti i metodi (PROPFIND/REPORT compresi). Il connettore MCP esclude `/rubrica` dalle letture (`_LETTORE_ESCLUSE`).
+
+## 18.1 Capability
+
+| Codice | Cosa fa | Dove | Audience | Stato |
+|---|---|---|---|---|
+| C-CL-R01 | Rubrica CardDAV in sola lettura per i telefoni | `clienti_rubrica_router.py:home/rubrica_clienti/contatto`, `well_known` | telefoni (accesso rubrica) | 🆕 |
+| C-CL-R02 | Contatti dai clienti con stelle (nome, telefoni, email, nota) | `clienti_rubrica_service.py:_costruisci/_vcard` | sistema | 🆕 |
+| C-CL-R03 | Stato della rubrica, prefisso e soglia | `GET /clienti/rubrica/stato`, `PUT /clienti/impostazioni`, `ClientiRubrica.jsx` | admin | 🆕 |
+| C-CL-R04 | Accessi per telefono: crea (password una volta) e revoca | `POST /clienti/rubrica/accessi`, `POST /clienti/rubrica/accessi/{id}/revoca` | admin | 🆕 |
+
+## 18.2 Punti aperti
+
+1. **Telefono fisso** (Marco 16/11): da decidere, dipende dall'apparecchio. Un FRITZ!Box legge la stessa rubrica CardDAV; un centralino (FreePBX) chiederebbe il nome a TRGB a ogni chiamata.
+2. Da provare dal vivo su iPhone dopo il push (sui test con copia del DB: 4.671 contatti, PROPFIND 1,2 MB, multiget, 401 senza credenziali e dopo la revoca).

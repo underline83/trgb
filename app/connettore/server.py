@@ -2088,7 +2088,8 @@ def _strumenti_preventivi(mcp: MCPServer) -> None:
 # ---------------------------------------------------------------------------
 
 _LETTORE_ESCLUSE = ("/auth", "/oauth", "/mcp", "/.well-known", "/docs", "/redoc", "/openapi",
-                    "/accesso-q", "/prenotazioni/pubblico", "/widget", "/webhook")
+                    "/accesso-q", "/prenotazioni/pubblico", "/widget", "/webhook",
+                    "/rubrica")  # CardDAV del telefono: Basic auth, non il JWT
 _LETTORE_MAX = 60_000
 _IBAN = re.compile(r"\b[A-Z]{2}\d{2}(?: ?[A-Z0-9]){11,30}\b")
 

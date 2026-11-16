@@ -313,6 +313,21 @@ def init_clienti_db() -> None:
             )
         """)
 
+    # Rubrica del telefono (CardDAV, mig 238): un accesso per telefono
+    if not cur.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='clienti_rubrica_accessi'").fetchone():
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS clienti_rubrica_accessi (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                nome            TEXT NOT NULL,
+                utente          TEXT NOT NULL UNIQUE,
+                password_hash   TEXT NOT NULL,
+                creato_il       TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+                creato_da       TEXT,
+                ultimo_accesso  TEXT,
+                attivo          INTEGER NOT NULL DEFAULT 1
+            )
+        """)
+
     # ── PRENOTAZIONI: colonne aggiuntive per modulo Prenotazioni ──
     pren_cols = [
         ("turno", "TEXT"),                       # 'pranzo' / 'cena'

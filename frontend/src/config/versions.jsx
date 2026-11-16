@@ -567,6 +567,8 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   clienti: {
+    // 3.39 (2026-11-16): rubrica dei clienti sul telefono — CardDAV in sola lettura (/rubrica/), clienti con telefono e almeno una stella,
+    //   nome «TG Nome Cognome ★★», nota con stelle/segmento/visite/allergie; un accesso per telefono, revocabile, da Impostazioni › Rubrica telefono (mig 238).
     // 3.38 (2026-11-16): fix — il ricalcolo completo di stelle e segmenti partiva solo se clienti_profilo era vuota: i calcoli al volo della lista lo bloccavano (412 clienti su 26.000). Ora si segna la fine del giro completo.
     // 3.37 (2026-11-16): stella oro automatica per i VIP di TheFork (toglibile a mano, resta tolta); scheda dice da dove viene (mig 237).
     // 3.36 (2026-11-16): stelle TRGB (★ nere da visite/eventi/no-show, ★ argento da scontrino medio a coperto,
@@ -664,7 +666,7 @@ const MODULE_VERSIONS = {
     //   annullo/riattiva con storico movimenti, PDF buono A5 con identita'
     //   del locale, alert M.F sulle card in scadenza. Nessun impatto su
     //   corrispettivi/chiusure: registro informativo separato dalla cassa.
-    version: "3.38",
+    version: "3.39",
     label: "Gestione Clienti",
     status: "beta",
     color: "blue",
@@ -825,6 +827,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 6.4 (2026-11-16): mig 238 — clienti_rubrica_accessi + impostazioni rubrica_prefisso/rubrica_stelle_min: rubrica dei clienti sul telefono via CardDAV (clienti 3.39).
     // 6.3 (2026-11-16): mig 237 — clienti.stella_oro_tolta: i VIP di TheFork hanno la stella oro in automatico, Marco può toglierla (clienti 3.37).
     // 6.2 (2026-11-16): mig 236 — stelle e segmenti dei clienti calcolati da TRGB (clienti.stella_oro,
     //   tabella clienti_profilo, soglie in clienti_impostazioni); servizio clienti_profilo_service con
@@ -981,7 +984,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "6.3",
+    version: "6.4",
     label: "Sistema",
     status: "stabile",
     color: "green",

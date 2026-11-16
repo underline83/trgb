@@ -27,6 +27,8 @@ email_in — una mail arrivata nella casella del gestionale (INBOX, sola lettura
   stato        TEXT         nuova | gestita  (+ gestita_da, gestita_at)
 
 email_in_cursore — per cartella: UIDVALIDITY e ultimo UID letto
+email_in_risposte — risposte mandate dalla pagina Posta (a, cc, oggetto, testo, esito,
+                   message_id, chi e quando): la mail parte da M.D con In-Reply-To/References
 email_in_giri    — registro dei giri del job (esito, quante nuove, errore). Niente
                    contenuto delle mail, niente credenziali.
 
@@ -44,6 +46,7 @@ _INDICI = {
     "idx_email_in_prev": "CREATE INDEX idx_email_in_prev ON email_in(preventivo_id)",
     "idx_email_in_stato": "CREATE INDEX idx_email_in_stato ON email_in(stato)",
     "idx_email_in_giri_inizio": "CREATE INDEX idx_email_in_giri_inizio ON email_in_giri(iniziato_at)",
+    "idx_email_in_risposte_mail": "CREATE INDEX idx_email_in_risposte_mail ON email_in_risposte(email_in_id)",
 }
 
 
@@ -98,6 +101,22 @@ def init_email_db(path=None) -> None:
                 uidvalidity   INTEGER,
                 ultimo_uid    INTEGER NOT NULL DEFAULT 0,
                 aggiornato_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+            )
+        """)
+        # Risposte mandate dalla pagina Posta (2026-11-16): una riga per invio, anche fallito
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS email_in_risposte (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                email_in_id  INTEGER NOT NULL,
+                a            TEXT,
+                cc           TEXT,
+                oggetto      TEXT,
+                testo        TEXT,
+                message_id   TEXT,
+                esito        TEXT NOT NULL,          -- ok | errore
+                errore       TEXT,
+                inviato_da   TEXT,
+                inviato_at   TEXT NOT NULL DEFAULT (datetime('now','localtime'))
             )
         """)
         conn.execute("""

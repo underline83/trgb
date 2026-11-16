@@ -81,6 +81,10 @@ from app.routers.clienti_whatsapp_router import (  # WhatsApp in sola lettura (c
     public_router as clienti_whatsapp_public_router,
 )
 from app.routers.clienti_giftcard_router import router as clienti_giftcard_router
+from app.routers.clienti_rubrica_router import (  # rubrica dei clienti sul telefono (CardDAV, mig 238)
+    router as clienti_rubrica_router,
+    public_router as clienti_rubrica_public_router,
+)
 from app.routers.clienti_giftcard_router import public_router as clienti_giftcard_public_router
 
 # PRENOTAZIONI
@@ -770,6 +774,9 @@ _mount("ipratico_products_router", ipratico_products_router.router)
 # WhatsApp (webhook pubblico Meta + pagina admin) PRIMA di clienti_router, che ha rotte /clienti/{id}
 _mount("clienti_whatsapp_router", clienti_whatsapp_public_router)
 _mount("clienti_whatsapp_router", clienti_whatsapp_router)
+# Rubrica del telefono (CardDAV pubblico con Basic auth + pagina admin) PRIMA di clienti_router
+_mount("clienti_rubrica_router", clienti_rubrica_public_router)
+_mount("clienti_rubrica_router", clienti_rubrica_router)
 _mount("clienti_router", clienti_router)
 if module_loader.is_router_active("clienti_router"):
     # Stelle e segmenti dei clienti: ricalcolo completo una volta al giorno (2026-11-16, mig 236)

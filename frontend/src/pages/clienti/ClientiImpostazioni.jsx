@@ -1,4 +1,4 @@
-// @version: v2.5 — «Segmenti e stelle»: soglie dei segmenti nuovi e delle stelle (nere, argento), conteggi, Ricalcola adesso (2026-11-16); v2.4 — Preventivi: indirizzo staff (CC), Rispondi a, giorni di scadenza/avviso/proroga, ruoli avvisati (2026-11-03); v2.3 — sezione WhatsApp (sola lettura, coexistence Meta); v2.2 — copia per email dei preventivi inviati (in «Luoghi preventivi»); v2.1-mattoni — M.I primitives (Btn, EmptyState), bg brand-cream, focus ring brand
+// @version: v2.6 — sezione «Rubrica telefono» (CardDAV, accessi per telefono) (2026-11-16); v2.5 — «Segmenti e stelle»: soglie dei segmenti nuovi e delle stelle (nere, argento), conteggi, Ricalcola adesso (2026-11-16); v2.4 — Preventivi: indirizzo staff (CC), Rispondi a, giorni di scadenza/avviso/proroga, ruoli avvisati (2026-11-03); v2.3 — sezione WhatsApp (sola lettura, coexistence Meta); v2.2 — copia per email dei preventivi inviati (in «Luoghi preventivi»); v2.1-mattoni — M.I primitives (Btn, EmptyState), bg brand-cream, focus ring brand
 // Layout Impostazioni CRM: sidebar sinistra + sezioni (segmenti, import, duplicati, mailchimp)
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
@@ -9,6 +9,7 @@ import ClientiDuplicati from "./ClientiDuplicati";
 import ClientiMailchimp from "./ClientiMailchimp";
 import ClientiMenuTemplates from "./ClientiMenuTemplates";
 import ClientiWhatsApp from "./ClientiWhatsApp";
+import ClientiRubrica from "./ClientiRubrica";
 import { Btn, EmptyState } from "../../components/ui";
 import { ORDINE_SEGMENTI, SegmentoPill, Stelle } from "./ProfiloCliente";
 
@@ -22,6 +23,7 @@ const SECTIONS = [
   { key: "duplicati", label: "Duplicati", icon: "🔄", desc: "Trova e unisci duplicati" },
   { key: "mailchimp", label: "Mailchimp", icon: "📬", desc: "Sync contatti e campagne" },
   { key: "whatsapp", label: "WhatsApp", icon: "💬", desc: "Chat del locale in sola lettura per il giro" },
+  { key: "rubrica", label: "Rubrica telefono", icon: "📱", desc: "I clienti con stelle nei contatti del telefono" },
 ];
 
 // ── Soglie di segmenti e stelle (clienti_impostazioni, mig 236 — 2026-11-16) ──
@@ -111,6 +113,7 @@ export default function ClientiImpostazioni() {
               {section === "duplicati" && <ClientiDuplicati embedded />}
               {section === "mailchimp" && <ClientiMailchimp embedded />}
               {section === "whatsapp" && <ClientiWhatsApp />}
+              {section === "rubrica" && <ClientiRubrica />}
             </div>
           </div>
         </div>

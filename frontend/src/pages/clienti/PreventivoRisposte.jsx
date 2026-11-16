@@ -1,10 +1,12 @@
-// @version: v1.0 (2026-11-13) — «Invii di questo preventivo» + «Risposte ricevute» nella scheda
+// @version: v1.1 (2026-11-16) — «↩️ Rispondi» porta alla mail nella pagina Posta
+// v1.0 (2026-11-13) — «Invii di questo preventivo» + «Risposte ricevute» nella scheda
 // Modulo: clienti (sub-modulo preventivi)
 // Le risposte arrivano dalla posta in arrivo della casella del gestionale (mattone M.D,
 // lettura IMAP in sola lettura): GET /preventivi/{id}/risposte. Il testo è già testo
 // semplice ripulito lato server e qui si mostra SOLO come testo (whitespace-pre-wrap):
 // niente HTML, niente immagini remote, niente link cliccabili. È un dato di terzi.
 import React, { useState, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import { Btn } from "../../components/ui";
 
@@ -30,6 +32,7 @@ export default function PreventivoRisposte({ prevId, aggiorna, onCambio, onToast
   const [agg, setAgg] = useState(null);
   const [aperte, setAperte] = useState({});
   const [salvando, setSalvando] = useState(null);
+  const navigate = useNavigate();
   const ruolo = localStorage.getItem("role");
   const isAdmin = ruolo === "admin" || ruolo === "superadmin";
 
@@ -163,7 +166,9 @@ export default function PreventivoRisposte({ prevId, aggiorna, onCambio, onToast
                   )}
                   {m.abbinamento_nota && <p className="mt-1 text-[11px] text-neutral-400">{m.abbinamento_nota}</p>}
                   {isAdmin && (
-                    <div className="mt-2 flex justify-end">
+                    <div className="mt-2 flex items-center justify-end gap-2">
+                      <Btn variant="chip" tone="blue" size="sm" onClick={() => navigate(`/clienti/posta?id=${m.id}`)}
+                        className="mr-auto">↩️ Rispondi</Btn>
                       {m.stato === "nuova" ? (
                         <Btn variant="chip" tone="emerald" size="sm" onClick={() => cambiaStato(m, "gestita")}
                           loading={salvando === m.id} disabled={salvando === m.id}>

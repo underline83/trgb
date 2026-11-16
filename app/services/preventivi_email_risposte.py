@@ -1,4 +1,5 @@
-# @version: v1.0 (2026-11-13) — risposte dei clienti via email abbinate ai preventivi
+# @version: v1.1 (2026-11-16) — risposta mandata dalla Posta → registro invii + storico
+# v1.0 (2026-11-13) — risposte dei clienti via email abbinate ai preventivi
 # Modulo: clienti (sub-modulo preventivi) — [core]
 # -*- coding: utf-8 -*-
 """
@@ -295,7 +296,21 @@ def senza_risposta(giorni: int = 3, oggi: Optional[date] = None) -> List[dict]:
     return out
 
 
+def dopo_risposta(email_in: dict, risposta: dict) -> None:
+    """Risposta mandata dalla Posta a una mail collegata (2026-11-16): finisce nel registro
+    invii del preventivo (colonna «Inviato», abbinamento della prossima risposta) e nello
+    storico. Il primo invio riuscito porta bozza → inviato, come gli altri invii."""
+    from app.services.preventivi_scadenze import scrivi_storico
+    from app.services.preventivi_service import registra_invio
+    pid = email_in["preventivo_id"]
+    registra_invio(pid, "email", risposta.get("a"), risposta.get("inviato_da") or "", oggetto=risposta.get("oggetto"),
+                   esito="ok", message_id=risposta.get("message_id"), cc=risposta.get("cc") or "")
+    scrivi_storico(pid, "risposta_mandata",
+                   f"Risposta via email a {risposta.get('a')} dalla Posta, {_gg_mm_hh(risposta.get('inviato_at'))}",
+                   risposta.get("inviato_da"))
+
+
 def registra() -> None:
     """Al boot (main.py), se il modulo preventivi è attivo."""
     from app.services.email_in_service import registra_abbinatore
-    registra_abbinatore(abbina, dopo=dopo, descrivi=descrivi, nome="preventivi")
+    registra_abbinatore(abbina, dopo=dopo, descrivi=descrivi, nome="preventivi", dopo_risposta=dopo_risposta)

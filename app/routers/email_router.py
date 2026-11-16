@@ -1,4 +1,5 @@
-# @version: v1.1 — posta in arrivo in sola lettura: /email/in, /email/lettura (2026-11-13)
+# @version: v1.2 — «Rispondi» dalla Posta: /email/in/{id}/bozza-risposta e /rispondi (2026-11-16)
+# v1.1 — posta in arrivo in sola lettura: /email/in, /email/lettura (2026-11-13)
 # v1.0 — Config canale email dal gestionale (sessione 2026-08-03)
 # -*- coding: utf-8 -*-
 """
@@ -30,6 +31,9 @@ POSTA IN ARRIVO (v1.1, 2026-11-13) — email_in_service
   GET  /email/in                 elenco (giorni, dal, stato, preventivo_id, abbinamento, q)
   GET  /email/in/{id}            una mail: testo intero (ripulito), allegati, preventivo
   POST /email/in/{id}/stato      {"stato": "gestita" | "nuova"}
+  GET  /email/in/{id}/bozza-risposta   a, cc, oggetto «RE: …», citazione proposti (v1.2)
+  POST /email/in/{id}/rispondi   manda la risposta dalla casella (In-Reply-To/References), la
+                                 registra e segna la mail gestita (v1.2, 2026-11-16)
   GET  /email/lettura/           impostazioni della lettura IMAP + salute del job
   PUT  /email/lettura/           impostazioni (nessun segreto: le credenziali sono quelle SMTP)
   POST /email/lettura/giro       un giro adesso
@@ -156,6 +160,39 @@ def stato_in_ep(email_id: int, payload: StatoMailIn, user: Dict[str, Any] = Depe
     if not m:
         raise HTTPException(status_code=404, detail="Mail non trovata")
     return m
+
+
+class RispostaIn(BaseModel):
+    testo: str
+    a: Optional[str] = None            # vuoto = chi ha scritto la mail
+    cc: Optional[str] = None           # None = gli altri del thread; "" = nessuno
+    oggetto: Optional[str] = None      # vuoto = «RE: <oggetto>»
+    cita: bool = True                  # in fondo la mail a cui si risponde, con «>»
+    segna_gestita: bool = True
+
+
+@router.get("/in/{email_id}/bozza-risposta")
+def bozza_risposta_ep(email_id: int, user: Dict[str, Any] = Depends(_ADMIN_POSTA)):
+    b = email_in_service.bozza_risposta(email_id)
+    if not b:
+        raise HTTPException(status_code=404, detail="Mail non trovata")
+    return b
+
+
+@router.post("/in/{email_id}/rispondi")
+def rispondi_ep(email_id: int, payload: RispostaIn, user: Dict[str, Any] = Depends(_ADMIN_POSTA)):
+    """Manda la risposta dalla casella del gestionale come risposta vera (stessa
+    conversazione). Un errore SMTP non è un 500: torna ok=false ed è registrato."""
+    try:
+        res = email_in_service.rispondi(
+            email_id, payload.testo, user["username"],
+            a=payload.a if payload.a else None,
+            cc=payload.cc, oggetto=payload.oggetto, cita=payload.cita, segna_gestita=payload.segna_gestita)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    if res is None:
+        raise HTTPException(status_code=404, detail="Mail non trovata")
+    return res
 
 
 @router.get("/lettura/")

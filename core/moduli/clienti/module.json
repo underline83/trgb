@@ -8,10 +8,12 @@
   "dipendenze_opzionali": ["prenotazioni"],
   "router_files": [
     "clienti_router",
-    "clienti_whatsapp_router"
+    "clienti_whatsapp_router",
+    "clienti_rubrica_router"
   ],
   "endpoint_prefix": [
-    "/clienti"
+    "/clienti",
+    "/rubrica"
   ],
   "tabelle_db": [
     "clienti",
@@ -22,7 +24,9 @@
     "clienti_impostazioni",
     "clienti_wa_messaggi",
     "clienti_wa_contatti",
-    "clienti_wa_eventi"
+    "clienti_wa_eventi",
+    "clienti_profilo",
+    "clienti_rubrica_accessi"
   ],
   "frontend_route": ["/clienti"],
   "frontend_menu_key": "clienti"

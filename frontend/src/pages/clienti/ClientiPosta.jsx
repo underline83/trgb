@@ -1,9 +1,10 @@
-// @version: v1.0 (2026-11-13) — «📥 Posta»: tutta la posta in arrivo della casella del gestionale
+// @version: v1.1 (2026-11-16) — «↩️ Rispondi»: risposta dalla casella del gestionale, nella stessa conversazione
+// v1.0 (2026-11-13) — «📥 Posta»: tutta la posta in arrivo della casella del gestionale
 // Modulo: clienti (pagina) — dati dal mattone M.D lettura (GET /email/in, solo admin)
 // Elenco a sinistra (filtri nuove/gestite, collegate/non collegate, ricerca), mail aperta a
 // destra. Il testo è già testo semplice ripulito lato server e qui si mostra SOLO come testo
 // (whitespace-pre-wrap): niente HTML, niente immagini remote, niente link cliccabili.
-// TRGB non manda mail da qui: si legge e si segna «gestita».
+// Da v1.1 si risponde: la mail parte solo col clic su «Invia» (POST /email/in/{id}/rispondi).
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
@@ -55,6 +56,8 @@ export default function ClientiPosta() {
   const [salvando, setSalvando] = useState(false);
   const [leggendo, setLeggendo] = useState(false);
   const [toast, setToast] = useState(null);
+  const [risp, setRisp] = useState(null);        // composer aperto: {a, cc, oggetto, testo, cita, gestita, citazione}
+  const [inviando, setInviando] = useState(false);
   const idAperta = params.get("id");
 
   const showToast = (msg, isError = false) => {
@@ -108,7 +111,45 @@ export default function ClientiPosta() {
     return () => { vivo = false; };
   }, [idAperta]);
 
-  const apri = (id) => setParams(id ? { id: String(id) } : {});
+  const apri = (id) => { setRisp(null); setParams(id ? { id: String(id) } : {}); };
+
+  const apriRisposta = async () => {
+    try {
+      const r = await apiFetch(`${API_BASE}/email/in/${aperta.id}/bozza-risposta`);
+      const b = await r.json();
+      if (!r.ok) throw new Error(b.detail || `Errore ${r.status}`);
+      setRisp({ a: (b.a || []).join(", "), cc: (b.cc || []).join(", "), oggetto: b.oggetto || "", testo: "",
+        cita: true, gestita: true, citazione: b.citazione || "", configurata: b.email_configurata });
+    } catch (e) {
+      showToast(e.message, true);
+    }
+  };
+
+  const inviaRisposta = async () => {
+    setInviando(true);
+    try {
+      const res = await apiFetch(`${API_BASE}/email/in/${aperta.id}/rispondi`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ testo: risp.testo, a: risp.a, cc: risp.cc, oggetto: risp.oggetto,
+          cita: risp.cita, segna_gestita: risp.gestita }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.detail || `Errore ${res.status}`);
+      if (d.mail) setAperta(d.mail);
+      if (d.ok) {
+        setRisp(null);
+        showToast(`Risposta inviata a ${risp.a}`);
+        carica();
+      } else {
+        showToast(`Non partita: ${d.errore}`, true);
+      }
+    } catch (e) {
+      showToast(e.message, true);
+    } finally {
+      setInviando(false);
+    }
+  };
 
   const cambiaStato = async (m, nuovo) => {
     setSalvando(true);
@@ -350,7 +391,71 @@ export default function ClientiPosta() {
                     </div>
                   )}
 
+                  {(aperta.risposte_mandate || []).length > 0 && (
+                    <div className="text-xs space-y-1">
+                      <div className="text-neutral-400">↩️ Risposte mandate da qui</div>
+                      {aperta.risposte_mandate.map((r) => (
+                        <details key={r.id} className={`rounded border px-2 py-1 ${r.esito === "ok" ? "border-neutral-200" : "border-red-200 bg-red-50"}`}>
+                          <summary className="cursor-pointer text-neutral-600">
+                            {fmtDataLunga(r.inviato_at)} · a {r.a}{r.cc ? ` (cc ${r.cc})` : ""} · {r.inviato_da}
+                            {r.esito !== "ok" && <span className="text-red-600"> — non partita: {r.errore}</span>}
+                          </summary>
+                          <pre className="whitespace-pre-wrap font-sans text-neutral-700 mt-1">{r.testo}</pre>
+                        </details>
+                      ))}
+                    </div>
+                  )}
+
+                  {risp && (
+                    <div className="rounded-xl border border-teal-200 bg-teal-50/40 p-3 space-y-2">
+                      <div className="text-xs font-semibold text-teal-800">↩️ Rispondi dalla casella del gestionale</div>
+                      {risp.configurata === false && (
+                        <p className="text-xs text-red-700">Il canale email non è configurato: Impostazioni Sistema › Email.</p>
+                      )}
+                      {[["a", "A"], ["cc", "Cc"], ["oggetto", "Oggetto"]].map(([k, l]) => (
+                        <label key={k} className="flex items-center gap-2 text-xs">
+                          <span className="w-14 text-neutral-500">{l}</span>
+                          <input value={risp[k]} onChange={(e) => setRisp((x) => ({ ...x, [k]: e.target.value }))}
+                            className="flex-1 border border-neutral-200 rounded-lg px-2 py-1.5 text-sm bg-white min-h-[36px]" />
+                        </label>
+                      ))}
+                      <textarea value={risp.testo} onChange={(e) => setRisp((x) => ({ ...x, testo: e.target.value }))}
+                        rows={8} autoFocus placeholder="Scrivi la risposta…"
+                        className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm bg-white" />
+                      <div className="flex flex-wrap items-center gap-4 text-xs text-neutral-600">
+                        <label className="flex items-center gap-1.5">
+                          <input type="checkbox" checked={risp.cita} onChange={(e) => setRisp((x) => ({ ...x, cita: e.target.checked }))} />
+                          includi sotto la mail a cui rispondi
+                        </label>
+                        <label className="flex items-center gap-1.5">
+                          <input type="checkbox" checked={risp.gestita} onChange={(e) => setRisp((x) => ({ ...x, gestita: e.target.checked }))} />
+                          segna la mail come gestita
+                        </label>
+                      </div>
+                      {risp.cita && risp.citazione && (
+                        <details className="text-[11px] text-neutral-500">
+                          <summary className="cursor-pointer">Cosa viene citato sotto</summary>
+                          <pre className="whitespace-pre-wrap font-sans mt-1 max-h-40 overflow-auto">{risp.citazione}</pre>
+                        </details>
+                      )}
+                      <div className="flex justify-end gap-2">
+                        <Btn variant="ghost" size="md" onClick={() => setRisp(null)} disabled={inviando}>Annulla</Btn>
+                        <Btn variant="primary" size="md" onClick={inviaRisposta} loading={inviando}
+                          disabled={inviando || !risp.testo.trim() || !risp.a.trim()}>
+                          Invia
+                        </Btn>
+                      </div>
+                      <p className="text-[11px] text-neutral-400">
+                        Parte dalla casella del gestionale come risposta nella stessa conversazione; resta registrata qui
+                        {aperta.preventivo ? " e negli invii del preventivo" : ""}.
+                      </p>
+                    </div>
+                  )}
+
                   <div className="flex flex-wrap items-center justify-end gap-3 pt-2 border-t border-neutral-100">
+                    {!risp && (
+                      <Btn variant="chip" tone="blue" size="md" onClick={apriRisposta} className="mr-auto">↩️ Rispondi</Btn>
+                    )}
                     {aperta.stato === "gestita" && (
                       <span className="text-[11px] text-neutral-400">gestita da {aperta.gestita_da} il {fmtDataLunga(aperta.gestita_at)}</span>
                     )}

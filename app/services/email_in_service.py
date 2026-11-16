@@ -1,4 +1,5 @@
-# @version: v1.0 (2026-11-13) — posta in arrivo: lettura IMAP in sola lettura della casella del gestionale
+# @version: v1.1 (2026-11-16) — «Rispondi» dalla pagina Posta: risposta vera (In-Reply-To/References) via M.D, registrata
+# v1.0 (2026-11-13) — posta in arrivo: lettura IMAP in sola lettura della casella del gestionale
 # Modulo: platform (mattone M.D, lettura) — [core]
 # -*- coding: utf-8 -*-
 """
@@ -475,14 +476,17 @@ _abbinatori: List[Dict[str, Callable]] = []
 
 
 def registra_abbinatore(abbina: Callable, dopo: Optional[Callable] = None,
-                        descrivi: Optional[Callable] = None, nome: str = "") -> None:
+                        descrivi: Optional[Callable] = None, nome: str = "",
+                        dopo_risposta: Optional[Callable] = None) -> None:
     """Un modulo (oggi: preventivi) si aggancia alla posta in arrivo.
       abbina(mail, preventivo_noto) → {preventivo_id, cliente_id, abbinamento, nota, cc_nuovi} | None
       dopo(email_salvata, risultato, avvisa)  → storico, campanello… (avvisa=False al primo import)
-      descrivi([preventivo_id]) → {id: {numero, cliente, evento, scadenza_conferma, stato…}}"""
+      descrivi([preventivo_id]) → {id: {numero, cliente, evento, scadenza_conferma, stato…}}
+      dopo_risposta(email_in, risposta) → dopo una risposta mandata dalla Posta (es. registro invii)"""
     if any(a["abbina"] is abbina for a in _abbinatori):
         return
-    _abbinatori.append({"abbina": abbina, "dopo": dopo, "descrivi": descrivi, "nome": nome})
+    _abbinatori.append({"abbina": abbina, "dopo": dopo, "descrivi": descrivi, "nome": nome,
+                        "dopo_risposta": dopo_risposta})
 
 
 def _preventivo_dal_thread(conn, mail: dict) -> Optional[int]:
@@ -806,6 +810,7 @@ def leggi(email_id: int) -> Optional[dict]:
         conn.close()
     out = _riga(r, _descrivi([r["preventivo_id"]]), completa=True)
     out["altre_mail_del_preventivo"] = thread
+    out["risposte_mandate"] = risposte_mandate(email_id)
     return out
 
 
@@ -907,3 +912,135 @@ def stato() -> Dict[str, Any]:
         "max_mb": c["max_mb"], "max_caratteri": c["max_caratteri"], "max_per_giro": c["max_per_giro"],
         "ha_password": bool(c["password"]), **aggiornamento(),
     }
+
+
+# ═════════════════════════════ rispondere (2026-11-16) ═════════════════════════════
+#
+# Marco (16/11): «un tasto rispondi avrebbe senso». La risposta parte dalla casella del
+# gestionale col canale SMTP di M.D, come risposta VERA (In-Reply-To + References),
+# quindi resta nella stessa conversazione del cliente e la sua prossima risposta torna
+# abbinata da sola. Si manda SOLO dalla pagina, con un clic di Marco su «Invia»: nessuno
+# strumento del connettore manda mail.
+
+def _re(oggetto: str) -> str:
+    o = (oggetto or "").strip()
+    return o if re.match(r"^(re|r|aw|sv)\s*:", o, re.IGNORECASE) else f"RE: {o}".strip()
+
+
+def _citazione(d: dict, limite: int = 20000) -> str:
+    try:
+        dt = datetime.strptime((d.get("data") or "")[:16], "%Y-%m-%d %H:%M")
+        quando = f"Il giorno {dt.strftime('%d/%m/%Y')} alle {dt.strftime('%H:%M')}"
+    except ValueError:
+        quando = "Il giorno"
+    chi = f"{d['mittente_nome']} <{d['mittente']}>" if d.get("mittente_nome") else (d.get("mittente") or "")
+    testo = ripara_codifica(d.get("testo") or "")[:limite]
+    return f"{quando} {chi} ha scritto:\n" + "\n".join("> " + r for r in testo.split("\n"))
+
+
+def _lista(v) -> List[str]:
+    if isinstance(v, str):
+        v = re.split(r"[,;]", v)
+    return [x.strip() for x in (v or []) if x and x.strip()]
+
+
+def bozza_risposta(email_id: int) -> Optional[dict]:
+    """Destinatari, oggetto e citazione proposti per rispondere a una mail: a = chi l'ha
+    scritta; cc = gli altri del thread (a + cc) tranne la casella stessa."""
+    init_email_db()
+    conn = get_email_conn()
+    try:
+        r = conn.execute("SELECT * FROM email_in WHERE id = ?", (int(email_id),)).fetchone()
+    finally:
+        conn.close()
+    if not r:
+        return None
+    d = dict(r)
+    nostri = set(config()["nostri"])
+    mitt = (d.get("mittente") or "").lower()
+    altri = _indirizzi([d.get("a") or "", d.get("cc") or ""])
+    cc = [x for x in altri if x not in nostri and x != mitt]
+    return {"a": [mitt] if mitt else [], "cc": cc, "oggetto": _re(ripara_codifica(d.get("oggetto") or "")),
+            "citazione": _citazione(d), "email_configurata": not _smtp_mancanti()}
+
+
+def _smtp_mancanti() -> List[str]:
+    from app.services import email_service
+    try:
+        return email_service.mancanti()
+    except Exception:                                   # noqa: BLE001
+        return ["canale email"]
+
+
+def rispondi(email_id: int, testo: str, utente: str, a=None, cc=None, oggetto: Optional[str] = None,
+             cita: bool = True, segna_gestita: bool = True) -> Optional[dict]:
+    """Manda la risposta e la registra (anche se fallisce). Ritorna {ok, errore, risposta, mail}."""
+    from app.services import email_service
+    if not (testo or "").strip():
+        raise ValueError("Testo vuoto")
+    bozza = bozza_risposta(email_id)
+    if bozza is None:
+        return None
+    a = _lista(a) if a is not None else bozza["a"]
+    cc = _lista(cc) if cc is not None else bozza["cc"]
+    if not a:
+        raise ValueError("Nessun destinatario")
+    for x in a + cc:
+        if "@" not in x or "." not in x.split("@")[-1]:
+            raise ValueError(f"Indirizzo non valido: {x}")
+    gia = {x.lower() for x in a}
+    cc = [x for x in dict.fromkeys(cc) if x.lower() not in gia]
+    oggetto = (oggetto or "").strip() or bozza["oggetto"]
+    corpo = testo.rstrip() + ("\n\n" + bozza["citazione"] if cita else "")
+
+    conn = get_email_conn()
+    try:
+        r = dict(conn.execute("SELECT * FROM email_in WHERE id = ?", (int(email_id),)).fetchone())
+    finally:
+        conn.close()
+    intest = {}
+    mid = r.get("message_id") or ""
+    if mid and not mid.endswith(("@trgb.senza-id>", "@trgb.illeggibile>")):
+        intest["In-Reply-To"] = mid
+        rif = [x for x in (r.get("riferimenti") or "").split() if x] + [mid]
+        intest["References"] = " ".join(dict.fromkeys(rif))
+
+    esito = email_service.invia_email(to=a, subject=oggetto, body=corpo, cc=cc or None, intestazioni=intest)
+
+    conn = get_email_conn()
+    try:
+        rid = conn.execute(
+            """INSERT INTO email_in_risposte (email_in_id, a, cc, oggetto, testo, message_id, esito, errore, inviato_da)
+               VALUES (?,?,?,?,?,?,?,?,?)""",
+            (int(email_id), ", ".join(a), ", ".join(cc), oggetto, testo.rstrip(), esito.message_id,
+             "ok" if esito.ok else "errore", esito.errore, utente)).lastrowid
+        if esito.ok and segna_gestita:
+            conn.execute(
+                "UPDATE email_in SET stato = 'gestita', gestita_da = ?, gestita_at = datetime('now','localtime') "
+                "WHERE id = ? AND stato = 'nuova'", (f"{utente} (risposta)", int(email_id)))
+        conn.commit()
+        riga = dict(conn.execute("SELECT * FROM email_in_risposte WHERE id = ?", (rid,)).fetchone())
+    finally:
+        conn.close()
+
+    if esito.ok:
+        for ab in _abbinatori:
+            if ab.get("dopo_risposta") and r.get("preventivo_id"):
+                try:
+                    ab["dopo_risposta"](r, riga)
+                except Exception:                       # noqa: BLE001 — la mail è partita: il resto non la blocca
+                    logger.exception("dopo-risposta %s fallito (mail %s)", ab.get("nome"), email_id)
+    else:
+        logger.warning("Risposta alla mail %s non partita: %s", email_id, esito.errore)
+    return {"ok": esito.ok, "errore": esito.errore, "risposta": riga, "mail": leggi(email_id)}
+
+
+def risposte_mandate(email_id: int) -> List[dict]:
+    init_email_db()
+    conn = get_email_conn()
+    try:
+        return [dict(x) for x in conn.execute(
+            "SELECT id, a, cc, oggetto, testo, esito, errore, inviato_da, inviato_at FROM email_in_risposte "
+            "WHERE email_in_id = ? ORDER BY id", (int(email_id),))]
+    finally:
+        conn.close()

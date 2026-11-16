@@ -3,6 +3,9 @@
 
 ---
 
+## 2026-11-16 — Clienti 3.39: la rubrica dei clienti sul telefono (sistema 6.4, mig 238) `[core]`
+Prima Marco esportava ogni tanto i contatti di TheFork su un account Gmail per riconoscere i clienti quando chiamano e averli su WhatsApp Business. Ora il telefono si abbona alla rubrica di TRGB: un account CardDAV in sola lettura (`/rubrica/`) che il telefono rilegge da solo. Entrano i clienti attivi con un telefono valido e almeno una stella TRGB (oggi circa 4.660; soglia e prefisso in Impostazioni). Sul telefono il nome è «TG Daniele Trentini ★★★★»: prefisso per distinguerli dai contatti personali, nome, somma delle stelle nere, argento e oro (i colori non si vedono, il numero sì); ordine per cognome. Nella nota: stelle, segmento, visite, ultima visita, allergie, preferenze. Niente compleanni. Un accesso per telefono, password mostrata una volta, revocabile da Clienti › Impostazioni › «📱 Rubrica telefono»; il telefono non può scrivere (PUT/DELETE → 403). Provato su copia del DB: 4.671 contatti, multiget, 401 senza credenziali e dopo la revoca. Google Contacts scartato per il tetto di 25.000 contatti.
+
 ## 2026-11-16 — Clienti 3.38: il primo ricalcolo di stelle e segmenti non partiva `[core]`
 Dopo il push del 3.36 Marco vedeva 3 «Di casa» e 3 «Affezionati» invece di 34 e 215: in `clienti_profilo` c'erano solo 412 clienti su 26.000. Il thread aspetta 90 secondi dopo l'avvio e calcolava tutto solo se la tabella era vuota o vecchia di un giorno; nel frattempo la lista e le schede aperte avevano già calcolato al volo qualche cliente, e il thread ha creduto che il giro di oggi fosse fatto. Ora la fine del ricalcolo completo si segna a parte (`clienti_impostazioni.profilo_ultimo_ricalcolo`) e il thread guarda quella. Subito, senza aspettare il push: Clienti › Impostazioni › «Segmenti e stelle» › «Ricalcola adesso». File: `clienti_profilo_service.py`, `versions.jsx`.
 

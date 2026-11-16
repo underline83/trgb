@@ -1,4 +1,5 @@
-# @version: v1.0 — Mattone M.D (versione minima, sessione 2026-07-30)
+# @version: v1.1 — intestazioni extra (In-Reply-To/References per le risposte dalla Posta, 2026-11-16)
+# v1.0 — Mattone M.D (versione minima, sessione 2026-07-30)
 # -*- coding: utf-8 -*-
 """
 Email service — TRGB Gestionale (mattone M.D, versione minima)
@@ -247,6 +248,7 @@ def _costruisci(
     allegati: Optional[Sequence[Allegato]] = None,
     cc: Optional[Sequence[str]] = None,
     reply_to: Optional[str] = None,
+    intestazioni: Optional[dict] = None,
 ) -> EmailMessage:
     c = _cfg()
     msg = EmailMessage()
@@ -258,6 +260,10 @@ def _costruisci(
         msg["Reply-To"] = reply_to
     msg["Subject"] = subject
     msg["Message-ID"] = make_msgid(domain=(c["from_addr"].split("@")[-1] or None))
+    # Solo intestazioni di thread (risposte): niente From/To/Subject da qui
+    for nome, valore in (intestazioni or {}).items():
+        if nome in ("In-Reply-To", "References") and valore:
+            msg[nome] = valore
     msg.set_content(body or "")
 
     for nome, contenuto, mime in (allegati or []):
@@ -278,6 +284,7 @@ def invia_email(
     allegati: Optional[Sequence[Allegato]] = None,
     cc=None,
     reply_to: Optional[str] = None,
+    intestazioni: Optional[dict] = None,
 ) -> EsitoInvio:
     """
     Invia una email. Non solleva: ritorna sempre un EsitoInvio (l'errore è un
@@ -307,7 +314,7 @@ def invia_email(
     except ValueError:
         return EsitoInvio(ok=False, destinatari=to, errore=f"SMTP_PORT non numerica: {c['port']!r}")
 
-    msg = _costruisci(to, subject, body, allegati, cc, reply_to)
+    msg = _costruisci(to, subject, body, allegati, cc, reply_to, intestazioni)
     raw = msg.as_bytes()
 
     try:
