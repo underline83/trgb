@@ -1,4 +1,5 @@
-# @version: v1.0 (2026-11-19) — le altre caselle del locale in sola lettura (posta in arrivo, inviata, spam, cestino; PEC)
+# @version: v1.1 (2026-11-19) — «da rispondere» salta anche le mail di trgb@ già gestite; caselle per la pagina Posta
+# v1.0 (2026-11-19) — le altre caselle del locale in sola lettura (posta in arrivo, inviata, spam, cestino; PEC)
 # Modulo: platform (mattone M.D, lettura) — [core]
 # -*- coding: utf-8 -*-
 """
@@ -843,7 +844,7 @@ def elenco(dal: Optional[str] = None, giorni: Optional[int] = None, casella: Opt
             continue
         vere.append(_riga(r, da_dove, anche, risposto, come, in_ritardo))
     for m in trgb:
-        if solo_da_rispondere and m.get("risposto"):
+        if solo_da_rispondere and (m.get("risposto") or m.get("stato_trgb") == "gestita"):
             continue
         vere.append(m)
     vere.sort(key=lambda m: (m.get("data") or ""), reverse=True)

@@ -1,4 +1,7 @@
-// @version: v1.1 (2026-11-16) — «↩️ Rispondi»: risposta dalla casella del gestionale, nella stessa conversazione
+// @version: v1.2 (2026-11-19) — tutte le caselle del locale insieme, selettore per casella (Tutte · trgb · info · …):
+//   le altre caselle da GET /email/posta (sola lettura: letta/risposto dal server, spam e cestino, PEC), la casella
+//   del gestionale com'era (Da gestire/Gestite, preventivi, Rispondi)
+// v1.1 (2026-11-16) — «↩️ Rispondi»: risposta dalla casella del gestionale, nella stessa conversazione
 // v1.0 (2026-11-13) — «📥 Posta»: tutta la posta in arrivo della casella del gestionale
 // Modulo: clienti (pagina) — dati dal mattone M.D lettura (GET /email/in, solo admin)
 // Elenco a sinistra (filtri nuove/gestite, collegate/non collegate, ricerca), mail aperta a
@@ -35,6 +38,20 @@ function fmtDataLunga(s) {
   return s ? `${s.slice(8, 10)}/${s.slice(5, 7)}/${s.slice(0, 4)} ${s.slice(11, 16)}` : "";
 }
 
+const CARTELLE = [
+  { v: "in_arrivo,spam,cestino", l: "Tutte le cartelle" },
+  { v: "in_arrivo", l: "In arrivo" },
+  { v: "spam", l: "Spam" },
+  { v: "cestino", l: "Cestino" },
+];
+
+// Nome corto della casella per i chip: il nome dato in Impostazioni, se no la parte prima della @
+function nomeCasella(c) {
+  if (!c) return "";
+  if (c.nome) return c.nome;
+  return c.indirizzo.includes("pec") ? `PEC ${c.indirizzo.split("@")[0]}@` : `${c.indirizzo.split("@")[0]}@`;
+}
+
 function kb(n) {
   if (!n && n !== 0) return "";
   return n >= 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`;
@@ -43,6 +60,13 @@ function kb(n) {
 export default function ClientiPosta() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
+  // casella: "tutte" | "trgb" (quella del gestionale, coi preventivi) | id di un'altra casella
+  const [casella, setCasella] = useState(params.get("id") ? "trgb" : "tutte");
+  const [caselle, setCaselle] = useState([]);
+  const [daRispondere, setDaRispondere] = useState(true);
+  const [cartella, setCartella] = useState(CARTELLE[0].v);
+  const [vediMassive, setVediMassive] = useState(false);
+  const modoTrgb = casella === "trgb";
   const [stato, setStato] = useState("nuova");
   const [collegate, setCollegate] = useState("");   // "" | "si" | "no"
   const [periodo, setPeriodo] = useState("30");
@@ -58,7 +82,15 @@ export default function ClientiPosta() {
   const [toast, setToast] = useState(null);
   const [risp, setRisp] = useState(null);        // composer aperto: {a, cc, oggetto, testo, cita, gestita, citazione}
   const [inviando, setInviando] = useState(false);
-  const idAperta = params.get("id");
+  const idAperta = params.get("id");       // mail della casella del gestionale
+  const pidAperta = params.get("pid");     // mail di un'altra casella
+
+  useEffect(() => {
+    apiFetch(`${API_BASE}/email/caselle/`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d && setCaselle((d.caselle || []).filter((c) => c.attiva)))
+      .catch(() => {});
+  }, []);
 
   const showToast = (msg, isError = false) => {
     setToast({ msg, isError });
@@ -74,6 +106,21 @@ export default function ClientiPosta() {
     setLoading(true);
     setErrore("");
     try {
+      if (!modoTrgb) {
+        const p = new URLSearchParams();
+        if (periodo) p.set("giorni", periodo);
+        if (casella !== "tutte") p.set("casella", casella);
+        p.set("anche_trgb", casella === "tutte" ? "true" : "false");
+        p.set("dove", cartella);
+        if (daRispondere) p.set("solo_da_rispondere", "true");
+        if (qDeb) p.set("q", qDeb);
+        p.set("limite", "300");
+        const res = await apiFetch(`${API_BASE}/email/posta?${p}`);
+        const d = await res.json();
+        if (!res.ok) throw new Error(d.detail || `Errore ${res.status}`);
+        setDati({ ...d, modo: "posta" });
+        return;
+      }
       const p = new URLSearchParams();
       if (stato) p.set("stato", stato);
       if (periodo) p.set("giorni", periodo);
@@ -90,13 +137,13 @@ export default function ClientiPosta() {
     } finally {
       setLoading(false);
     }
-  }, [stato, periodo, collegate, qDeb]);
+  }, [stato, periodo, collegate, qDeb, modoTrgb, casella, cartella, daRispondere]);
 
   useEffect(() => { carica(); }, [carica]);
 
   // Mail aperta: dall'URL (?id=), così si può tornare indietro e ricaricare
   useEffect(() => {
-    if (!idAperta) { setAperta(null); return; }
+    if (!idAperta) { if (!pidAperta) setAperta(null); return; }
     let vivo = true;
     setCaricaMail(true);
     apiFetch(`${API_BASE}/email/in/${idAperta}`)
@@ -111,7 +158,29 @@ export default function ClientiPosta() {
     return () => { vivo = false; };
   }, [idAperta]);
 
-  const apri = (id) => { setRisp(null); setParams(id ? { id: String(id) } : {}); };
+  // Mail di un'altra casella: sola lettura (GET /email/posta/{id})
+  useEffect(() => {
+    if (!pidAperta) { if (!idAperta) setAperta(null); return; }
+    let vivo = true;
+    setCaricaMail(true);
+    apiFetch(`${API_BASE}/email/posta/${pidAperta}`)
+      .then(async (r) => {
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.detail || `Errore ${r.status}`);
+        return d;
+      })
+      .then((d) => { if (vivo) setAperta({ ...d, _casella: true }); })
+      .catch((e) => { if (vivo) { setAperta(null); showToast(e.message, true); } })
+      .finally(() => { if (vivo) setCaricaMail(false); });
+    return () => { vivo = false; };
+  }, [pidAperta]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // fonte "casella" = altra casella (?pid=), altrimenti casella del gestionale (?id=)
+  const apri = (id, fonte) => {
+    setRisp(null);
+    setParams(!id ? {} : fonte === "casella" ? { pid: String(id) } : { id: String(id) });
+  };
+  const scegliCasella = (c) => { setCasella(c); apri(null); };
 
   const apriRisposta = async () => {
     try {
@@ -174,11 +243,22 @@ export default function ClientiPosta() {
   const leggiOra = async () => {
     setLeggendo(true);
     try {
-      const r = await apiFetch(`${API_BASE}/email/lettura/giro`, { method: "POST" });
-      const d = await r.json();
-      if (d.esito === "ok") showToast(d.nuove ? `${d.nuove} ${d.nuove === 1 ? "mail nuova" : "mail nuove"}` : "Nessuna mail nuova");
-      else if (d.esito === "saltato") showToast(`Non letta: ${d.nota}`, true);
-      else showToast(`Errore: ${d.errore || d.detail}`, true);
+      // casella del gestionale e/o altre caselle, secondo il selettore
+      const giri = [];
+      if (casella === "tutte" || modoTrgb) giri.push(apiFetch(`${API_BASE}/email/lettura/giro`, { method: "POST" }).then((r) => r.json()));
+      if (!modoTrgb && caselle.length) {
+        const q = casella === "tutte" ? "" : `?casella=${encodeURIComponent(casella)}`;
+        giri.push(apiFetch(`${API_BASE}/email/caselle/giro${q}`, { method: "POST" }).then((r) => r.json()));
+      }
+      const esiti = await Promise.all(giri);
+      const nuove = esiti.reduce((t, d) => t + (d.nuove || 0), 0);
+      const errori = esiti.flatMap((d) => [
+        ...(d.esito === "errore" && d.errore ? [d.errore] : []),
+        ...((d.caselle || []).filter((c) => c.esito === "errore").map((c) => `${c.casella}: ${c.errore}`)),
+        ...(d.esito === "saltato" ? [d.nota] : []),
+      ]);
+      if (errori.length) showToast(`Non tutto letto — ${errori.join(" · ")}`, true);
+      else showToast(nuove ? `${nuove} ${nuove === 1 ? "mail nuova" : "mail nuove"}` : "Nessuna mail nuova");
       carica();
     } catch (e) {
       showToast(e.message, true);
@@ -188,7 +268,12 @@ export default function ClientiPosta() {
   };
 
   const mail = dati?.mail || [];
-  const agg = dati?.aggiornamento;
+  const agg = modoTrgb ? dati?.aggiornamento : dati?.trgb_aggiornamento;
+  const massive = (!modoTrgb && dati?.massive) || [];
+  const caselleKo = (!modoTrgb && dati?.caselle ? dati.caselle : []).filter((c) => c.attiva && c.errori_di_fila > 0);
+  const daRispondereN = !modoTrgb ? mail.filter((m) => !m.risposto && m.stato_trgb !== "gestita").length : 0;
+  const etichetta = (indirizzo) => nomeCasella(caselle.find((c) => c.indirizzo === indirizzo)) || indirizzo;
+  const apertaTrgb = aperta && !aperta._casella;
 
   const chip = (attivo, onClick, label) => (
     <button type="button" onClick={onClick}
@@ -206,10 +291,18 @@ export default function ClientiPosta() {
             <div>
               <h1 className="text-2xl font-bold text-neutral-900" style={{ fontFamily: "'Playfair Display', serif" }}>📥 Posta</h1>
               <p className="text-sm text-neutral-500 mt-1">
-                La casella del gestionale, letta in sola lettura ogni pochi minuti
-                {agg?.ultimo_ok ? ` · ultima lettura ${fmtData(agg.ultimo_ok)}` : ""}
-                {dati ? ` · ${dati.nuove_in_casella} da gestire` : ""}
+                {modoTrgb
+                  ? <>La casella del gestionale, letta in sola lettura ogni pochi minuti
+                      {agg?.ultimo_ok ? ` · ultima lettura ${fmtData(agg.ultimo_ok)}` : ""}
+                      {dati && dati.nuove_in_casella !== undefined ? ` · ${dati.nuove_in_casella} da gestire` : ""}</>
+                  : <>{casella === "tutte" ? "Tutte le caselle del locale" : etichetta(caselle.find((c) => c.id === casella)?.indirizzo)},
+                      lette in sola lettura ogni pochi minuti{dati && daRispondere ? ` · ${daRispondereN} da rispondere` : ""}</>}
               </p>
+              {caselleKo.map((c) => (
+                <p key={c.casella} className="text-xs text-amber-700 mt-1" title={c.ultimo_errore || ""}>
+                  ⚠️ {c.casella}: le ultime {c.errori_di_fila} letture non sono andate — {c.ultimo_errore}
+                </p>
+              ))}
               {agg && agg.errori_di_fila > 0 && (
                 <p className="text-xs text-amber-700 mt-1" title={agg.ultimo_errore || ""}>
                   ⚠️ Le ultime {agg.errori_di_fila} letture non sono andate: {agg.ultimo_errore}
@@ -221,19 +314,43 @@ export default function ClientiPosta() {
             </Btn>
           </div>
 
+          {/* Selettore casella */}
+          <div className="flex flex-wrap gap-1 mb-2">
+            {chip(casella === "tutte", () => scegliCasella("tutte"), "📬 Tutte")}
+            {chip(modoTrgb, () => scegliCasella("trgb"), "📋 trgb@ (preventivi)")}
+            {caselle.map((c) => (
+              <span key={c.id}>{chip(casella === c.id, () => scegliCasella(c.id), nomeCasella(c))}</span>
+            ))}
+          </div>
+
           {/* Filtri */}
           <div className="bg-white rounded-xl border border-neutral-200 shadow-sm p-3 mb-4 flex flex-wrap items-center gap-2">
-            <div className="flex gap-1">
-              {chip(stato === "nuova", () => setStato("nuova"), "Da gestire")}
-              {chip(stato === "gestita", () => setStato("gestita"), "Gestite")}
-              {chip(stato === "", () => setStato(""), "Tutte")}
-            </div>
-            <span className="hidden sm:inline text-neutral-200">|</span>
-            <div className="flex gap-1">
-              {chip(collegate === "", () => setCollegate(""), "Tutte")}
-              {chip(collegate === "si", () => setCollegate("si"), "📋 Con preventivo")}
-              {chip(collegate === "no", () => setCollegate("no"), "Non collegate")}
-            </div>
+            {modoTrgb ? (
+              <>
+                <div className="flex gap-1">
+                  {chip(stato === "nuova", () => setStato("nuova"), "Da gestire")}
+                  {chip(stato === "gestita", () => setStato("gestita"), "Gestite")}
+                  {chip(stato === "", () => setStato(""), "Tutte")}
+                </div>
+                <span className="hidden sm:inline text-neutral-200">|</span>
+                <div className="flex gap-1">
+                  {chip(collegate === "", () => setCollegate(""), "Tutte")}
+                  {chip(collegate === "si", () => setCollegate("si"), "📋 Con preventivo")}
+                  {chip(collegate === "no", () => setCollegate("no"), "Non collegate")}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex gap-1">
+                  {chip(daRispondere, () => setDaRispondere(true), "Da rispondere")}
+                  {chip(!daRispondere, () => setDaRispondere(false), "Tutte")}
+                </div>
+                <span className="hidden sm:inline text-neutral-200">|</span>
+                <div className="flex flex-wrap gap-1">
+                  {CARTELLE.map((c) => <span key={c.v}>{chip(cartella === c.v, () => setCartella(c.v), c.l)}</span>)}
+                </div>
+              </>
+            )}
             <select value={periodo} onChange={(e) => setPeriodo(e.target.value)}
               className="border border-neutral-200 rounded-lg px-2 py-1.5 text-xs bg-white min-h-[36px]">
               {PERIODI.map((p) => <option key={p.v} value={p.v}>{p.l}</option>)}
@@ -257,14 +374,19 @@ export default function ClientiPosta() {
                 ) : (
                   <ul className="divide-y divide-neutral-100">
                     {mail.map((m) => {
+                      if (!modoTrgb && m.fonte === "casella") {
+                        const sel = String(m.id) === String(pidAperta);
+                        return <RigaCasella key={`c${m.id}`} m={m} sel={sel} onClick={() => apri(m.id, "casella")}
+                          etichetta={casella === "tutte" ? etichetta(m.casella) : null} />;
+                      }
                       const sel = String(m.id) === String(idAperta);
                       return (
-                        <li key={m.id}>
-                          <button type="button" onClick={() => apri(m.id)}
+                        <li key={`t${m.id}`}>
+                          <button type="button" onClick={() => apri(m.id, "trgb")}
                             className={`w-full text-left px-4 py-3 min-h-[44px] transition ${sel ? "bg-teal-50" : "hover:bg-neutral-50"}`}>
                             <div className="flex items-baseline gap-2">
-                              {m.stato === "nuova" && <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0 translate-y-[-1px]" title="Da gestire" />}
-                              <span className={`truncate text-sm ${m.stato === "nuova" ? "font-semibold text-neutral-900" : "text-neutral-700"}`}>
+                              {(m.stato || m.stato_trgb) === "nuova" && <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0 translate-y-[-1px]" title="Da gestire" />}
+                              <span className={`truncate text-sm ${(m.stato || m.stato_trgb) === "nuova" ? "font-semibold text-neutral-900" : "text-neutral-700"}`}>
                                 {m.mittente_nome || m.mittente || "(mittente sconosciuto)"}
                               </span>
                               <span className="ml-auto text-[11px] text-neutral-400 whitespace-nowrap">{fmtData(m.data)}</span>
@@ -275,9 +397,12 @@ export default function ClientiPosta() {
                             </div>
                             <div className="text-xs text-neutral-500 truncate mt-0.5">{(m.estratto || "").replace(/\s+/g, " ")}</div>
                             <div className="flex flex-wrap gap-1 mt-1">
+                              {!modoTrgb && casella === "tutte" && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-teal-100 text-teal-800 font-medium">trgb@</span>
+                              )}
                               {m.preventivo ? (
                                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 font-medium">
-                                  📋 {m.preventivo.numero} · {m.preventivo.cliente || m.preventivo.titolo}
+                                  📋 {m.preventivo.numero}{(m.preventivo.cliente || m.preventivo.titolo) ? ` · ${m.preventivo.cliente || m.preventivo.titolo}` : ""}
                                 </span>
                               ) : (
                                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-neutral-100 text-neutral-500">non collegata</span>
@@ -292,6 +417,33 @@ export default function ClientiPosta() {
                     })}
                   </ul>
                 )}
+                {massive.length > 0 && (
+                  <div className="border-t border-neutral-200">
+                    <button type="button" onClick={() => setVediMassive((v) => !v)}
+                      className="w-full text-left px-4 py-3 min-h-[44px] text-xs text-neutral-500 hover:bg-neutral-50">
+                      📰 Newsletter e notifiche automatiche: {dati.n_massive || massive.length} {vediMassive ? "▲" : "▼"}
+                    </button>
+                    {vediMassive && (
+                      <ul className="divide-y divide-neutral-100">
+                        {massive.map((m) => (
+                          <li key={`m${m.id}`}>
+                            <button type="button" onClick={() => apri(m.id, "casella")}
+                              className={`w-full text-left px-4 py-2 min-h-[44px] text-xs transition ${String(m.id) === String(pidAperta) ? "bg-teal-50" : "hover:bg-neutral-50"}`}>
+                              <div className="flex gap-2">
+                                <span className="truncate text-neutral-600">{m.mittente_nome || m.mittente}</span>
+                                <span className="ml-auto text-neutral-400 whitespace-nowrap">{fmtData(m.data)}</span>
+                              </div>
+                              <div className="truncate text-neutral-700">{m.oggetto || "(senza oggetto)"}</div>
+                              <div className="text-[10px] text-neutral-400">
+                                {casella === "tutte" ? `${etichetta(m.casella)} · ` : ""}{m.dove !== "posta in arrivo" ? `${m.dove} · ` : ""}{m.perche}
+                              </div>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -303,6 +455,8 @@ export default function ClientiPosta() {
                 <div className="bg-white rounded-xl border border-dashed border-neutral-200 p-10 text-center text-sm text-neutral-400">
                   Scegli una mail dall'elenco
                 </div>
+              ) : aperta._casella ? (
+                <MailCasella m={aperta} etichetta={etichetta} onChiudi={() => apri(null)} />
               ) : (
                 <div className="bg-white rounded-xl border border-neutral-200 shadow-sm p-5 space-y-4">
                   <button type="button" onClick={() => apri(null)}
@@ -480,5 +634,111 @@ export default function ClientiPosta() {
         </div>
       )}
     </>
+  );
+}
+
+
+
+// Una riga dell'elenco per le mail delle altre caselle (sola lettura)
+function RigaCasella({ m, sel, onClick, etichetta }) {
+  const nonLetta = m.letta === false;
+  const fuori = m.dove && m.dove !== "posta in arrivo";
+  return (
+    <li>
+      <button type="button" onClick={onClick}
+        className={`w-full text-left px-4 py-3 min-h-[44px] transition ${sel ? "bg-teal-50" : "hover:bg-neutral-50"}`}>
+        <div className="flex items-baseline gap-2">
+          {!m.risposto && <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0 translate-y-[-1px]" title="Senza risposta" />}
+          <span className={`truncate text-sm ${nonLetta ? "font-semibold text-neutral-900" : "text-neutral-700"}`}>
+            {m.mittente_nome || m.mittente || "(mittente sconosciuto)"}
+          </span>
+          <span className="ml-auto text-[11px] text-neutral-400 whitespace-nowrap">{fmtData(m.data)}</span>
+        </div>
+        <div className={`text-sm truncate mt-0.5 ${nonLetta ? "font-semibold text-neutral-900" : "text-neutral-800"}`}>
+          {(m.allegati || []).length > 0 && <span className="mr-1">📎</span>}
+          {m.oggetto || "(senza oggetto)"}
+        </div>
+        <div className="text-xs text-neutral-500 truncate mt-0.5">{(m.estratto || "").replace(/\s+/g, " ")}</div>
+        <div className="flex flex-wrap gap-1 mt-1">
+          {etichetta && <span className="text-[10px] px-1.5 py-0.5 rounded bg-sky-100 text-sky-800 font-medium">{etichetta}</span>}
+          {fuori && <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-medium">{m.dove}</span>}
+          {m.pec && <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-100 text-violet-800">PEC{m.pec.tipo !== "messaggio" ? ` · ${m.pec.tipo}` : ""}</span>}
+          {m.spam_marcato && <span className="text-[10px] px-1.5 py-0.5 rounded bg-neutral-200 text-neutral-600">segnata spam</span>}
+          {m.in_ritardo && <span className="text-[10px] px-1.5 py-0.5 rounded bg-neutral-100 text-neutral-600">arrivata in ritardo</span>}
+          {m.risposto && <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">↩️ risposto</span>}
+          {(m.anche_in || []).length > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded bg-neutral-100 text-neutral-500">anche in {m.anche_in.join(", ")}</span>}
+        </div>
+      </button>
+    </li>
+  );
+}
+
+// Una mail di un'altra casella, aperta: sola lettura. Si risponde dal proprio programma di posta.
+function MailCasella({ m, etichetta, onChiudi }) {
+  return (
+    <div className="bg-white rounded-xl border border-neutral-200 shadow-sm p-5 space-y-4">
+      <button type="button" onClick={onChiudi} className="lg:hidden text-sm text-teal-700 font-medium min-h-[44px]">← Elenco</button>
+
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <h2 className="text-lg font-semibold text-neutral-900 break-words">{m.oggetto || "(senza oggetto)"}</h2>
+        <StatusBadge tone={m.risposto ? "success" : "danger"} dot>{m.risposto ? "Risposto" : "Senza risposta"}</StatusBadge>
+      </div>
+
+      <dl className="text-xs text-neutral-600 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+        <dt className="text-neutral-400">Casella</dt>
+        <dd>{etichetta(m.casella)} <span className="text-neutral-400">· {m.dove}{m.letta === false ? " · non letta" : ""}</span></dd>
+        <dt className="text-neutral-400">Da</dt>
+        <dd className="break-all">{m.mittente_nome ? `${m.mittente_nome} <${m.mittente}>` : m.mittente}</dd>
+        <dt className="text-neutral-400">A</dt>
+        <dd className="break-all">{m.a || "—"}</dd>
+        {m.cc && (<><dt className="text-neutral-400">Cc</dt><dd className="break-all">{m.cc}</dd></>)}
+        <dt className="text-neutral-400">Data</dt>
+        <dd>{fmtDataLunga(m.data)}</dd>
+      </dl>
+
+      {m.pec && (
+        <div className="rounded-lg border border-violet-200 bg-violet-50/50 px-3 py-2 text-xs text-violet-900">
+          PEC · {m.pec.tipo === "messaggio" ? "messaggio (mittente e testo sono quelli veri, dentro la busta)" : m.pec.tipo}
+          {m.pec.busta && <div className="text-violet-700/70 mt-0.5">Busta: {m.pec.busta}</div>}
+        </div>
+      )}
+      {m.risposto_come && <p className="text-xs text-emerald-800">↩️ {m.risposto_come}</p>}
+      {m.massiva && <p className="text-xs text-neutral-500">📰 Newsletter o notifica automatica ({m.massiva_perche})</p>}
+
+      <pre className="whitespace-pre-wrap break-words font-sans text-sm text-neutral-800 bg-neutral-50 border border-neutral-100 rounded-lg p-3 max-h-[60vh] overflow-auto">
+        {m.testo || "(nessun testo)"}
+      </pre>
+      {m.testo_troncato && <p className="text-[11px] text-neutral-400">Testo tagliato: il resto è nella webmail.</p>}
+
+      {(m.allegati_dettaglio || []).filter((a) => a.nome !== "(inline)").length > 0 && (
+        <div className="text-xs text-neutral-600">
+          <div className="text-neutral-400 mb-1">📎 Allegati (i file restano nella casella, si aprono dal programma di posta)</div>
+          <ul className="space-y-0.5">
+            {m.allegati_dettaglio.filter((a) => a.nome !== "(inline)").map((a, i) => (
+              <li key={i}>{a.nome}{a.dimensione ? ` · ${kb(a.dimensione)}` : ""}{a.tipo ? <span className="text-neutral-400"> · {a.tipo}</span> : null}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {(m.risposte_mandate || []).length > 0 && (
+        <div className="text-xs">
+          <div className="text-neutral-400 mb-1">↩️ Risposte mandate</div>
+          <ul className="space-y-0.5">
+            {m.risposte_mandate.map((r, i) => (
+              <li key={i}><span className="text-neutral-400">{fmtDataLunga(r.data)}</span> da {r.casella} a {r.a} — {r.oggetto}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {(m.altre_copie || []).length > 0 && (
+        <p className="text-[11px] text-neutral-400">Stessa mail anche in: {m.altre_copie.map((c) => `${c.casella} (${c.dove})`).join(", ")}</p>
+      )}
+
+      <p className="text-[11px] text-neutral-400 pt-2 border-t border-neutral-100">
+        Il gestionale legge questa casella senza toccarla: per rispondere, spostare o cancellare usa il tuo programma di posta.
+      </p>
+    </div>
   );
 }

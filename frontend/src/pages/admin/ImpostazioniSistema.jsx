@@ -1,4 +1,5 @@
-// @version: v1.5 — tab Email: «📬 Altre caselle del locale» (info@, prenotazioni@, PEC… in sola lettura: server, password cifrata, cartelle, prova, stato per casella) (2026-11-19)
+// @version: v1.6 — tab Email: un riquadro solo «📥 Caselle lette dal gestionale» (trgb@ in testa + le altre), via il riquadro «Posta in arrivo» a parte (2026-11-19)
+// v1.5 — tab Email: «📬 Altre caselle del locale» (info@, prenotazioni@, PEC… in sola lettura: server, password cifrata, cartelle, prova, stato per casella) (2026-11-19)
 // v1.4 — tab Email: «📥 Posta in arrivo» (lettura IMAP in sola lettura, stato del job, Leggi adesso) (2026-11-13)
 // v1.3 — «Vedi come»: durata e registro sotto Utenti, solo superadmin (2026-11-06)
 // v1.2 — tab "Home per ruolo" (sessione 49)
@@ -1113,98 +1114,14 @@ function TabEmail() {
         </div>
       </div>
 
-      <LetturaPosta />
-      <AltreCaselle />
+      <CaselleLette />
     </div>
   );
 }
 
-// Posta in arrivo (2026-11-13): stessa casella, letta via IMAP in SOLA LETTURA ogni N minuti.
-function LetturaPosta() {
-  const [st, setSt] = useState(null);
-  const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState("");
-  const fmt = (s) => (s ? `${s.slice(8, 10)}/${s.slice(5, 7)} ${s.slice(11, 16)}` : "—");
-
-  const carica = () =>
-    apiFetch(`${API_BASE}/email/lettura/`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => d && setSt(d))
-      .catch(() => {});
-  useEffect(() => { carica(); }, []);
-
-  const leggiOra = async () => {
-    setBusy(true); setMsg("");
-    try {
-      const r = await apiFetch(`${API_BASE}/email/lettura/giro`, { method: "POST" });
-      const d = await r.json();
-      setMsg(d.esito === "ok" ? `Letta: ${d.nuove} nuove${d.nota ? ` (${d.nota})` : ""}.`
-        : d.esito === "saltato" ? `Non letta: ${d.nota}.` : `Errore: ${d.errore || d.detail}`);
-      carica();
-    } catch (e) {
-      setMsg(e.message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const accendi = async (attiva) => {
-    setBusy(true);
-    try {
-      const r = await apiFetch(`${API_BASE}/email/lettura/`, {
-        method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ attiva }),
-      });
-      if (r.ok) setSt(await r.json());
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  if (!st) return null;
-  return (
-    <div className="mt-8">
-      <h2 className="text-lg font-bold text-neutral-800 mb-1">📥 Posta in arrivo</h2>
-      <p className="text-sm text-neutral-500 mb-4">
-        Il gestionale legge la stessa casella (stesse credenziali) ogni {st.minuti} minuti, in sola lettura:
-        non cancella, non sposta e non segna come lette le mail sul server. Le risposte ai preventivi
-        compaiono nella scheda del preventivo; tutta la posta la legge Q dal connettore.
-      </p>
-      <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-5 space-y-3 text-sm">
-        <div className="flex flex-wrap items-center gap-3">
-          <StatusBadge tone={!st.attiva ? "neutral" : st.errori_di_fila > 0 || !st.configurata ? "warning" : "success"} dot>
-            {!st.attiva ? "Spenta" : !st.configurata ? "Non configurata" : st.errori_di_fila > 0 ? "Errori" : "Attiva"}
-          </StatusBadge>
-          <span className="text-xs text-neutral-500">
-            {st.imap_host ? `${st.imap_host}:${st.imap_port} · ${st.cartella}` : "server IMAP non impostato"}
-            {st.mancanti?.length ? ` — manca: ${st.mancanti.join(", ")}` : ""}
-          </span>
-        </div>
-        <div className="grid grid-cols-2 gap-2 text-xs text-neutral-600">
-          <div>Ultimo giro: <strong>{fmt(st.ultimo_giro)}</strong></div>
-          <div>Ultima lettura riuscita: <strong>{fmt(st.ultimo_ok)}</strong></div>
-          <div>Primo import ({st.giorni_primo_import} giorni): <strong>{st.primo_import_fatto ? "fatto" : "non ancora"}</strong></div>
-          <div>Oltre {st.max_mb} MB si legge solo l'intestazione</div>
-        </div>
-        {st.ultimo_errore && (
-          <div className="px-3 py-2 rounded-lg text-xs bg-amber-50 border border-amber-200 text-amber-800">
-            {st.errori_di_fila} giri falliti di fila — {st.ultimo_errore}
-          </div>
-        )}
-        {msg && <div className="text-xs text-neutral-700">{msg}</div>}
-        <div className="flex items-center gap-3 pt-1">
-          <Btn onClick={leggiOra} disabled={busy || !st.attiva || !st.configurata}>{busy ? "Leggo…" : "Leggi adesso"}</Btn>
-          <Btn variant="secondary" onClick={() => accendi(!st.attiva)} disabled={busy}>
-            {st.attiva ? "Spegni la lettura" : "Accendi la lettura"}
-          </Btn>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-
-// Le altre caselle del locale (2026-11-19): info@, prenotazioni@, la PEC… lette in SOLA LETTURA,
-// così il giro mail di Q non dipende dal Mac acceso. Password cifrata come quella del canale email.
+// Caselle lette dal gestionale (2026-11-19): in testa quella del gestionale (trgb@, stesse credenziali del
+// canale email qui sopra, risposte ai preventivi), poi le altre del locale (info@, prenotazioni@, la PEC…).
+// Tutte in SOLA LETTURA, così il giro mail di Q non dipende dal Mac acceso.
 const CARTELLE_CASELLA = [
   ["in_arrivo", "Posta in arrivo"],
   ["inviata", "Inviata (solo intestazioni: per sapere a cosa si è risposto)"],
@@ -1212,10 +1129,11 @@ const CARTELLE_CASELLA = [
   ["cestino", "Cestino"],
 ];
 
-function AltreCaselle() {
+function CaselleLette() {
   const VUOTA = { id: "", indirizzo: "", nome: "", imap_host: "", imap_port: "993", utente: "", attiva: true,
                   ruoli: CARTELLE_CASELLA.map(([k]) => k) };
   const [st, setSt] = useState(null);
+  const [lt, setLt] = useState(null);           // lettura della casella del gestionale (/email/lettura/)
   const [form, setForm] = useState(null);       // null = nessun modulo aperto
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -1223,11 +1141,43 @@ function AltreCaselle() {
   const [errore, setErrore] = useState("");
   const fmt = (s) => (s ? `${s.slice(8, 10)}/${s.slice(5, 7)} ${s.slice(11, 16)}` : "—");
 
-  const carica = () =>
+  const carica = () => {
     apiFetch(`${API_BASE}/email/caselle/`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => d && setSt(d))
       .catch(() => {});
+    apiFetch(`${API_BASE}/email/lettura/`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d && setLt(d))
+      .catch(() => {});
+  };
+
+  const leggiTrgb = async () => {
+    setBusy(true);
+    try {
+      const r = await apiFetch(`${API_BASE}/email/lettura/giro`, { method: "POST" });
+      const d = await r.json();
+      setMsg((m) => ({ ...m, _trgb: d.esito === "ok" ? `Letta: ${d.nuove} nuove${d.nota ? ` (${d.nota})` : ""}.`
+        : d.esito === "saltato" ? `Non letta: ${d.nota}.` : `Errore: ${d.errore || d.detail}` }));
+      carica();
+    } catch (e) {
+      setMsg((m) => ({ ...m, _trgb: e.message }));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const accendiTrgb = async (attiva) => {
+    setBusy(true);
+    try {
+      const r = await apiFetch(`${API_BASE}/email/lettura/`, {
+        method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ attiva }),
+      });
+      if (r.ok) setLt(await r.json());
+    } finally {
+      setBusy(false);
+    }
+  };
   useEffect(() => { carica(); }, []);
 
   const apri = (c) => {
@@ -1276,6 +1226,7 @@ function AltreCaselle() {
   };
 
   const leggiOra = async (id) => {
+    if (!id && lt?.attiva && lt?.configurata) await leggiTrgb();
     setBusy(true);
     try {
       const q = id ? `?casella=${encodeURIComponent(id)}` : "";
@@ -1323,19 +1274,50 @@ function AltreCaselle() {
   const caselle = st.caselle || [];
   return (
     <div className="mt-8">
-      <h2 className="text-lg font-bold text-neutral-800 mb-1">📬 Altre caselle del locale</h2>
+      <h2 className="text-lg font-bold text-neutral-800 mb-1">📥 Caselle lette dal gestionale</h2>
       <p className="text-sm text-neutral-500 mb-4">
-        Le altre caselle (info, prenotazioni, la PEC…) lette ogni {st.minuti} minuti in <strong>sola lettura</strong>:
-        il gestionale non cancella, non sposta, non segna come lette e non manda niente. Legge posta in arrivo,
-        spam e cestino (le mail vere finite lì si vedono) e le intestazioni dell'Inviata, per sapere a cosa si è
-        già risposto. Le legge Q dal connettore per il giro della posta, anche col Mac spento.
+        Le caselle del locale lette in <strong>sola lettura</strong>: il gestionale non cancella, non sposta, non segna
+        come lette e non manda niente. Delle altre caselle legge posta in arrivo, spam e cestino (le mail vere finite lì
+        si vedono) e le intestazioni dell'Inviata, per sapere a cosa si è già risposto. Si leggono tutte insieme in
+        Clienti › Posta, e Q le legge dal connettore per il giro della posta, anche col Mac spento.
       </p>
 
       {errore && <div className="mb-4 px-4 py-3 rounded-lg text-sm bg-red-50 border border-red-200 text-red-800 whitespace-pre-wrap">{errore}</div>}
 
       <div className="space-y-3">
-        {caselle.length === 0 && !form && (
-          <EmptyState icon="📭" title="Nessuna casella in più" description="Aggiungi le caselle del locale da far leggere al gestionale." />
+        {lt && (
+          <div className="bg-neutral-50 border border-neutral-200 rounded-xl p-4 text-sm">
+            <div className="flex flex-wrap items-center gap-3">
+              <strong className="text-neutral-800">{lt.utente || "Casella del gestionale"}</strong>
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 font-medium">gestionale · preventivi</span>
+              <StatusBadge tone={!lt.attiva ? "neutral" : lt.errori_di_fila > 0 || !lt.configurata ? "warning" : "success"} dot>
+                {!lt.attiva ? "Spenta" : !lt.configurata ? "Non configurata" : lt.errori_di_fila > 0 ? "Errori" : "Attiva"}
+              </StatusBadge>
+              <span className="text-xs text-neutral-500">
+                {lt.imap_host ? `${lt.imap_host}:${lt.imap_port} · ${lt.cartella}` : "server IMAP non impostato"} · ogni {lt.minuti} min
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-xs text-neutral-600 mt-2">
+              <div>Ultimo giro: <strong>{fmt(lt.ultimo_giro)}</strong></div>
+              <div>Ultima lettura riuscita: <strong>{fmt(lt.ultimo_ok)}</strong></div>
+            </div>
+            <div className="text-[11px] text-neutral-500 mt-1">
+              Server e password sono quelli del canale email qui sopra. Le risposte dei clienti si collegano da sole ai preventivi
+              {lt.mancanti?.length ? ` — manca: ${lt.mancanti.join(", ")}` : ""}.
+            </div>
+            {lt.ultimo_errore && (
+              <div className="mt-2 px-3 py-2 rounded-lg text-xs bg-amber-50 border border-amber-200 text-amber-800">
+                {lt.errori_di_fila} giri falliti di fila — {lt.ultimo_errore}
+              </div>
+            )}
+            {msg._trgb && <div className="text-xs text-neutral-700 mt-2">{msg._trgb}</div>}
+            <div className="flex flex-wrap items-center gap-2 mt-3">
+              <Btn size="sm" variant="secondary" onClick={leggiTrgb} disabled={busy || !lt.attiva || !lt.configurata}>Leggi adesso</Btn>
+              <Btn size="sm" variant="secondary" onClick={() => accendiTrgb(!lt.attiva)} disabled={busy}>
+                {lt.attiva ? "Spegni" : "Accendi"}
+              </Btn>
+            </div>
+          </div>
         )}
         {caselle.map((c) => (
           <div key={c.id} className="bg-neutral-50 border border-neutral-200 rounded-xl p-4 text-sm">
@@ -1445,9 +1427,9 @@ function AltreCaselle() {
         {!form && <Btn onClick={() => apri(null)} disabled={busy}>+ Aggiungi casella</Btn>}
         {caselle.length > 0 && (
           <>
-            <Btn variant="secondary" onClick={() => leggiOra(null)} disabled={busy || !st.attiva}>{busy ? "Leggo…" : "Leggi tutte adesso"}</Btn>
+            <Btn variant="secondary" onClick={() => leggiOra(null)} disabled={busy}>{busy ? "Leggo…" : "Leggi tutte adesso"}</Btn>
             <Btn variant="secondary" onClick={() => accendi(!st.attiva)} disabled={busy}>
-              {st.attiva ? "Spegni la lettura" : "Accendi la lettura"}
+              {st.attiva ? "Spegni la lettura delle altre caselle" : "Accendi la lettura delle altre caselle"}
             </Btn>
           </>
         )}

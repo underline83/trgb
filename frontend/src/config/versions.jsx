@@ -572,6 +572,9 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   clienti: {
+    // 3.40 (2026-11-19): Posta — tutte le caselle del locale insieme con un selettore per casella (Tutte · trgb@ · info@ · …): le altre caselle
+    //   in sola lettura (letta/risposto dal server, spam e cestino, PEC, newsletter a parte), trgb@ com'era (Da gestire, preventivi, Rispondi).
+    //   Impostazioni › Email: un riquadro solo «Caselle lette dal gestionale».
     // 3.39 (2026-11-16): rubrica dei clienti sul telefono — CardDAV in sola lettura (/rubrica/), clienti con telefono e almeno una stella,
     //   nome «TG Nome Cognome ★★», nota con stelle/segmento/visite/allergie; un accesso per telefono, revocabile, da Impostazioni › Rubrica telefono (mig 238).
     // 3.38 (2026-11-16): fix — il ricalcolo completo di stelle e segmenti partiva solo se clienti_profilo era vuota: i calcoli al volo della lista lo bloccavano (412 clienti su 26.000). Ora si segna la fine del giro completo.
@@ -671,7 +674,7 @@ const MODULE_VERSIONS = {
     //   annullo/riattiva con storico movimenti, PDF buono A5 con identita'
     //   del locale, alert M.F sulle card in scadenza. Nessun impatto su
     //   corrispettivi/chiusure: registro informativo separato dalla cassa.
-    version: "3.39",
+    version: "3.40",
     label: "Gestione Clienti",
     status: "beta",
     color: "blue",
