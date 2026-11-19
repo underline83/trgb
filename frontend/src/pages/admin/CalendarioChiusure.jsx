@@ -1,5 +1,5 @@
 // src/pages/admin/CalendarioChiusure.jsx
-// @version: v2.1-mattoni — refactor leggero con M.I primitives (Btn, StatusBadge, EmptyState)
+// @version: v2.2 — aperture straordinarie: clic su un giorno del giorno fisso = aperto (giorni_aperti) (2026-11-19); v2.1-mattoni — refactor leggero con M.I primitives (Btn, StatusBadge, EmptyState)
 // Configurazione giorni di chiusura: giorno settimanale + ferie/festivi + turni chiusi
 // Incluso dentro la pagina Impostazioni Vendite
 
@@ -18,7 +18,7 @@ function fmtDateIT(iso) {
 }
 
 export default function CalendarioChiusure() {
-  const [config, setConfig] = useState({ giorno_chiusura_settimanale: null, giorni_chiusi: [], turni_chiusi: [] });
+  const [config, setConfig] = useState({ giorno_chiusura_settimanale: null, giorni_chiusi: [], giorni_aperti: [], turni_chiusi: [] });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState(null);
@@ -37,7 +37,7 @@ export default function CalendarioChiusure() {
   useEffect(() => {
     apiFetch(`${API_BASE}/settings/closures-config/`)
       .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data) setConfig({ ...data, turni_chiusi: data.turni_chiusi || [] }); })
+      .then(data => { if (data) setConfig({ ...data, turni_chiusi: data.turni_chiusi || [], giorni_aperti: data.giorni_aperti || [] }); })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
@@ -54,7 +54,7 @@ export default function CalendarioChiusure() {
       });
       if (res.ok) {
         const data = await res.json();
-        setConfig({ ...data, turni_chiusi: data.turni_chiusi || [] });
+        setConfig({ ...data, turni_chiusi: data.turni_chiusi || [], giorni_aperti: data.giorni_aperti || [] });
         setMsg({ type: "ok", text: "Salvato" });
         setTimeout(() => setMsg(null), 2000);
       } else {
@@ -84,6 +84,23 @@ export default function CalendarioChiusure() {
     const newConfig = { ...config, giorni_chiusi: [...set].sort() };
     setConfig(newConfig);
     save(newConfig);
+  };
+
+  // Apertura straordinaria: un giorno del giorno fisso che si lavora (es. mercoledì 30/12)
+  const toggleGiornoAperto = (dateStr) => {
+    const set = new Set(config.giorni_aperti || []);
+    if (set.has(dateStr)) set.delete(dateStr);
+    else set.add(dateStr);
+    const newConfig = { ...config, giorni_aperti: [...set].sort() };
+    setConfig(newConfig);
+    save(newConfig);
+  };
+
+  // Clic sul calendario: giorno fisso → apre/richiude; altri giorni → chiude/riapre
+  const clickGiorno = (cell) => {
+    const fisso = config.giorno_chiusura_settimanale === cell.weekdayIdx;
+    if (fisso && !giornoChiusuraSet.has(cell.iso)) toggleGiornoAperto(cell.iso);
+    else toggleGiornoChiuso(cell.iso);
   };
 
   // Rimuovi giorno chiuso dalla lista
@@ -135,6 +152,7 @@ export default function CalendarioChiusure() {
   }, [calYear, calMonth]);
 
   const giornoChiusuraSet = useMemo(() => new Set(config.giorni_chiusi), [config.giorni_chiusi]);
+  const giornoApertoSet = useMemo(() => new Set(config.giorni_aperti || []), [config.giorni_aperti]);
 
   // Set turni chiusi per lookup veloce nel calendario
   const turniChiusiMap = useMemo(() => {
@@ -201,6 +219,7 @@ export default function CalendarioChiusure() {
         </h3>
         <p className="text-xs text-neutral-500 mb-4">
           Clicca su un giorno per segnarlo come chiuso (ferie, festivi, chiusure straordinarie). Clicca di nuovo per rimuoverlo.
+          Sul giorno di chiusura settimanale il clic fa il contrario: lo apre (apertura straordinaria, in verde).
         </p>
 
         {/* Nav mese */}
@@ -221,7 +240,8 @@ export default function CalendarioChiusure() {
             if (!cell) return <div key={idx} />;
 
             const isChiuso = giornoChiusuraSet.has(cell.iso);
-            const isGiornoSettimanale = config.giorno_chiusura_settimanale === cell.weekdayIdx;
+            const isAperto = giornoApertoSet.has(cell.iso);
+            const isGiornoSettimanale = config.giorno_chiusura_settimanale === cell.weekdayIdx && !isAperto;
             const hasTurnoChiuso = !!turniChiusiMap[cell.iso];
             const isPast = new Date(cell.iso + "T00:00:00") < new Date(new Date().toISOString().slice(0, 10) + "T00:00:00");
 
@@ -231,16 +251,19 @@ export default function CalendarioChiusure() {
                 className="w-full"
                 label={
                   isChiuso ? `${cell.iso} — CHIUSO (clicca per rimuovere)`
-                  : isGiornoSettimanale ? `${cell.iso} — Giorno chiusura settimanale`
+                  : isAperto ? `${cell.iso} — APERTO straordinario (clicca per richiudere)`
+                  : isGiornoSettimanale ? `${cell.iso} — Giorno chiusura settimanale (clicca per aprirlo)`
                   : hasTurnoChiuso ? `${cell.iso} — Turno parziale chiuso`
                   : `${cell.iso} — Clicca per chiudere`
                 }
               >
                 <button
-                  onClick={() => toggleGiornoChiuso(cell.iso)}
+                  onClick={() => clickGiorno(cell)}
                   className={`relative w-full rounded-lg border text-xs h-9 font-medium transition ${
                     isChiuso
                       ? "bg-red-500 border-red-600 text-white"
+                      : isAperto
+                        ? "bg-emerald-500 border-emerald-600 text-white"
                       : isGiornoSettimanale
                         ? "bg-red-50 border-red-200 text-red-400"
                         : hasTurnoChiuso
@@ -271,6 +294,10 @@ export default function CalendarioChiusure() {
             <span>Giorno chiusura settimanale</span>
           </div>
           <div className="flex items-center gap-1">
+            <span className="inline-block w-3 h-3 rounded bg-emerald-500" />
+            <span>Apertura straordinaria</span>
+          </div>
+          <div className="flex items-center gap-1">
             <span className="inline-block w-3 h-3 rounded bg-amber-50 border border-amber-300" />
             <span>Turno parziale chiuso</span>
           </div>
@@ -288,6 +315,27 @@ export default function CalendarioChiusure() {
               <span key={d} className="inline-flex items-center gap-1 bg-red-50 border border-red-200 rounded-lg px-2 py-1 text-xs text-red-800">
                 {fmtDateIT(d)}
                 <button onClick={() => removeGiornoChiuso(d)} className="ml-1 text-red-400 hover:text-red-700 font-bold">×</button>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* APERTURE STRAORDINARIE */}
+      {(config.giorni_aperti || []).length > 0 && (
+        <div className="bg-white rounded-2xl border border-neutral-200 p-5 shadow-sm">
+          <h3 className="text-sm font-bold text-neutral-700 uppercase tracking-wider mb-1">
+            Aperture straordinarie ({config.giorni_aperti.length})
+          </h3>
+          <p className="text-xs text-neutral-500 mb-3">
+            Aperti anche se è il giorno di chiusura: Turni e Prenotazioni li trattano come giorni normali.
+            Su TheFork vanno aperti a mano (TheFork Manager), l'API non può creare un servizio in un giorno chiuso.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {config.giorni_aperti.map(d => (
+              <span key={d} className="inline-flex items-center gap-1 bg-emerald-50 border border-emerald-200 rounded-lg px-2 py-1 text-xs text-emerald-800">
+                {fmtDateIT(d)}
+                <button onClick={() => toggleGiornoAperto(d)} className="ml-1 text-emerald-500 hover:text-emerald-800 font-bold" title="Togli l'apertura (torna chiuso)">×</button>
               </span>
             ))}
           </div>

@@ -1,4 +1,5 @@
-# @version: v1.1 (2026-11-16) — «Rispondi» dalla pagina Posta: risposta vera (In-Reply-To/References) via M.D, registrata
+# @version: v1.2 (2026-11-19) — CasellaImap riusabile per le altre caselle: cartella a scelta, elenco cartelle, flag, tutti gli UID (sempre sola lettura)
+# v1.1 (2026-11-16) — «Rispondi» dalla pagina Posta: risposta vera (In-Reply-To/References) via M.D, registrata
 # v1.0 (2026-11-13) — posta in arrivo: lettura IMAP in sola lettura della casella del gestionale
 # Modulo: platform (mattone M.D, lettura) — [core]
 # -*- coding: utf-8 -*-
@@ -388,18 +389,73 @@ def analizza(raw: bytes, dimensione: Optional[int] = None, oltre_limite: bool = 
 
 # ═════════════════════════════ la casella (IMAP, sola lettura) ═════════════════════════════
 
+def quota_cartella(nome: str) -> str:
+    """Nome di cartella per SELECT: tra virgolette solo se serve (spazi, simboli)."""
+    if re.fullmatch(r"[A-Za-z0-9._/&+\-]+", nome or ""):
+        return nome
+    return '"' + (nome or "").replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def nome_cartella_leggibile(nome: str) -> str:
+    """IMAP «modified UTF-7» (RFC 3501 §5.1.3) → testo: «Posta &AOg- inviata» → «Posta è inviata»."""
+    import base64
+
+    def dec(m):
+        b = m.group(1)
+        if b == "":
+            return "&"
+        try:
+            b = b.replace(",", "/")
+            return base64.b64decode(b + "=" * (-len(b) % 4)).decode("utf-16-be")
+        except Exception:                               # noqa: BLE001
+            return m.group(0)
+    return re.sub(r"&([A-Za-z0-9+,]*)-", dec, nome or "")
+
+
+_LIST_RIGA = re.compile(rb'^\((?P<flag>[^)]*)\)\s+(?P<delim>"(?:[^"\\]|\\.)*"|NIL)\s+(?P<nome>.*)$')
+
+
+def analizza_list(righe) -> List[Dict[str, Any]]:
+    """Risposta di LIST → [{nome (come va passato a SELECT), leggibile, flag (minuscoli), delim}]."""
+    out = []
+    for riga in righe or []:
+        letterale = None
+        if isinstance(riga, tuple):          # nome in un letterale {n}
+            riga, letterale = riga[0], riga[1]
+        if not isinstance(riga, (bytes, bytearray)):
+            continue
+        m = _LIST_RIGA.match(bytes(riga).strip())
+        if not m:
+            continue
+        flag = {f.lower() for f in m.group("flag").decode("ascii", "replace").split()}
+        delim = m.group("delim").decode("ascii", "replace")
+        delim = None if delim == "NIL" else delim[1:-1].replace("\\\\", "\\")
+        if letterale is not None:
+            nome = bytes(letterale).decode("utf-8", "replace")
+        else:
+            nome = m.group("nome").decode("utf-8", "replace").strip()
+            if nome.startswith('"') and nome.endswith('"') and len(nome) >= 2:
+                nome = re.sub(r'\\(.)', r"\1", nome[1:-1])
+        out.append({"nome": nome, "leggibile": nome_cartella_leggibile(nome), "flag": sorted(flag), "delim": delim})
+    return out
+
+
 class CasellaImap:
-    """INBOX aperta in sola lettura. Espone SOLO comandi che non toccano il server:
-    SEARCH e FETCH con BODY.PEEK. Niente STORE/COPY/MOVE/EXPUNGE."""
+    """Casella IMAP aperta in sola lettura. Espone SOLO comandi che non toccano il server:
+    LIST, EXAMINE (select readonly), SEARCH e FETCH con BODY.PEEK o FLAGS.
+    Niente STORE/COPY/MOVE/EXPUNGE/APPEND. `cartella` = quella aperta all'ingresso
+    (INBOX per la casella del gestionale; None = nessuna, la sceglie chi usa con seleziona)."""
 
     def __init__(self, host: str, port: int, user: str, password: str, timeout: int = 30,
-                 fabbrica: Optional[Callable] = None):
+                 fabbrica: Optional[Callable] = None, cartella: Optional[str] = CARTELLA):
         self._args = (host, port)
         self._cred = (user, password)
         self._timeout = timeout
         self._fabbrica = fabbrica
+        self._cartella_iniziale = cartella
         self.M = None
         self.uidvalidity: Optional[int] = None
+        self.cartella: Optional[str] = None
 
     def __enter__(self):
         host, port = self._args
@@ -411,15 +467,46 @@ class CasellaImap:
         user, password = self._cred
         self._cred = None                     # la password non resta in giro nell'oggetto
         self.M.login(user, password)
-        typ, _ = self.M.select(CARTELLA, readonly=True)          # EXAMINE
+        if self._cartella_iniziale:
+            self.seleziona(self._cartella_iniziale)
+        return self
+
+    def seleziona(self, nome: str) -> Optional[int]:
+        """Apre una cartella in SOLA LETTURA (EXAMINE). Ritorna l'UIDVALIDITY."""
+        typ, _ = self.M.select(quota_cartella(nome), readonly=True)          # EXAMINE
         if typ != "OK":
-            raise RuntimeError(f"Cartella {CARTELLA} non apribile")
+            raise RuntimeError(f"Cartella {nome} non apribile")
         _, val = self.M.response("UIDVALIDITY")
         try:
             self.uidvalidity = int((val or [b"0"])[0])
         except (TypeError, ValueError):
             self.uidvalidity = None
-        return self
+        self.cartella = nome
+        return self.uidvalidity
+
+    def elenco_cartelle(self) -> List[Dict[str, Any]]:
+        typ, data = self.M.list()
+        if typ != "OK":
+            raise RuntimeError("LIST rifiutato dal server")
+        return analizza_list(data)
+
+    def tutti_uid(self) -> List[int]:
+        data = self._uid("SEARCH", None, "ALL")
+        return sorted(int(x) for x in b" ".join(d for d in data if d).split())
+
+    def flag(self, uids: List[int]) -> Dict[int, set]:
+        """{uid: {"\\seen", "\\answered", …}} — FETCH FLAGS non cambia niente sul server."""
+        out: Dict[int, set] = {}
+        for i in range(0, len(uids), 200):
+            blocco = ",".join(str(u) for u in uids[i:i + 200])
+            for riga in self._uid("FETCH", blocco, "(UID FLAGS)"):
+                testa = riga[0] if isinstance(riga, tuple) else riga
+                if not isinstance(testa, (bytes, bytearray)):
+                    continue
+                mu, mf = re.search(rb"UID (\d+)", testa), re.search(rb"FLAGS \(([^)]*)\)", testa)
+                if mu:
+                    out[int(mu.group(1))] = {f.lower() for f in (mf.group(1).decode("ascii", "replace").split() if mf else [])}
+        return out
 
     def __exit__(self, *exc):
         try:

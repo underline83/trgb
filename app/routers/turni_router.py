@@ -26,6 +26,7 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional
 from datetime import date, datetime
 import io
+import html as _html
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse, Response, StreamingResponse
@@ -201,8 +202,9 @@ def get_foglio_settimana(
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
-    # aggiungi chiusure
+    # aggiungi chiusure: giorni interi + servizi chiusi (solo pranzo / solo cena)
     foglio["chiusure"] = turni_service.giorni_chiusi_nella_settimana(iso)
+    foglio["turni_chiusi"] = turni_service.servizi_chiusi_nel_range(turni_service.giorni_settimana(iso))
     return JSONResponse(content=foglio)
 
 
@@ -219,6 +221,10 @@ def assegna_turno(
     servizio = payload.servizio.upper().strip()
     if servizio not in ("PRANZO", "CENA"):
         raise HTTPException(status_code=400, detail="servizio deve essere PRANZO o CENA")
+    # Servizio chiuso nel calendario (Vendite › Chiusure): niente turni. — 2026-11-19
+    blocco = turni_service.servizio_chiuso(payload.data, servizio)
+    if blocco:
+        raise HTTPException(status_code=409, detail=blocco)
     stato = payload.stato.upper().strip()
     if stato not in ("CONFERMATO", "OPZIONALE", "ANNULLATO"):
         raise HTTPException(status_code=400, detail="stato non valido")
@@ -521,7 +527,11 @@ def get_chiusure_settimana(
     current_user: Dict[str, Any] = Depends(get_current_user),
 ):
     iso = settimana or turni_service.settimana_corrente()
-    return JSONResponse(content={"settimana": iso, "chiusure": turni_service.giorni_chiusi_nella_settimana(iso)})
+    return JSONResponse(content={
+        "settimana": iso,
+        "chiusure": turni_service.giorni_chiusi_nella_settimana(iso),
+        "turni_chiusi": turni_service.servizi_chiusi_nel_range(turni_service.giorni_settimana(iso)),
+    })
 
 
 # ============================================================
@@ -837,6 +847,7 @@ def get_foglio_pdf(
         raise HTTPException(status_code=404, detail=str(e))
 
     chiusure = set(turni_service.giorni_chiusi_nella_settimana(iso))
+    serv_chiusi = turni_service.servizi_chiusi_nel_range(turni_service.giorni_settimana(iso))
     reparto = foglio.get("reparto") or {}
     giorni = foglio.get("giorni") or []
     turni = foglio.get("turni") or []
@@ -882,13 +893,24 @@ def get_foglio_pdf(
     righe_html = []
     for g in giorni:
         chiuso = g in chiusure
+        sc = serv_chiusi.get(g, {})
+        p_chiuso = chiuso or "PRANZO" in sc
+        c_chiuso = chiuso or "CENA" in sc
         row_cls = "chiuso" if chiuso else ""
-        celle = [f'<td class="day"><div class="dn">{_nome_giorno(g)}</div>'
-                 + (f'<div class="cl">CHIUSO</div>' if chiuso else "") + '</td>']
+        etichetta = ""
+        if chiuso:
+            etichetta = '<div class="cl">CHIUSO</div>'
+        elif sc:
+            serv = "PRANZO" if "PRANZO" in sc else "CENA"
+            mot = sc[serv]
+            etichetta = f'<div class="cl">{serv} CHIUSO{(" · " + _html.escape(mot)) if mot else ""}</div>'
+        celle = [f'<td class="day"><div class="dn">{_nome_giorno(g)}</div>' + etichetta + '</td>']
         for si in range(max_p):
-            celle.append('<td class="empty">—</td>' if chiuso else cella_html(matrice[g]["PRANZO"].get(si)))
+            t = matrice[g]["PRANZO"].get(si)
+            celle.append(cella_html(t) if (t and not chiuso) else ('<td class="empty">—</td>' if p_chiuso else cella_html(t)))
         for si in range(max_c):
-            celle.append('<td class="empty">—</td>' if chiuso else cella_html(matrice[g]["CENA"].get(si)))
+            t = matrice[g]["CENA"].get(si)
+            celle.append(cella_html(t) if (t and not chiuso) else ('<td class="empty">—</td>' if c_chiuso else cella_html(t)))
         righe_html.append(f'<tr class="{row_cls}">{"".join(celle)}</tr>')
 
     # Header slot
@@ -957,7 +979,7 @@ def get_foglio_pdf(
   </table>
   <div class="legenda">
     <span>★ turno opzionale (da confermare)</span>
-    <span>— giorno di chiusura</span>
+    <span>— giorno o servizio chiuso</span>
   </div>
   <div class="footer">
     <span>TRGB Gestionale — Turni v2</span>

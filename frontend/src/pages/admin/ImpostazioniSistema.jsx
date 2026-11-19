@@ -1,4 +1,5 @@
-// @version: v1.4 — tab Email: «📥 Posta in arrivo» (lettura IMAP in sola lettura, stato del job, Leggi adesso) (2026-11-13)
+// @version: v1.5 — tab Email: «📬 Altre caselle del locale» (info@, prenotazioni@, PEC… in sola lettura: server, password cifrata, cartelle, prova, stato per casella) (2026-11-19)
+// v1.4 — tab Email: «📥 Posta in arrivo» (lettura IMAP in sola lettura, stato del job, Leggi adesso) (2026-11-13)
 // v1.3 — «Vedi come»: durata e registro sotto Utenti, solo superadmin (2026-11-06)
 // v1.2 — tab "Home per ruolo" (sessione 49)
 import React, { useState, useEffect } from "react";
@@ -1113,6 +1114,7 @@ function TabEmail() {
       </div>
 
       <LetturaPosta />
+      <AltreCaselle />
     </div>
   );
 }
@@ -1195,6 +1197,260 @@ function LetturaPosta() {
             {st.attiva ? "Spegni la lettura" : "Accendi la lettura"}
           </Btn>
         </div>
+      </div>
+    </div>
+  );
+}
+
+
+// Le altre caselle del locale (2026-11-19): info@, prenotazioni@, la PEC… lette in SOLA LETTURA,
+// così il giro mail di Q non dipende dal Mac acceso. Password cifrata come quella del canale email.
+const CARTELLE_CASELLA = [
+  ["in_arrivo", "Posta in arrivo"],
+  ["inviata", "Inviata (solo intestazioni: per sapere a cosa si è risposto)"],
+  ["spam", "Spam"],
+  ["cestino", "Cestino"],
+];
+
+function AltreCaselle() {
+  const VUOTA = { id: "", indirizzo: "", nome: "", imap_host: "", imap_port: "993", utente: "", attiva: true,
+                  ruoli: CARTELLE_CASELLA.map(([k]) => k) };
+  const [st, setSt] = useState(null);
+  const [form, setForm] = useState(null);       // null = nessun modulo aperto
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState({});           // {id: testo} sotto ogni casella, "" = modulo
+  const [errore, setErrore] = useState("");
+  const fmt = (s) => (s ? `${s.slice(8, 10)}/${s.slice(5, 7)} ${s.slice(11, 16)}` : "—");
+
+  const carica = () =>
+    apiFetch(`${API_BASE}/email/caselle/`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d && setSt(d))
+      .catch(() => {});
+  useEffect(() => { carica(); }, []);
+
+  const apri = (c) => {
+    setErrore(""); setPassword("");
+    setForm(c ? { ...VUOTA, ...c, imap_port: String(c.imap_port || 993) } : { ...VUOTA });
+  };
+
+  const salva = async () => {
+    setBusy(true); setErrore("");
+    try {
+      const body = { ...form };
+      if (!body.id) delete body.id; else delete body.indirizzo;
+      if (password) body.password = password;
+      ["ha_password", "password_da", "mancanti", "ultimo_giro", "ultimo_esito", "ultimo_ok", "errori_di_fila",
+       "ultimo_errore", "nota", "cartelle"].forEach((k) => delete body[k]);
+      const r = await apiFetch(`${API_BASE}/email/caselle/`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || "Errore salvataggio");
+      setForm(null); setPassword("");
+      setMsg((m) => ({ ...m, [d.id]: "Salvata. Premi «Prova» per vedere se entra e quali cartelle trova." }));
+      carica();
+    } catch (e) {
+      setErrore(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const prova = async (id) => {
+    setBusy(true); setMsg((m) => ({ ...m, [id]: "Provo…" }));
+    try {
+      const r = await apiFetch(`${API_BASE}/email/caselle/${encodeURIComponent(id)}/prova`, { method: "POST" });
+      const d = await r.json();
+      const testo = d.ok
+        ? "Entra. Cartelle: " + Object.entries(d.cartelle_trovate || {})
+            .map(([k, v]) => `${k} → ${v.length ? v.join(", ") : "non trovata"}`).join(" · ")
+        : `Non entra: ${d.errore || d.detail}`;
+      setMsg((m) => ({ ...m, [id]: testo }));
+    } catch (e) {
+      setMsg((m) => ({ ...m, [id]: e.message }));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const leggiOra = async (id) => {
+    setBusy(true);
+    try {
+      const q = id ? `?casella=${encodeURIComponent(id)}` : "";
+      const r = await apiFetch(`${API_BASE}/email/caselle/giro${q}`, { method: "POST" });
+      const d = await r.json();
+      (d.caselle || []).forEach((c) => {
+        const cid = (st?.caselle || []).find((x) => x.indirizzo === c.casella)?.id;
+        if (cid) setMsg((m) => ({ ...m, [cid]: c.esito === "ok" ? `Letta: ${c.nuove} nuove${c.nota ? ` (${c.nota})` : ""}.`
+          : c.esito === "saltato" ? `Non letta: ${c.nota}.` : `Errore: ${c.errore}` }));
+      });
+      if (d.esito === "saltato") setErrore(d.nota);
+      carica();
+    } catch (e) {
+      setErrore(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const accendi = async (attiva) => {
+    setBusy(true);
+    try {
+      const r = await apiFetch(`${API_BASE}/email/caselle/impostazioni`, {
+        method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ attiva }),
+      });
+      if (r.ok) setSt(await r.json());
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const campo = (key, label, extra = {}) => (
+    <div>
+      <label className="block text-xs font-semibold text-neutral-600 mb-1">{label}</label>
+      <input
+        value={form[key] ?? ""}
+        onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
+        className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm"
+        {...extra}
+      />
+    </div>
+  );
+
+  if (!st) return null;
+  const caselle = st.caselle || [];
+  return (
+    <div className="mt-8">
+      <h2 className="text-lg font-bold text-neutral-800 mb-1">📬 Altre caselle del locale</h2>
+      <p className="text-sm text-neutral-500 mb-4">
+        Le altre caselle (info, prenotazioni, la PEC…) lette ogni {st.minuti} minuti in <strong>sola lettura</strong>:
+        il gestionale non cancella, non sposta, non segna come lette e non manda niente. Legge posta in arrivo,
+        spam e cestino (le mail vere finite lì si vedono) e le intestazioni dell'Inviata, per sapere a cosa si è
+        già risposto. Le legge Q dal connettore per il giro della posta, anche col Mac spento.
+      </p>
+
+      {errore && <div className="mb-4 px-4 py-3 rounded-lg text-sm bg-red-50 border border-red-200 text-red-800 whitespace-pre-wrap">{errore}</div>}
+
+      <div className="space-y-3">
+        {caselle.length === 0 && !form && (
+          <EmptyState icon="📭" title="Nessuna casella in più" description="Aggiungi le caselle del locale da far leggere al gestionale." />
+        )}
+        {caselle.map((c) => (
+          <div key={c.id} className="bg-neutral-50 border border-neutral-200 rounded-xl p-4 text-sm">
+            <div className="flex flex-wrap items-center gap-3">
+              <strong className="text-neutral-800">{c.indirizzo}</strong>
+              <StatusBadge
+                tone={!c.attiva ? "neutral" : c.mancanti?.length || c.errori_di_fila > 0 ? "warning" : c.ultimo_ok ? "success" : "neutral"}
+                dot
+              >
+                {!c.attiva ? "Spenta" : c.mancanti?.length ? `Manca: ${c.mancanti.join(", ")}`
+                  : c.errori_di_fila > 0 ? "Errori" : c.ultimo_ok ? "Attiva" : "Mai letta"}
+              </StatusBadge>
+              <span className="text-xs text-neutral-500">
+                {c.imap_host}:{c.imap_port}
+                {c.password_da === "env" ? " · password dal .env" : ""}
+              </span>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-xs text-neutral-600 mt-2">
+              <div>Ultimo giro: <strong>{fmt(c.ultimo_giro)}</strong></div>
+              <div>Ultima lettura riuscita: <strong>{fmt(c.ultimo_ok)}</strong></div>
+            </div>
+            {c.cartelle && (
+              <div className="text-[11px] text-neutral-500 mt-1">
+                {Object.entries(c.cartelle).map(([k, v]) => `${k}: ${v.length ? v.join(", ") : "—"}`).join(" · ")}
+              </div>
+            )}
+            {c.nota && <div className="text-[11px] text-amber-700 mt-1">{c.nota}</div>}
+            {c.ultimo_errore && (
+              <div className="mt-2 px-3 py-2 rounded-lg text-xs bg-amber-50 border border-amber-200 text-amber-800">
+                {c.errori_di_fila} giri falliti di fila — {c.ultimo_errore}
+              </div>
+            )}
+            {msg[c.id] && <div className="text-xs text-neutral-700 mt-2">{msg[c.id]}</div>}
+            <div className="flex flex-wrap items-center gap-2 mt-3">
+              <Btn size="sm" variant="secondary" onClick={() => apri(c)} disabled={busy}>Modifica</Btn>
+              <Btn size="sm" variant="secondary" onClick={() => prova(c.id)} disabled={busy || c.mancanti?.length > 0}>Prova</Btn>
+              <Btn size="sm" variant="secondary" onClick={() => leggiOra(c.id)} disabled={busy || c.mancanti?.length > 0}>Leggi adesso</Btn>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {form && (
+        <div className="mt-4 bg-white border border-neutral-300 rounded-xl p-5 space-y-4">
+          <h3 className="font-semibold text-neutral-800">{form.id ? `Modifica ${form.indirizzo}` : "Nuova casella"}</h3>
+          <div className="grid grid-cols-2 gap-4">
+            {form.id
+              ? <div><label className="block text-xs font-semibold text-neutral-600 mb-1">Indirizzo</label><div className="py-2 text-sm">{form.indirizzo}</div></div>
+              : campo("indirizzo", "Indirizzo", { placeholder: "info@tuodominio.it" })}
+            {campo("nome", "Nome breve (facoltativo)", { placeholder: "info" })}
+          </div>
+          <div className="grid grid-cols-3 gap-4">
+            <div className="col-span-2">{campo("imap_host", "Server IMAP", { placeholder: "imaps.aruba.it" })}</div>
+            {campo("imap_port", "Porta", { placeholder: "993" })}
+          </div>
+          <p className="text-[11px] text-neutral-400 -mt-2">
+            Aruba: caselle del dominio imaps.aruba.it, PEC imaps.pec.aruba.it — porta 993 (SSL).
+          </p>
+          {campo("utente", "Utente (vuoto = l'indirizzo)", { placeholder: form.indirizzo || "" })}
+          <div>
+            <label className="block text-xs font-semibold text-neutral-600 mb-1">
+              Password {form.ha_password && <span className="text-green-700 font-normal">— già impostata, scrivi solo per sostituirla</span>}
+            </label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder={form.ha_password ? "••••••••" : "password della casella"}
+              autoComplete="new-password"
+              className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm"
+            />
+            <p className="text-[11px] text-neutral-400 mt-1">
+              Salvata cifrata, come quella del canale email: non esce mai da qui, nemmeno verso Q.
+              {!st.chiave_cifratura && <span className="text-amber-700"> Chiave di cifratura non ancora presente: al salvataggio ti dico quale riga aggiungere al .env.</span>}
+            </p>
+          </div>
+          <div>
+            <div className="text-xs font-semibold text-neutral-600 mb-1">Cartelle da leggere</div>
+            <div className="space-y-1">
+              {CARTELLE_CASELLA.map(([k, label]) => (
+                <label key={k} className="flex items-center gap-2 text-sm min-h-[32px]">
+                  <input
+                    type="checkbox"
+                    checked={form.ruoli.includes(k)}
+                    onChange={(e) => setForm((f) => ({
+                      ...f, ruoli: e.target.checked ? [...f.ruoli, k] : f.ruoli.filter((x) => x !== k),
+                    }))}
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
+            <p className="text-[11px] text-neutral-400 mt-1">I nomi delle cartelle li trova da solo (anche «Posta inviata», «Indesiderata», «Cestino»).</p>
+          </div>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={!!form.attiva} onChange={(e) => setForm((f) => ({ ...f, attiva: e.target.checked }))} />
+            Leggila
+          </label>
+          <div className="flex items-center gap-3 pt-1">
+            <Btn onClick={salva} disabled={busy}>{busy ? "Salvo…" : "Salva"}</Btn>
+            <Btn variant="secondary" onClick={() => setForm(null)} disabled={busy}>Annulla</Btn>
+          </div>
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center gap-3 mt-4">
+        {!form && <Btn onClick={() => apri(null)} disabled={busy}>+ Aggiungi casella</Btn>}
+        {caselle.length > 0 && (
+          <>
+            <Btn variant="secondary" onClick={() => leggiOra(null)} disabled={busy || !st.attiva}>{busy ? "Leggo…" : "Leggi tutte adesso"}</Btn>
+            <Btn variant="secondary" onClick={() => accendi(!st.attiva)} disabled={busy}>
+              {st.attiva ? "Spegni la lettura" : "Accendi la lettura"}
+            </Btn>
+          </>
+        )}
       </div>
     </div>
   );

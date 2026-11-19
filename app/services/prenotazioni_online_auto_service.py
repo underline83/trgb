@@ -1,4 +1,4 @@
-# @version: v1.0 — vendita online per fascia decisa dal motore per tavoli (2026-10-29, mig 216)
+# @version: v1.1 — turno chiuso nel calendario = online chiuso, mai riaperto (2026-11-19); v1.0 — vendita online per fascia decisa dal motore per tavoli (2026-10-29, mig 216)
 # -*- coding: utf-8 -*-
 """
 Vendita online automatica — Modulo: prenotazioni — [core]
@@ -77,6 +77,16 @@ def calcola(conn, data: str, turno: str, cfg: Optional[Dict[str, str]] = None,
     fasce = fasce_srv.fasce_giorno(conn, data, turno, cfg)["fasce"]
     if not fasce:
         return []
+    # Turno chiuso nel calendario: il motore vuole l'online chiuso, mai riaperto (2026-11-19).
+    # Prima giro() lo saltava ma ricalcola_giorno() no: in «attivo» avrebbe riaperto TheFork.
+    from app.services.prenotazioni_sito_service import turni_chiusi_motivi
+    from datetime import date as _date
+    chiusi = turni_chiusi_motivi(cfg, _date.fromisoformat(data[:10]))
+    if turno in chiusi:
+        motivo = "turno chiuso" + (f" ({chiusi[turno]})" if chiusi[turno] else "")
+        return [{"ora": f["ora"], "vuole_aperto": False, "motivo": motivo,
+                 "online_aperta": f["online_aperta"], "online_modo": f.get("online_modo")}
+                for f in fasce if f["online_aperta"]]
     ver = tavoli_srv.Verificatore(conn, data, turno)
     out = []
     for f in fasce:
@@ -218,6 +228,13 @@ def avvia_periodico(minuti: int = 10) -> None:
     def _ciclo():
         time.sleep(120)
         while True:
+            # Prima il calendario chiusure (anche col motore spento): turni chiusi
+            # → fasce chiuse e online chiuso su TheFork; idempotente. — 2026-11-19
+            try:
+                from app.services.prenotazioni_chiusure_service import allinea as _allinea_chiusure
+                _allinea_chiusure()
+            except Exception as e:  # noqa: BLE001
+                log.warning("chiusure → fasce/TheFork: %s", e)
             try:
                 giro()
             except Exception as e:  # noqa: BLE001

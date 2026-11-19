@@ -1,4 +1,5 @@
-# @version: v1.2 — «Rispondi» dalla Posta: /email/in/{id}/bozza-risposta e /rispondi (2026-11-16)
+# @version: v1.3 — le altre caselle del locale in sola lettura: /email/caselle/, /email/posta (2026-11-19)
+# v1.2 — «Rispondi» dalla Posta: /email/in/{id}/bozza-risposta e /rispondi (2026-11-16)
 # v1.1 — posta in arrivo in sola lettura: /email/in, /email/lettura (2026-11-13)
 # v1.0 — Config canale email dal gestionale (sessione 2026-08-03)
 # -*- coding: utf-8 -*-
@@ -40,14 +41,25 @@ POSTA IN ARRIVO (v1.1, 2026-11-13) — email_in_service
 Solo admin (M.G): la casella contiene anche mail che non sono dei preventivi. Le
 risposte ai preventivi si vedono anche da /preventivi/{id}/risposte coi ruoli del
 modulo. Il contenuto delle mail è dato di terzi: si mostra come testo, mai come HTML.
+
+LE ALTRE CASELLE DEL LOCALE (v1.3, 2026-11-19) — email_caselle_service
+---------------------------------------------------------------------
+  GET  /email/caselle/                  impostazioni + caselle (senza password) + salute per casella
+  PUT  /email/caselle/impostazioni      attiva, minuti, giorni, limiti, mittenti massivi, segni spam
+  POST /email/caselle/                  crea o modifica una casella (password facoltativa: cifrata)
+  POST /email/caselle/{id}/prova        login + cartelle trovate, senza scaricare niente
+  POST /email/caselle/giro              un giro adesso (tutte, o ?casella=id)
+  GET  /email/posta                     mail di tutte le caselle (+ quella del gestionale)
+  GET  /email/posta/{id}                una mail per intero, altre copie, risposte mandate
+Solo admin, sola lettura sul server di posta: nessuna rotta cancella, sposta o manda.
 """
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from app.services import email_in_service, email_service
+from app.services import email_caselle_service, email_in_service, email_service
 from app.services.auth_service import get_current_user, is_admin
 from app.services.permessi import richiede_ruoli
 
@@ -212,3 +224,95 @@ def lettura_config_ep(payload: LetturaConfigIn, user: Dict[str, Any] = Depends(_
 def lettura_giro_ep(user: Dict[str, Any] = Depends(_ADMIN_POSTA)):
     """Un giro di lettura adesso (lo stesso che gira da solo ogni N minuti)."""
     return email_in_service.esegui_giro()
+
+
+# ─────────────────────────────────────────────
+# LE ALTRE CASELLE DEL LOCALE (sola lettura) — 2026-11-19
+# ─────────────────────────────────────────────
+
+class CaselleImpostazioniIn(BaseModel):
+    attiva: Optional[bool] = None
+    minuti: Optional[int] = None
+    giorni_primo_import: Optional[int] = None
+    giorni_flag: Optional[int] = None
+    max_mb: Optional[int] = None
+    max_caratteri: Optional[int] = None
+    max_per_giro: Optional[int] = None
+    mittenti_massivi: Optional[str] = None
+    segni_spam: Optional[List[str]] = None
+
+
+class CasellaIn(BaseModel):
+    id: Optional[str] = None             # vuoto = casella nuova
+    indirizzo: Optional[str] = None
+    nome: Optional[str] = None
+    imap_host: Optional[str] = None
+    imap_port: Optional[str] = None
+    utente: Optional[str] = None
+    password: Optional[str] = None       # vuota = resta quella che c'è
+    attiva: Optional[bool] = None
+    ruoli: Optional[List[str]] = None    # in_arrivo, inviata, spam, cestino
+    cartelle: Optional[Dict[str, List[str]]] = None
+
+
+@router.get("/caselle/")
+def caselle_stato_ep(user: Dict[str, Any] = Depends(_ADMIN_POSTA)):
+    return email_caselle_service.stato()
+
+
+@router.put("/caselle/impostazioni")
+def caselle_impostazioni_ep(payload: CaselleImpostazioniIn, user: Dict[str, Any] = Depends(_ADMIN_POSTA)):
+    try:
+        return email_caselle_service.salva_impostazioni(payload.dict(exclude_none=True))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/caselle/")
+def casella_salva_ep(payload: CasellaIn, user: Dict[str, Any] = Depends(_ADMIN_POSTA)):
+    try:
+        return email_caselle_service.salva_casella(payload.dict(exclude_none=True))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/caselle/giro")
+def caselle_giro_ep(casella: Optional[str] = Query(None, max_length=200),
+                    user: Dict[str, Any] = Depends(_ADMIN_POSTA)):
+    """Un giro adesso (lo stesso che gira da solo ogni N minuti)."""
+    return email_caselle_service.esegui_giro(solo=casella)
+
+
+@router.post("/caselle/{casella_id}/prova")
+def casella_prova_ep(casella_id: str, user: Dict[str, Any] = Depends(_ADMIN_POSTA)):
+    return email_caselle_service.prova(casella_id)
+
+
+@router.get("/posta")
+def posta_elenco_ep(
+    dal: Optional[str] = Query(None, description="AAAA-MM-GG oppure AAAA-MM-GG HH:MM"),
+    giorni: Optional[int] = Query(None, ge=1, le=3650),
+    casella: Optional[str] = Query(None, max_length=200),
+    dove: Optional[str] = Query(None, description="in_arrivo,spam,cestino,inviata (separati da virgola)"),
+    q: Optional[str] = Query(None, max_length=200),
+    solo_da_rispondere: bool = Query(False),
+    anche_massive: bool = Query(True),
+    anche_trgb: bool = Query(True),
+    limite: int = Query(100, ge=1, le=500),
+    user: Dict[str, Any] = Depends(_ADMIN_POSTA),
+):
+    try:
+        return email_caselle_service.elenco(
+            dal=dal, giorni=giorni, casella=casella, dove=[x.strip() for x in dove.split(",")] if dove else None,
+            q=q, solo_da_rispondere=solo_da_rispondere, anche_massive=anche_massive, anche_trgb=anche_trgb,
+            limite=limite)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/posta/{email_id}")
+def posta_leggi_ep(email_id: int, user: Dict[str, Any] = Depends(_ADMIN_POSTA)):
+    m = email_caselle_service.leggi(email_id)
+    if not m:
+        raise HTTPException(status_code=404, detail="Mail non trovata")
+    return m

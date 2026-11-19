@@ -682,6 +682,7 @@ def build_vista_mese(reparto_id: int, anno: int, mese: int) -> Dict[str, Any]:
             t["dipendente_a_chiamata"] = bool(t.get("dipendente_a_chiamata") or 0)
 
         chiusure = giorni_chiusi_nel_range(giorni)
+        turni_chiusi = servizi_chiusi_nel_range(giorni)
 
         # Assenze nel range mensile per i dipendenti del reparto (sess. 39)
         dip_ids = [d["id"] for d in dipendenti]
@@ -715,6 +716,7 @@ def build_vista_mese(reparto_id: int, anno: int, mese: int) -> Dict[str, Any]:
             "dipendenti": dipendenti,
             "turni": turni,
             "chiusure": chiusure,
+            "turni_chiusi": turni_chiusi,
             "assenze": assenze,
         }
     finally:
@@ -722,38 +724,40 @@ def build_vista_mese(reparto_id: int, anno: int, mese: int) -> Dict[str, Any]:
 
 
 # ============================================================
-# CHIUSURE — da modulo Vendite
+# CHIUSURE — dal calendario chiusure (Vendite › Chiusure), via platform
 # ============================================================
-def _get_closures_cfg() -> Dict[str, Any]:
-    try:
-        from app.routers.closures_config_router import get_closures_config
-        return get_closures_config() or {}
-    except Exception:
-        return {}
-
-
+# Fino al 2026-11-19 qui si leggevano solo giorno fisso e giorni chiusi: i
+# turni chiusi (solo pranzo / solo cena) non arrivavano al foglio turni.
 def giorni_chiusi_nella_settimana(iso_settimana: str) -> List[str]:
-    """Restituisce le date chiuse (YYYY-MM-DD) in questa settimana,
-    combinando giorno_chiusura_settimanale + giorni_chiusi espliciti."""
+    """Date (YYYY-MM-DD) chiuse TUTTO il giorno in questa settimana."""
     return giorni_chiusi_nel_range(giorni_settimana(iso_settimana))
 
 
 def giorni_chiusi_nel_range(date_list: List[date]) -> List[str]:
-    """Restituisce le date chiuse (YYYY-MM-DD) in un range arbitrario di date,
-    combinando giorno_chiusura_settimanale + giorni_chiusi espliciti.
-    Usato da vista mensile (42 giorni) e settimana (7)."""
-    cfg = _get_closures_cfg()
-    giorno_fisso = cfg.get("giorno_chiusura_settimanale")  # 0..6 o None
-    giorni_chiusi_expl = set(cfg.get("giorni_chiusi") or [])
+    """Date (YYYY-MM-DD) chiuse tutto il giorno: giorno fisso, giorni chiusi,
+    oppure pranzo e cena chiusi entrambi. Usato da settimana (7) e mese (42)."""
+    from app.services import calendario_chiusure
+    return calendario_chiusure.giorni_chiusi(date_list)
 
-    out = set()
-    for d in date_list:
-        iso = d.isoformat()
-        if iso in giorni_chiusi_expl:
-            out.add(iso)
-        elif giorno_fisso is not None and d.weekday() == int(giorno_fisso):
-            out.add(iso)
-    return sorted(out)
+
+def servizi_chiusi_nel_range(date_list: List[date]) -> Dict[str, Dict[str, str]]:
+    """{data: {'PRANZO'|'CENA': motivo}} dei giorni con UN solo servizio chiuso
+    (i giorni chiusi interi stanno in giorni_chiusi_nel_range)."""
+    from app.services import calendario_chiusure
+    return {
+        g: {t.upper(): m for t, m in tc.items()}
+        for g, tc in calendario_chiusure.turni_chiusi_parziali(date_list).items()
+    }
+
+
+def servizio_chiuso(data_iso: str, servizio: str) -> Optional[str]:
+    """Messaggio di blocco se quel servizio di quel giorno è chiuso, altrimenti None."""
+    from app.services import calendario_chiusure
+    motivo = calendario_chiusure.chiuso(data_iso, servizio)
+    if motivo is None:
+        return None
+    return (calendario_chiusure.descrivi(data_iso, servizio, motivo)
+            + ": niente turni. Per riaprirlo: Vendite › Chiusure.")
 
 
 # ============================================================
@@ -973,6 +977,7 @@ def build_vista_dipendente(
 
     # Chiusure su tutto il range (una sola chiamata)
     chiusure_all = set(giorni_chiusi_nel_range(giorni_all))
+    servizi_chiusi_all = servizi_chiusi_nel_range(giorni_all)
 
     # Raggruppa turni per data
     by_day: Dict[str, List[Dict[str, Any]]] = {}
@@ -1037,6 +1042,7 @@ def build_vista_dipendente(
                 "ore_lorde": round(lordo_g, 2),
                 "ore_nette": round(netto_g, 2),
                 "is_chiusura": is_ch,
+                "servizi_chiusi": servizi_chiusi_all.get(g_iso, {}),
                 "is_riposo": is_riposo,
                 "opzionali": opzionali_g,
                 "assenza": assenza_g,
@@ -1113,6 +1119,7 @@ def copia_settimana(
     mapping = dict(zip(src_giorni, dst_giorni))
 
     chiusi_dst = set(giorni_chiusi_nella_settimana(to_iso))
+    serv_chiusi_dst = servizi_chiusi_nel_range(giorni_settimana(to_iso))
 
     conn = get_dipendenti_conn()
     try:
@@ -1152,7 +1159,7 @@ def copia_settimana(
 
         # Turni sorgente
         cur.execute(
-            """SELECT tc.*
+            """SELECT tc.*, UPPER(COALESCE(tt.servizio, '')) AS _servizio
                FROM turni_calendario tc
                JOIN dipendenti d ON d.id = tc.dipendente_id
                JOIN turni_tipi tt ON tt.id = tc.turno_tipo_id
@@ -1168,7 +1175,7 @@ def copia_settimana(
             nuova_data = mapping.get(r["data"])
             if not nuova_data:
                 continue
-            if nuova_data in chiusi_dst:
+            if nuova_data in chiusi_dst or r.get("_servizio") in serv_chiusi_dst.get(nuova_data, {}):
                 saltati += 1
                 continue
             cur.execute(
@@ -1452,6 +1459,7 @@ def applica_template(
             raise ValueError("Template senza reparto_id (template legacy — rifarlo)")
 
         chiusi_dst = set(giorni_chiusi_nella_settimana(settimana_iso))
+        serv_chiusi_dst = servizi_chiusi_nel_range(giorni_settimana(settimana_iso))
 
         # Turni destinazione esistenti nel reparto
         cur.execute(
@@ -1503,7 +1511,7 @@ def applica_template(
             if weekday is None or weekday < 0 or weekday > 6:
                 continue
             data_dst = giorni[weekday]
-            if data_dst in chiusi_dst:
+            if data_dst in chiusi_dst or (r.get("servizio") or "").upper() in serv_chiusi_dst.get(data_dst, {}):
                 saltati_chiusure += 1
                 continue
             if not r.get("dipendente_attivo"):

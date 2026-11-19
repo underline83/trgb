@@ -1,4 +1,4 @@
-// @version: v1.11-mattoni — M.I primitives (Btn) su Pubblica + Invia WA (resto invariato, minimal touch)
+// @version: v1.12 — servizi chiusi (solo pranzo / solo cena) dal calendario chiusure: grigi e bloccati (2026-11-19); v1.11-mattoni — M.I primitives (Btn) su Pubblica + Invia WA
 // Foglio Settimana Turni v2 — TRGB Gestionale
 //
 // Matrice: 7 giorni (Lun..Dom) × slot (P1..Pn + C1..Cn) per reparto.
@@ -6,7 +6,7 @@
 // - Click cella → popover assegnazione (dipendente, orari, stato OPZIONALE)
 // - Asterisco giallo per stato OPZIONALE (turno da confermare all'ultimo)
 // - Badge "a chiamata" per dipendenti pagati a ore senza contratto fisso
-// - Riga grigia per giorno di chiusura (letto da settings/closures-config)
+// - Riga grigia per giorno di chiusura, metà riga grigia per servizio chiuso (foglio.turni_chiusi)
 // - Pannello destro: ore lorde/nette per dipendente con semaforo 40/48
 // - Pulsanti ←/→ per navigazione settimana, pulsante "Copia settimana"
 // - 📄 PDF: fetch server-side (WeasyPrint) → blob → apertura in nuova tab (niente dialog stampante)
@@ -298,6 +298,8 @@ export default function FoglioSettimana() {
   }, [foglio]);
 
   const chiusi = useMemo(() => new Set(foglio?.chiusure || []), [foglio]);
+  // Servizi chiusi da soli: { "2026-12-24": { CENA: "vigilia" } } (Vendite › Chiusure)
+  const serviziChiusi = foglio?.turni_chiusi || {};
 
   // Assenze — mappa { `${dipId}_${data}` → assenza } per lookup rapido (sess. 39)
   const assenzeMap = useMemo(() => {
@@ -369,6 +371,8 @@ export default function FoglioSettimana() {
     if (!puoModificare) return;
     if (chiusi.has(data)) return;
     const turno = matrice[data]?.[servizio]?.[slot_index] || null;
+    // Servizio chiuso: niente turni nuovi (uno già scritto si apre per toglierlo)
+    if (!turno && serviziChiusi[data] && servizio in serviziChiusi[data]) return;
     const rect = event.currentTarget.getBoundingClientRect();
     setPopover({ data, servizio, slot_index, turno, anchorRect: rect });
   }
@@ -655,7 +659,7 @@ export default function FoglioSettimana() {
             {/* VISTA: matrice su desktop/landscape, vista giorno su mobile/portrait */}
             {isNarrow ? (
               <VistaGiornoMobile
-                foglio={foglio} matrice={matrice} chiusi={chiusi}
+                foglio={foglio} matrice={matrice} chiusi={chiusi} serviziChiusi={serviziChiusi}
                 nSlotPranzo={nSlotPranzo} nSlotCena={nSlotCena}
                 reparto={reparto}
                 giornoIdx={giornoIdx} setGiornoIdx={setGiornoIdx}
@@ -666,7 +670,7 @@ export default function FoglioSettimana() {
             ) : (
               <div className="bg-white rounded-xl shadow overflow-auto">
                 <FoglioGrid
-                  foglio={foglio} matrice={matrice} chiusi={chiusi}
+                  foglio={foglio} matrice={matrice} chiusi={chiusi} serviziChiusi={serviziChiusi}
                   nSlotPranzo={nSlotPranzo} nSlotCena={nSlotCena}
                   onCellClick={apriCella}
                   reparti={reparti} repartoId={repartoId} onRepartoChange={setRepartoId}
@@ -691,7 +695,7 @@ export default function FoglioSettimana() {
       {/* OVERLAY VISTA IMMAGINE (screenshot-ready per WhatsApp) */}
       {imageMode && foglio && (
         <VistaImmagine
-          foglio={foglio} matrice={matrice} chiusi={chiusi}
+          foglio={foglio} matrice={matrice} chiusi={chiusi} serviziChiusi={serviziChiusi}
           nSlotPranzo={nSlotPranzo} nSlotCena={nSlotCena}
           reparto={reparto} settimana={settimana}
           onClose={() => setImageMode(false)}
@@ -754,7 +758,7 @@ export default function FoglioSettimana() {
 
 // ---- FOGLIO GRID ----------------------------------------------------------
 function FoglioGrid({
-  foglio, matrice, chiusi, nSlotPranzo, nSlotCena, onCellClick,
+  foglio, matrice, chiusi, serviziChiusi = {}, nSlotPranzo, nSlotCena, onCellClick,
   reparti = [], repartoId = null, onRepartoChange = null,
 }) {
   const giorni = foglio.giorni;
@@ -822,21 +826,30 @@ function FoglioGrid({
         <tbody>
           {giorni.map((g, idx) => {
             const chiuso = chiusi.has(g);
+            const sc = serviziChiusi[g] || {};
+            const pChiuso = "PRANZO" in sc;
+            const cChiuso = "CENA" in sc;
+            // Servizio chiuso: cella vuota grigia «—»; un turno già scritto resta visibile (per toglierlo)
+            const cella = (serv, servChiuso, si, key) => {
+              const t = matrice[g]?.[serv]?.[si];
+              const off = chiuso || (servChiuso && !t);
+              return <SlotCell key={key} turno={t}
+                onClick={(e) => !off && onCellClick(g, serv, si, e)} disabled={off} />;
+            };
             return (
               <tr key={g} className={chiuso ? "bg-neutral-100 text-neutral-400" : ""}>
                 <td className="px-2 py-1 border-b border-r font-medium sticky left-0 bg-white">
                   <div className="text-[10px] text-neutral-500 leading-tight">{NOMI_GIORNI_LUN[idx]}</div>
                   <div className="text-xs leading-tight">{formatDayLabel(g)}</div>
                   {chiuso && <div className="text-[9px] text-red-500 leading-tight">CHIUSO</div>}
+                  {!chiuso && (pChiuso || cChiuso) && (
+                    <div className="text-[9px] text-red-500 leading-tight" title={sc.PRANZO || sc.CENA || ""}>
+                      {pChiuso ? "PRANZO CHIUSO" : "CENA CHIUSA"}{(sc.PRANZO || sc.CENA) ? ` · ${sc.PRANZO || sc.CENA}` : ""}
+                    </div>
+                  )}
                 </td>
-                {Array.from({length: nSlotPranzo}).map((_, si) => (
-                  <SlotCell key={`${g}-p${si}`} turno={matrice[g]?.PRANZO?.[si]}
-                    onClick={(e) => !chiuso && onCellClick(g, "PRANZO", si, e)} disabled={chiuso} />
-                ))}
-                {Array.from({length: nSlotCena}).map((_, si) => (
-                  <SlotCell key={`${g}-c${si}`} turno={matrice[g]?.CENA?.[si]}
-                    onClick={(e) => !chiuso && onCellClick(g, "CENA", si, e)} disabled={chiuso} />
-                ))}
+                {Array.from({length: nSlotPranzo}).map((_, si) => cella("PRANZO", pChiuso, si, `${g}-p${si}`))}
+                {Array.from({length: nSlotCena}).map((_, si) => cella("CENA", cChiuso, si, `${g}-c${si}`))}
               </tr>
             );
           })}
@@ -850,7 +863,7 @@ function FoglioGrid({
 // ---- SLOT CELL ------------------------------------------------------------
 function SlotCell({ turno, onClick, disabled }) {
   if (disabled) {
-    return <td className="border-b border-r px-1 py-1 text-center text-neutral-300">—</td>;
+    return <td className="border-b border-r px-1 py-1 text-center text-neutral-300 bg-neutral-100">—</td>;
   }
   if (!turno) {
     return (
@@ -1290,7 +1303,7 @@ function DialogCopia({ reparto, settimanaCorrente, onClose, onSubmit }) {
         </label>
 
         <div className="text-xs text-neutral-500 mb-4">
-          I giorni chiusi nella settimana destinazione vengono saltati automaticamente.
+          I giorni e i servizi chiusi nella settimana destinazione vengono saltati automaticamente.
         </div>
 
         <div className="flex justify-end gap-2">
@@ -1310,7 +1323,7 @@ function DialogCopia({ reparto, settimanaCorrente, onClose, onSubmit }) {
 // ---- VISTA IMMAGINE (Fase 8) ---------------------------------------------
 // Fullscreen pulito pronto per screenshot da condividere su WhatsApp con lo staff.
 // Nasconde tutta la nav, mostra solo titolo + matrice + legenda.
-function VistaImmagine({ foglio, matrice, chiusi, nSlotPranzo, nSlotCena, reparto, settimana, onClose, onPdf }) {
+function VistaImmagine({ foglio, matrice, chiusi, serviziChiusi = {}, nSlotPranzo, nSlotCena, reparto, settimana, onClose, onPdf }) {
   // Previeni lo scroll body dietro l'overlay
   useEffect(() => {
     const prev = document.body.style.overflow;
@@ -1360,7 +1373,7 @@ function VistaImmagine({ foglio, matrice, chiusi, nSlotPranzo, nSlotCena, repart
         {/* Matrice */}
         <div className="bg-white border border-neutral-300 rounded overflow-auto">
           <FoglioGrid
-            foglio={foglio} matrice={matrice} chiusi={chiusi}
+            foglio={foglio} matrice={matrice} chiusi={chiusi} serviziChiusi={serviziChiusi}
             nSlotPranzo={nSlotPranzo} nSlotCena={nSlotCena}
             onCellClick={() => {}}
           />
@@ -1386,12 +1399,13 @@ function VistaImmagine({ foglio, matrice, chiusi, nSlotPranzo, nSlotCena, repart
 // "vista giorno": un giorno alla volta con due liste verticali (pranzo / cena).
 // Touch target 48pt, swipe left/right per cambiare giorno (con bordo settimana).
 function VistaGiornoMobile({
-  foglio, matrice, chiusi, nSlotPranzo, nSlotCena, reparto,
+  foglio, matrice, chiusi, serviziChiusi = {}, nSlotPranzo, nSlotCena, reparto,
   giornoIdx, setGiornoIdx, onCellClick,
   onPrevSettimana, onNextSettimana,
 }) {
   const dataIso = foglio.giorni[giornoIdx];
   const chiuso = chiusi.has(dataIso);
+  const scGiorno = serviziChiusi[dataIso] || {};
   const turniDay = matrice[dataIso] || { PRANZO: {}, CENA: {} };
   const oggiIso = (() => {
     const d = new Date();
@@ -1483,6 +1497,7 @@ function VistaGiornoMobile({
             servizio="PRANZO"
             n={nSlotPranzo}
             slotMap={turniDay.PRANZO || {}}
+            chiusoMotivo={"PRANZO" in scGiorno ? (scGiorno.PRANZO || "") : null}
             onSlotClick={(si, e) => onCellClick(dataIso, "PRANZO", si, e)}
           />
           <SezioneServizioMobile
@@ -1491,6 +1506,7 @@ function VistaGiornoMobile({
             servizio="CENA"
             n={nSlotCena}
             slotMap={turniDay.CENA || {}}
+            chiusoMotivo={"CENA" in scGiorno ? (scGiorno.CENA || "") : null}
             onSlotClick={(si, e) => onCellClick(dataIso, "CENA", si, e)}
           />
         </div>
@@ -1504,14 +1520,21 @@ function VistaGiornoMobile({
 }
 
 
-function SezioneServizioMobile({ etichetta, orarioStd, n, slotMap, onSlotClick }) {
-  const slotsArr = Array.from({ length: n }, (_, i) => i);
+function SezioneServizioMobile({ etichetta, orarioStd, n, slotMap, chiusoMotivo = null, onSlotClick }) {
+  // Servizio chiuso (Vendite › Chiusure): niente slot liberi, restano solo i turni già scritti
+  const chiusoServ = chiusoMotivo !== null && chiusoMotivo !== undefined;
+  const slotsArr = Array.from({ length: n }, (_, i) => i).filter(si => !chiusoServ || slotMap[si]);
   return (
     <div className="border rounded-lg overflow-hidden">
       <div className="flex items-center justify-between px-3 py-2 bg-neutral-50 border-b">
         <div className="text-sm font-semibold">{etichetta}</div>
         <div className="text-[10px] text-neutral-500 font-mono">{orarioStd}</div>
       </div>
+      {chiusoServ && (
+        <div className="px-3 py-3 text-sm text-neutral-500 bg-neutral-100 border-b">
+          🚪 Chiuso{chiusoMotivo ? ` · ${chiusoMotivo}` : ""} — niente turni
+        </div>
+      )}
       <div>
         {slotsArr.map(si => (
           <SlotMobileRow key={si}
@@ -1800,7 +1823,7 @@ function DialogTemplate({ reparto, settimanaCorrente, onClose, onApplicato }) {
             </label>
 
             <div className="text-xs text-neutral-500 mb-4">
-              I giorni chiusi e le righe di dipendenti non attivi vengono saltati automaticamente.
+              I giorni e i servizi chiusi e le righe di dipendenti non attivi vengono saltati automaticamente.
             </div>
 
             <div className="flex justify-end gap-2">

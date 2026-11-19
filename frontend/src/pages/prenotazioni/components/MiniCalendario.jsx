@@ -1,4 +1,4 @@
-// @version: v1.0
+// @version: v1.1 — giorni chiusi grigi barrati, mezzo giorno chiuso con titolo (calendario chiusure, 2026-11-19); v1.0
 // Mini-calendario mensile con badge prenotazioni
 import React, { useState, useEffect } from "react";
 import { API_BASE, apiFetch } from "../../../config/api";
@@ -11,12 +11,13 @@ export default function MiniCalendario({ selectedDate, onSelectDate }) {
   const [anno, setAnno] = useState(sel.getFullYear());
   const [mese, setMese] = useState(sel.getMonth() + 1); // 1-12
   const [dati, setDati] = useState({});
+  const [chiusi, setChiusi] = useState({});   // { "2026-12-25": ["cena"] }
 
   useEffect(() => {
     apiFetch(`${API_BASE}/prenotazioni/calendario/${anno}/${mese}`)
       .then((r) => r.json())
-      .then((d) => setDati(d.giorni || {}))
-      .catch(() => setDati({}));
+      .then((d) => { setDati(d.giorni || {}); setChiusi(d.chiusi || {}); })
+      .catch(() => { setDati({}); setChiusi({}); });
   }, [anno, mese]);
 
   // Griglia giorni
@@ -71,18 +72,25 @@ export default function MiniCalendario({ selectedDate, onSelectDate }) {
           const hasPren = cell.info;
           const sat = cell.info?.saturazione || 0;
           const badgeColor = sat > 0.8 ? "bg-red-500" : sat > 0.5 ? "bg-amber-500" : "bg-emerald-500";
+          const tc = chiusi[cell.iso] || [];
+          const giornoChiuso = tc.length === 2;
+          const titolo = giornoChiuso ? "Chiuso" : tc.length ? `${tc[0] === "pranzo" ? "Pranzo" : "Cena"} chiuso` : undefined;
 
           return (
             <button
               key={cell.iso}
               onClick={() => onSelectDate(cell.iso)}
+              title={titolo}
               className={`relative w-8 h-8 flex items-center justify-center text-xs rounded-lg transition
                 ${isSelected ? "bg-indigo-600 text-white font-bold" : ""}
                 ${isOggi && !isSelected ? "ring-2 ring-indigo-300" : ""}
-                ${!isSelected ? "hover:bg-neutral-100 text-neutral-700" : ""}
+                ${!isSelected ? (giornoChiuso ? "bg-neutral-100 text-neutral-400 line-through" : "hover:bg-neutral-100 text-neutral-700") : ""}
               `}
             >
               {cell.d}
+              {tc.length === 1 && !isSelected && (
+                <span className="absolute top-0 right-0.5 text-[8px] leading-none text-red-500">{tc[0] === "pranzo" ? "☀" : "☾"}</span>
+              )}
               {hasPren && !isSelected && (
                 <span className={`absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full ${badgeColor}`} />
               )}

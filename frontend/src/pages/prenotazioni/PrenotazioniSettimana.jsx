@@ -1,4 +1,4 @@
-// @version: v1.2 — coperti «In opzione» a parte (2026-11-13); v1.1-mattoni — M.I primitives (Btn) su CTA "Questa settimana"
+// @version: v1.3 — pranzo o cena chiusi dal calendario chiusure: «CHIUSO» al posto dei numeri (2026-11-19); v1.2 — coperti «In opzione» a parte (2026-11-13); v1.1-mattoni — M.I primitives (Btn) su CTA "Questa settimana"
 // Vista settimanale riepilogativa — modulo Prenotazioni TRGB
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
@@ -117,21 +117,25 @@ export default function PrenotazioniSettimana() {
                   </div>
 
                   {g.chiuso ? (
-                    <div className="text-center text-xs text-neutral-400 font-medium">CHIUSO</div>
+                    <div className="text-center text-xs text-neutral-400 font-medium" title={g.motivo_chiusura || ""}>CHIUSO</div>
                   ) : (
                     <div className="space-y-1.5">
                       {/* Pranzo */}
                       <div className="text-center">
                         <div className="text-[10px] text-neutral-400 uppercase">Pranzo</div>
                         <div className="text-sm font-semibold text-neutral-700">
-                          {g.pranzo_count > 0 ? `${g.pranzo_count} · ${g.pranzo_pax}p` : "—"}
+                          {g.pranzo_chiuso && !g.pranzo_count
+                            ? <span className="text-xs text-red-500" title={g.motivo_chiusura || ""}>CHIUSO</span>
+                            : g.pranzo_count > 0 ? `${g.pranzo_count} · ${g.pranzo_pax}p` : "—"}
                         </div>
                       </div>
                       {/* Cena */}
                       <div className="text-center">
                         <div className="text-[10px] text-neutral-400 uppercase">Cena</div>
                         <div className="text-sm font-semibold text-neutral-700">
-                          {g.cena_count > 0 ? `${g.cena_count} · ${g.cena_pax}p` : "—"}
+                          {g.cena_chiuso && !g.cena_count
+                            ? <span className="text-xs text-red-500" title={g.motivo_chiusura || ""}>CHIUSA</span>
+                            : g.cena_count > 0 ? `${g.cena_count} · ${g.cena_pax}p` : "—"}
                         </div>
                       </div>
                       {/* Totale */}

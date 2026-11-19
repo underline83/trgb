@@ -96,33 +96,30 @@ def _nome_locale() -> str:
 # ── Chiusure ─────────────────────────────────────────────────
 
 def _chiusure() -> Dict[str, Any]:
+    from app.services import calendario_chiusure
+    return calendario_chiusure.config()
+
+
+def turni_chiusi_motivi(cfg: Dict[str, str], d: date, chiusure: Optional[Dict[str, Any]] = None) -> Dict[str, str]:
+    """{turno: motivo} chiusi quel giorno: calendario chiusure del locale (platform)
+    + giorno di chiusura delle prenotazioni (prenotazioni_config.giorno_chiusura,
+    0=dom … 6=sab, -1 = nessuno)."""
+    from app.services import calendario_chiusure
+    cal = chiusure if chiusure is not None else _chiusure()
+    out = calendario_chiusure.turni_chiusi(d, cal)
     try:
-        from app.routers.closures_config_router import get_closures_config
-        return get_closures_config() or {}
-    except Exception:
-        return {}
+        g = int(cfg.get("giorno_chiusura", -1))
+        # un'apertura straordinaria vale anche sul giorno di chiusura delle prenotazioni
+        if g >= 0 and (d.weekday() + 1) % 7 == g and not calendario_chiusure.aperto_straordinario(d, cal):
+            return {t: out.get(t) or "giorno di chiusura" for t in calendario_chiusure.TURNI}
+    except (TypeError, ValueError):
+        pass
+    return out
 
 
 def turni_chiusi(cfg: Dict[str, str], d: date, chiusure: Optional[Dict[str, Any]] = None) -> set:
     """Turni chiusi quel giorno: {'pranzo','cena'} se tutto il giorno."""
-    ch = chiusure if chiusure is not None else _chiusure()
-    tutti = {"pranzo", "cena"}
-    fisso = ch.get("giorno_chiusura_settimanale")
-    if fisso is not None and d.weekday() == int(fisso):
-        return tutti
-    if d.isoformat() in set(ch.get("giorni_chiusi") or []):
-        return tutti
-    try:  # giorno di chiusura delle prenotazioni: 0=dom … 6=sab, -1 = nessuno
-        g = int(cfg.get("giorno_chiusura", -1))
-        if g >= 0 and (d.weekday() + 1) % 7 == g:
-            return tutti
-    except (TypeError, ValueError):
-        pass
-    out = set()
-    for t in ch.get("turni_chiusi") or []:
-        if t.get("data") == d.isoformat() and t.get("turno") in tutti:
-            out.add(t["turno"])
-    return out
+    return set(turni_chiusi_motivi(cfg, d, chiusure))
 
 
 # ── Disponibilità ────────────────────────────────────────────

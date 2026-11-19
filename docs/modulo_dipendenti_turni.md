@@ -165,21 +165,23 @@ CREATE INDEX idx_tmpl_righe_tmpl ON turni_template_righe(template_id);
 
 ### 2.7 Chiusure settimanali — NIENTE duplicazione
 
-Le chiusure si leggono da `closures_config.json` (modulo Vendite, gestito da
-`app/routers/closures_config_router.py`; dal R6.5 il file vive nella cartella
-dati del locale `locali/<id>/data/`, via `locale_data_path`). Il service Turni
-usa la funzione di comodo:
+Le chiusure si leggono dal calendario chiusure unico, servizio platform
+`app/services/calendario_chiusure.py` (dati in `closures_config.json`, compilato in
+Vendite › Chiusure: giorno fisso, giorni chiusi, turni chiusi). Helper in
+`turni_service.py`: `giorni_chiusi_nella_settimana` / `giorni_chiusi_nel_range`
+(giorni interi, compresi pranzo+cena chiusi lo stesso giorno),
+`servizi_chiusi_nel_range` (`{data: {"PRANZO"|"CENA": motivo}}` dove è chiuso un
+servizio solo), `servizio_chiuso(data, servizio)` (messaggio di blocco).
 
-```python
-from app.routers.closures_config_router import get_closures_config
-cfg = get_closures_config()
-# cfg = {giorno_chiusura_settimanale: 2, giorni_chiusi: [...], turni_chiusi: [...]}
-```
-
-(helper reali: `giorni_chiusi_nella_settimana` / `giorni_chiusi_nel_range` in
-`turni_service.py:701-722`; il router Turni espone anche `GET /turni/chiusure`).
-Il frontend può usare `GET /settings/closures-config/` (JWT). Le celle dei
-giorni chiusi appaiono grigie, niente turni assegnabili.
+Dal 2026-11-19 (dipendenti 2.46) anche i **servizi chiusi da soli** arrivano ai
+Turni: prima si leggevano solo giorno fisso e giorni chiusi, e una cena chiusa
+(vigilia, Natale) restava prenotabile nel foglio. Ora: foglio settimana, telefono,
+vista immagine, vista mensile e PDF mostrano il servizio grigio («CENA CHIUSA ·
+motivo»); `POST /turni/foglio/assegna` risponde 409 sul servizio chiuso; copia
+settimana e applica template lo saltano (`saltati_chiusure`). Un turno già scritto
+in un servizio chiuso resta visibile e si apre per toglierlo. Payload: `turni_chiusi`
+in `/turni/foglio`, `/turni/mese`, `/turni/chiusure`; `servizi_chiusi` per giorno in
+`/turni/dipendente`.
 
 ---
 

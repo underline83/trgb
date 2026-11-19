@@ -413,7 +413,7 @@ La config `giorni_chiusi` / `giorno_chiusura_settimanale` NON entra più in ques
 | Metodo | Endpoint | Funzione |
 |--------|----------|----------|
 | GET | `/settings/closures-config/` | Leggi configurazione chiusure |
-| PUT | `/settings/closures-config/` | Aggiorna configurazione chiusure (admin) |
+| PUT | `/settings/closures-config/` | Aggiorna configurazione chiusure (admin): `giorno_chiusura_settimanale`, `giorni_chiusi`, `giorni_aperti` (aperture straordinarie nel giorno fisso, 2026-11-19), `turni_chiusi`. Chi legge passa da `calendario_chiusure` (M.L) |
 
 ## 11.4 UI — `CalendarioChiusure.jsx` (dentro Vendite > Impostazioni)
 

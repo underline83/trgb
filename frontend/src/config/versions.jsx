@@ -377,6 +377,8 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   corrispettivi: {
+    // 4.15 (2026-11-19): Calendario chiusure — aperture straordinarie: clic su un giorno del giorno fisso
+    //   lo apre (verde, giorni_aperti), lista con ×; Turni e Prenotazioni lo trattano come giorno normale.
     // 4.14 (2026-11-06): chiusure turno — lo storico (elenco, statistiche, giorni vecchi) solo ad
     //   admin, contabile e capo sala; sala e sommelier aprono e salvano solo gli ultimi N giorni
     //   (Impostazioni › 🔒 Chiusura turno, default 1). Mance da /mance/ senza incassi. Tabella
@@ -413,7 +415,7 @@ const MODULE_VERSIONS = {
     //   78gg "aperti" a 62-64gg reali, media €/gg passa da €1.325 a €1.667,
     //   YoY €/gg da +51% gonfiato a +17% reale. Config resta per altri
     //   consumer (CalendarView shading). Nessuna migrazione DB.
-    version: "4.14",
+    version: "4.15",
     label: "Gestione Vendite",
     status: "stabile",
     color: "green",
@@ -442,6 +444,9 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   dipendenti: {
+    // 2.46 (2026-11-19): Turni — i servizi chiusi da soli (solo pranzo / solo cena, Vendite › Chiusure)
+    //   arrivano al foglio settimana, al telefono, alla vista mensile e al PDF: celle grigie, niente turni nuovi
+    //   (bloccato anche dal backend), copia settimana e template li saltano. Prima vedeva solo i giorni interi.
     // 2.45 (2026-11-16): giorno di paga dei nuovi dipendenti = default di Impostazioni (15). Prima la
     //   creazione da Anagrafica non passava il campo e la colonna metteva il suo DEFAULT 27: stipendi
     //   di Nicoli e Spuri al 27/11, fuori distinta. Mig 235 sistema i dati (sistema 6.1).
@@ -487,7 +492,7 @@ const MODULE_VERSIONS = {
     // 2.43 (2026-11-05): calendario .ics — chi lavora in più reparti (Marco:
     //   cucina e sala) ha un abbonamento per reparto (?reparto=CUCINA/SALA), così
     //   sul telefono sono due calendari di due colori. Ferie/permessi nel principale.
-    version: "2.45",
+    version: "2.46",
     label: "Dipendenti",
     status: "stabile",
     color: "green",
@@ -672,6 +677,10 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   prenotazioni: {
+    // 2.37 (2026-11-19): turni chiusi dal calendario chiusure (Vendite › Chiusure) — Planning con banner
+    //   «Turno chiuso», Settimana e mini-calendario li segnano, prenotazioni a mano BLOCCATE sul turno chiuso
+    //   (crea e sposta), fasce del turno chiuse e online chiuso anche su TheFork (si chiude solo in TRGB);
+    //   riaperto il turno, fasce e TheFork tornano aperti. Il motore online non riapre più un turno chiuso.
     // 2.36 (2026-11-16): Planning — stelle TRGB e pallino del segmento accanto al nome (al posto della ⭐ VIP TheFork).
     // 2.35 (2026-11-13): sincronizzazione TheFork con priorità a TRGB sul descrittivo (nota staff,
     //   occasione, tavolo, allergie, seggioloni, stato In opzione/Lista d'attesa/arrivato…andato contro
@@ -704,7 +713,7 @@ const MODULE_VERSIONS = {
     // 2.16 (2026-10-19): Prenotazioni › Archivio (tutte le prenotazioni con filtri), spostato da
     //   Clienti; API nuova GET /prenotazioni/archivio/ (+ /riepilogo/). /clienti/prenotazioni rimanda qui.
     // 2.15 (2026-10-19): PrenotazioniForm accetta defaultCliente (bottone «Prenota» della scheda cliente).
-    version: "2.36",
+    version: "2.37",
     label: "Prenotazioni",
     status: "beta",
     color: "blue",
@@ -827,6 +836,12 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 6.5 (2026-11-19): mig 239 — email_posta, email_posta_cursore, email_posta_giri: TRGB legge in sola lettura
+    //   le altre caselle del locale (info@, prenotazioni@, la PEC…), Impostazioni › Email «📬 Altre caselle»,
+    //   /email/caselle/ e /email/posta, connettore 1.17 (posta_elenco, posta_leggi).
+    //   Nello stesso push, mattone nuovo: calendario chiusure unico (app/services/calendario_chiusure.py) —
+    //   Turni, Prenotazioni e sito leggono le chiusure da un posto solo; chiudere un turno in TRGB lo chiude
+    //   anche su TheFork (dipendenti 2.46, prenotazioni 2.37).
     // 6.4 (2026-11-16): mig 238 — clienti_rubrica_accessi + impostazioni rubrica_prefisso/rubrica_stelle_min: rubrica dei clienti sul telefono via CardDAV (clienti 3.39).
     // 6.3 (2026-11-16): mig 237 — clienti.stella_oro_tolta: i VIP di TheFork hanno la stella oro in automatico, Marco può toglierla (clienti 3.37).
     // 6.2 (2026-11-16): mig 236 — stelle e segmenti dei clienti calcolati da TRGB (clienti.stella_oro,
@@ -984,7 +999,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "6.4",
+    version: "6.5",
     label: "Sistema",
     status: "stabile",
     color: "green",

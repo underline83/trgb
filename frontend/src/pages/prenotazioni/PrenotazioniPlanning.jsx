@@ -1,4 +1,4 @@
-// @version: v1.15-stelle — stelle TRGB e pallino del segmento accanto al nome (al posto della ⭐ VIP TheFork) (2026-11-16); v1.14-stati — «In opzione» (tavolo tenuto fino al…, proroga, coperti a parte) e «Lista d'attesa» (sezione propria, non occupa); pulsanti di stato dai passaggi permessi della tabella stati (sparito «Seduto» su «Da confermare», che dava errore) (2026-11-13); v1.13-scadenza-preventivo — ⏳ prenotazione in attesa di conferma preventivo (scadenza), «Libera tavolo», motivo della cancellazione (2026-11-03); v1.12-motore — tavolo suggerito dal motore per tavoli (clic = assegna, «Assegna i suggeriti»), «non entra» in rosso, tavoli doppi; v1.11-sale — sale aperte/chiuse per turno nell'intestazione (capienza dai tavoli); v1.10-modifica — «✏️ Modifica» nella riga aperta (stesso form della nuova prenotazione); v1.9-nome — nome anche col solo cognome; v1.8-menu-evento — menù dell'evento confermato nella riga aperta; v1.7-preventivo — tasto «📋 Preventivo» nella riga aperta (crea o apre il preventivo della prenotazione, solo per chi può crearli); v1.6-fasce — fasce orarie del turno (apertura, limiti, online anche su TheFork); v1.5-affidabilita — badge no-show del cliente, riconferma WhatsApp; v1.4 scheda inline — scheda cliente aperta dentro il Planning; v1.3 timeline — bollino cliente (prima/occasionale/frequente) + timeline sala per orario; badge «doppione?»
+// @version: v1.16-chiusure — turno chiuso nel calendario chiusure: banner rosso, «Nessuna prenotazione» diventa «Turno chiuso» (2026-11-19); v1.15-stelle — stelle TRGB e pallino del segmento accanto al nome (al posto della ⭐ VIP TheFork) (2026-11-16); v1.14-stati — «In opzione» (tavolo tenuto fino al…, proroga, coperti a parte) e «Lista d'attesa» (sezione propria, non occupa); pulsanti di stato dai passaggi permessi della tabella stati (sparito «Seduto» su «Da confermare», che dava errore) (2026-11-13); v1.13-scadenza-preventivo — ⏳ prenotazione in attesa di conferma preventivo (scadenza), «Libera tavolo», motivo della cancellazione (2026-11-03); v1.12-motore — tavolo suggerito dal motore per tavoli (clic = assegna, «Assegna i suggeriti»), «non entra» in rosso, tavoli doppi; v1.11-sale — sale aperte/chiuse per turno nell'intestazione (capienza dai tavoli); v1.10-modifica — «✏️ Modifica» nella riga aperta (stesso form della nuova prenotazione); v1.9-nome — nome anche col solo cognome; v1.8-menu-evento — menù dell'evento confermato nella riga aperta; v1.7-preventivo — tasto «📋 Preventivo» nella riga aperta (crea o apre il preventivo della prenotazione, solo per chi può crearli); v1.6-fasce — fasce orarie del turno (apertura, limiti, online anche su TheFork); v1.5-affidabilita — badge no-show del cliente, riconferma WhatsApp; v1.4 scheda inline — scheda cliente aperta dentro il Planning; v1.3 timeline — bollino cliente (prima/occasionale/frequente) + timeline sala per orario; badge «doppione?»
 // Modulo: prenotazioni
 // Vista planning giornaliero — modulo Prenotazioni TRGB
 import React, { useState, useEffect, useCallback } from "react";
@@ -433,7 +433,7 @@ function TimelineSala({ slot, capienza, fasce, onFasce }) {
   );
 }
 
-function TabellaPrenotazioni({ titolo, prenotazioni, conteggio, pax, opzionePax, capienza, motore, onAssegna, onStatoChange, expandedId, onExpand, timeline, fasce, onFasce, sale, onSala, onApriCliente, onRiconferma, onUnisciDoppione, onPreventivo, onModifica, onLiberaTavolo, onTenutoFino }) {
+function TabellaPrenotazioni({ titolo, chiusura, prenotazioni, conteggio, pax, opzionePax, capienza, motore, onAssegna, onStatoChange, expandedId, onExpand, timeline, fasce, onFasce, sale, onSala, onApriCliente, onRiconferma, onUnisciDoppione, onPreventivo, onModifica, onLiberaTavolo, onTenutoFino }) {
   // Gruppi dalla tabella stati (2026-11-13): fuori = cancellate/no-show/rifiutate;
   // lista d'attesa = né occupa né fuori → sezione a parte
   const { gruppo } = usePrenotazioniStati();
@@ -522,11 +522,17 @@ function TabellaPrenotazioni({ titolo, prenotazioni, conteggio, pax, opzionePax,
           )}
         </div>
       </div>
+      {chiusura?.chiuso && (
+        <div className="px-3 py-2 bg-red-50 border border-t-0 border-red-200 text-sm text-red-800">
+          🚪 <strong>Turno chiuso</strong>{chiusura.motivo ? ` · ${chiusura.motivo}` : ""} — non si inseriscono prenotazioni e su TheFork l'online è chiuso.
+          <span className="text-red-600"> Per riaprirlo: Vendite › Chiusure.</span>
+        </div>
+      )}
       {attive.length > 0 && <TimelineSala slot={timeline} capienza={capienza} fasce={fasce} onFasce={onFasce} />}
 
       {attive.length === 0 && cancellate.length === 0 && inAttesa.length === 0 ? (
         <div className="border border-t-0 border-neutral-200 rounded-b-lg p-6 text-center text-neutral-400">
-          Nessuna prenotazione
+          {chiusura?.chiuso ? "Turno chiuso" : "Nessuna prenotazione"}
         </div>
       ) : (
         <div className="border border-t-0 border-neutral-200 rounded-b-lg overflow-hidden">
@@ -866,6 +872,7 @@ export default function PrenotazioniPlanning() {
             {/* Tabella pranzo */}
             <TabellaPrenotazioni
               titolo="🌤️ Pranzo"
+              chiusura={planning.chiusure?.pranzo}
               prenotazioni={planning.pranzo}
               conteggio={c.pranzo_count}
               pax={c.pranzo_pax}
@@ -893,6 +900,7 @@ export default function PrenotazioniPlanning() {
             {/* Tabella cena */}
             <TabellaPrenotazioni
               titolo="🌙 Cena"
+              chiusura={planning.chiusure?.cena}
               prenotazioni={planning.cena}
               conteggio={c.cena_count}
               pax={c.cena_pax}

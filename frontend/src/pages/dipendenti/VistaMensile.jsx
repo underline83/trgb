@@ -1,4 +1,4 @@
-// @version: v1.3-mattoni — M.I primitives (Btn) su Stampa + Apri settimana
+// @version: v1.4 — servizio chiuso (solo pranzo / solo cena) segnato nella cella e nel pannello (2026-11-19); v1.3-mattoni — M.I primitives (Btn) su Stampa + Apri settimana
 // Vista Mensile Turni v2 — TRGB Gestionale
 //
 // Griglia calendario 6 righe × 7 colonne (Lun..Dom), sola lettura.
@@ -175,6 +175,7 @@ export default function VistaMensile() {
   }, [vista]);
 
   const chiusi = useMemo(() => new Set(vista?.chiusure || []), [vista]);
+  const serviziChiusi = vista?.turni_chiusi || {};   // { data: { CENA: "Natale" } }
 
   // Assenze indicizzate per data (sess. 39)
   const assenzeByDate = useMemo(() => {
@@ -297,6 +298,7 @@ export default function VistaMensile() {
                 turniByDate={turniByDate}
                 assenzeByDate={assenzeByDate}
                 chiusi={chiusi}
+                serviziChiusi={serviziChiusi}
                 mese={mese}
                 selectedDate={selectedDate}
                 onDateClick={setSelectedDate}
@@ -313,6 +315,7 @@ export default function VistaMensile() {
                 turni={selectedDate ? (turniByDate[selectedDate] || []) : []}
                 assenze={selectedDate ? (assenzeByDate[selectedDate] || []) : []}
                 chiuso={selectedDate ? chiusi.has(selectedDate) : false}
+                servChiusi={selectedDate ? (serviziChiusi[selectedDate] || {}) : {}}
                 reparto={reparto}
                 onClose={() => setSelectedDate(null)}
                 onApriSettimana={() => selectedDate && apriSettimanaPerData(selectedDate)}
@@ -329,7 +332,7 @@ export default function VistaMensile() {
 
 // ---- GRIGLIA MENSILE ------------------------------------------------------
 function GrigliaMensile({
-  vista, turniByDate, assenzeByDate = {}, chiusi, mese, selectedDate, onDateClick,
+  vista, turniByDate, assenzeByDate = {}, chiusi, serviziChiusi = {}, mese, selectedDate, onDateClick,
   reparti = [], repartoId = null, onRepartoChange = null,
 }) {
   const today = oggiIso();
@@ -391,6 +394,7 @@ function GrigliaMensile({
                   isToday={isToday}
                   isSelected={isSelected}
                   chiuso={chiuso}
+                  servChiusi={serviziChiusi[iso] || {}}
                   turni={turni}
                   assenze={assenzeByDate[iso] || []}
                   onClick={() => onDateClick(iso)}
@@ -406,7 +410,7 @@ function GrigliaMensile({
 
 
 // ---- CELLA GIORNO ---------------------------------------------------------
-function CellaGiorno({ iso, isOfMonth, isToday, isSelected, chiuso, turni, assenze = [], onClick }) {
+function CellaGiorno({ iso, isOfMonth, isToday, isSelected, chiuso, servChiusi = {}, turni, assenze = [], onClick }) {
   const [, , d] = iso.split("-").map(Number);
 
   // Separa per servizio per raggruppare i badge nella cella
@@ -432,6 +436,11 @@ function CellaGiorno({ iso, isOfMonth, isToday, isSelected, chiuso, turni, assen
           {d}
         </div>
         {chiuso && <div className="text-[9px] text-red-500 font-semibold">CHIUSO</div>}
+        {!chiuso && ("PRANZO" in servChiusi || "CENA" in servChiusi) && (
+          <div className="text-[9px] text-red-500 font-semibold" title={servChiusi.PRANZO || servChiusi.CENA || ""}>
+            {"PRANZO" in servChiusi ? "☀ CHIUSO" : "🌙 CHIUSA"}
+          </div>
+        )}
       </div>
 
       {!chiuso && (
@@ -524,7 +533,7 @@ function BadgeTurno({ turno }) {
 
 
 // ---- PANNELLO DETTAGLIO GIORNO --------------------------------------------
-function PannelloGiorno({ selectedDate, turni, assenze = [], chiuso, reparto, onClose, onApriSettimana }) {
+function PannelloGiorno({ selectedDate, turni, assenze = [], chiuso, servChiusi = {}, reparto, onClose, onApriSettimana }) {
   if (!selectedDate) {
     return (
       <div className="bg-white rounded-xl shadow p-4 h-fit sticky top-4 text-center">
@@ -555,6 +564,11 @@ function PannelloGiorno({ selectedDate, turni, assenze = [], chiuso, reparto, on
           title="Chiudi dettaglio">×</button>
       </div>
 
+      {!chiuso && Object.keys(servChiusi).map(serv => (
+        <div key={serv} className="mb-2 p-2 bg-neutral-50 border border-neutral-200 rounded text-center text-neutral-500 text-sm">
+          🚪 {serv === "PRANZO" ? "Pranzo chiuso" : "Cena chiusa"}{servChiusi[serv] ? ` · ${servChiusi[serv]}` : ""}
+        </div>
+      ))}
       {chiuso ? (
         <div className="p-3 bg-neutral-50 border border-neutral-200 rounded text-center text-neutral-500 text-sm">
           🚪 Osteria chiusa

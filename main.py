@@ -745,6 +745,9 @@ if module_loader.is_router_active("email_router"):
         _init_email_db()
         from app.services.email_in_service import avvia_periodico as _posta_in
         _posta_in()
+        # Le altre caselle del locale (2026-11-19): stesso motore, sola lettura; senza caselle non fa niente
+        from app.services.email_caselle_service import avvia_periodico as _altre_caselle
+        _altre_caselle()
     except Exception as _e:  # noqa: BLE001 — la posta non deve impedire l'avvio
         print(f"⚠️  Posta in arrivo non avviata: {_e}")
 

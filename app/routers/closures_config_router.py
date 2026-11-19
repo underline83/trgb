@@ -1,9 +1,13 @@
 """
-TRGB — Closures Config Router
+TRGB — Closures Config Router — Modulo: platform (calendario chiusure)
+
+Chi legge il calendario passa da app/services/calendario_chiusure.py.
 
 Configurazione giorni di chiusura:
 - Giorno settimanale fisso (es. mercoledì)
 - Giorni specifici (ferie, festivi)
+- Aperture straordinarie: giorni aperti anche se cadono nel giorno fisso (2026-11-19)
+- Turni singoli chiusi (solo pranzo / solo cena)
 
 GET  /settings/closures-config  — leggi configurazione
 PUT  /settings/closures-config  — aggiorna configurazione (solo admin)
@@ -36,6 +40,7 @@ class TurnoChiuso(BaseModel):
 class ClosuresConfig(BaseModel):
     giorno_chiusura_settimanale: Optional[int] = None  # 0=Lun..6=Dom, None=nessun giorno fisso
     giorni_chiusi: List[str] = []  # ["2026-01-01", "2026-08-15", ...]
+    giorni_aperti: List[str] = []  # aperture straordinarie nel giorno fisso: ["2026-12-30", ...]
     turni_chiusi: List[TurnoChiuso] = []  # chiusure parziali (solo un turno)
 
 
@@ -76,7 +81,7 @@ def update_config(payload: ClosuresConfig, current_user: dict = Depends(get_curr
     # Valida date
     import re
     date_re = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-    for d in payload.giorni_chiusi:
+    for d in payload.giorni_chiusi + payload.giorni_aperti:
         if not date_re.match(d):
             raise HTTPException(status_code=400, detail=f"Data non valida: {d}")
 
@@ -89,6 +94,8 @@ def update_config(payload: ClosuresConfig, current_user: dict = Depends(get_curr
 
     # Deduplica e ordina
     giorni = sorted(set(payload.giorni_chiusi))
+    # Un giorno chiuso esplicitamente non può essere anche aperto: vince la chiusura
+    aperti = sorted(set(payload.giorni_aperti) - set(giorni))
 
     # Deduplica turni chiusi per data+turno
     seen = set()
@@ -102,7 +109,13 @@ def update_config(payload: ClosuresConfig, current_user: dict = Depends(get_curr
     data = {
         "giorno_chiusura_settimanale": payload.giorno_chiusura_settimanale,
         "giorni_chiusi": giorni,
+        "giorni_aperti": aperti,
         "turni_chiusi": turni_unici,
     }
+    prima = _load()
     _save(data)
+    # Chi deve reagire (Prenotazioni → TheFork) lo sa dal calendario platform,
+    # senza che questo router importi i moduli. — 2026-11-19
+    from app.services import calendario_chiusure
+    calendario_chiusure.notifica_cambio(prima, data, current_user.get("username"))
     return ClosuresConfig(**data)

@@ -115,6 +115,15 @@ Notifiche: `crea_prenotazione` non manda niente (niente email, WhatsApp, notific
 
 Anche `preventivo_leggi` porta ora `risposte_email` (in breve). Prove (2026-11-13): 23 test in `tests/test_email_in.py` (abbinamenti, doppioni, UIDVALIDITY, casella irraggiungibile, sola lettura IMAP, HTML) + gli strumenti chiamati come Q su un DB di prova (registrati, filtri, 400 su `dal` sbagliato, IBAN coperto nel testo). Non provato: la casella vera e il giro da claude.ai.
 
+**Tutte le caselle del locale** (2026-11-19, server 1.17, platform M.D). Le altre caselle (info@, marco@, prenotazioni@, la PEC…) lette da TRGB in sola lettura (`email_caselle_service`), più quella del gestionale, in un elenco solo: serve al giro della posta senza il Mac. Nessuno strumento manda, sposta o cancella; ogni risposta porta `avviso` (dato di terzi).
+
+| Strumento | Cosa fa | Funzione | Ruoli | Tipo |
+|---|---|---|---|---|
+| `posta_elenco` | mail di tutte le caselle dalla più recente, una volta per casella; filtri `dal` (prende anche le arrivate dopo con data vecchia: `in_ritardo`), `giorni`, `casella`, `dove` (in_arrivo/spam/cestino/inviata), `q`, `solo_da_rispondere`, `anche_massive`, `anche_trgb`; per mail: casella, dove, letta, risposto (+ come), estratto, allegati, `anche_in`, `pec`, `spam_marcato`; `massive` a parte; `caselle` = salute per casella | `email_caselle_service.elenco` | admin | sola lettura |
+| `posta_leggi` | una mail per intero: testo ripulito, `parte_nuova`, allegati, altre copie, risposte mandate che la citano, PEC | `email_caselle_service.leggi` | admin | sola lettura |
+
+Prove (2026-11-19): 16 test in `tests/test_email_caselle.py`, gli strumenti registrati e chiamati su un MCPServer di prova, le rotte con TestClient, e un giro contro un server IMAP vero (Dovecot di prova). Non provato: le caselle Aruba vere.
+
 **Preventivi e lettore generale** (2026-11-12, server 1.11). Nati dalla chat del 12/11: Marco chiede a Q «confermo il menù di Ferraro che è il Quadri, aggiorna prenotazione e manda messaggi» e Q non trova il Quadri, perché `preventivi_inviati` dava solo il registro degli invii (`menu_nome` vuoto coi menù multipli) e la conferma non aveva strumento. Decisione di Marco dello stesso giorno: **«Q deve poter sapere tutto: se mancano dei connettori deve averli».**
 
 | Strumento | Cosa fa | Funzione | Ruoli | Tipo |

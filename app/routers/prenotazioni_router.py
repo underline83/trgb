@@ -42,6 +42,9 @@ from app.services import prenotazioni_fasce_service as fasce_srv
 from app.services import prenotazioni_sale_service as sale_srv
 from app.services import prenotazioni_tavoli_service as tavoli_srv
 from app.services import prenotazioni_stati as stati_srv
+# Iscrive l'ascoltatore del calendario chiusure: chiudi un turno in Vendite › Chiusure
+# → fasce chiuse in TRGB e online chiuso su TheFork (2026-11-19)
+from app.services import prenotazioni_chiusure_service  # noqa: F401
 
 logger = logging.getLogger("trgb.prenotazioni")
 
@@ -104,6 +107,29 @@ def _calcola_turno(ora: str, soglia: str = "15:00") -> str:
         return "cena"
     ora_clean = ora[:5]  # "20:00:00" → "20:00"
     return "pranzo" if ora_clean < soglia else "cena"
+
+
+def _turni_chiusi(config: Dict[str, str], data: str) -> Dict[str, str]:
+    """{turno: motivo} chiusi quel giorno: calendario chiusure (Vendite › Chiusure)
+    + giorno di chiusura delle prenotazioni. Stessa regola del sito. — 2026-11-19"""
+    from app.services.prenotazioni_sito_service import turni_chiusi_motivi
+    try:
+        return turni_chiusi_motivi(config, date.fromisoformat(str(data)[:10]))
+    except ValueError:
+        return {}
+
+
+def _blocca_se_chiuso(config: Dict[str, str], data: str, turno: str) -> None:
+    """Turno chiuso = niente prenotazioni inserite a mano (scelta di Marco, 2026-11-19).
+    Le prenotazioni che arrivano da TheFork entrano lo stesso: le decide TheFork."""
+    motivo = _turni_chiusi(config, data).get(turno)
+    if motivo is not None:
+        from app.services import calendario_chiusure
+        raise HTTPException(
+            status_code=409,
+            detail=calendario_chiusure.descrivi(data, turno, motivo)
+            + ": non si inseriscono prenotazioni. Per riaprirlo: Vendite › Chiusure.",
+        )
 
 
 def _backfill_turno_fonte(conn, soglia: str = "15:00"):
@@ -427,10 +453,13 @@ def get_planning(
                 if sicura:
                     pax_cena += item.get("pax") or 0
 
+        chiusi = _turni_chiusi(config, data)
         return {
             "data": data,
             "pranzo": pranzo,
             "cena": cena,
+            # Turni chiusi dal calendario (Vendite › Chiusure): {"cena": {"chiuso": true, "motivo": "Natale"}}
+            "chiusure": {t: {"chiuso": t in chiusi, "motivo": chiusi.get(t)} for t in ("pranzo", "cena")},
             "timeline": {
                 "pranzo": _timeline_turno(pranzo, config, "pranzo"),
                 "cena": _timeline_turno(cena, config, "cena"),
@@ -482,14 +511,7 @@ def get_settimana(
     try:
         config = _get_config(conn)
         soglia = config.get("soglia_pranzo_cena", "15:00")
-        try:
-            giorno_chiusura = int(config.get("giorno_chiusura", 3))
-        except (TypeError, ValueError):
-            giorno_chiusura = -1
-        # Config: 0=dom, 1=lun, 2=mar, 3=mer, 4=gio, 5=ven, 6=sab, -1 (o vuoto) = nessuno
-        # Python weekday(): 0=lun, 1=mar, 2=mer, 3=gio, 4=ven, 5=sab, 6=dom
-        _chiusura_map = {0: 6, 1: 0, 2: 1, 3: 2, 4: 3, 5: 4, 6: 5}
-        weekday_chiuso = _chiusura_map.get(giorno_chiusura, -1)
+        # Chiusure: calendario del locale + giorno_chiusura delle prenotazioni (_turni_chiusi)
 
         # Calcola il lunedi' della settimana
         d = date.fromisoformat(data)
@@ -525,10 +547,14 @@ def get_settimana(
                     count_cena += 1
                     pax_cena += r["pax"] or 0
 
+            chiusi = _turni_chiusi(config, giorno_str)
             giorni.append({
                 "data": giorno_str,
                 "giorno_settimana": giorno.weekday(),  # 0=lun
-                "chiuso": giorno.weekday() == weekday_chiuso,
+                "chiuso": len(chiusi) == 2,
+                "pranzo_chiuso": "pranzo" in chiusi,
+                "cena_chiuso": "cena" in chiusi,
+                "motivo_chiusura": next((m for m in chiusi.values() if m), None),
                 "pranzo_count": count_pranzo,
                 "pranzo_pax": pax_pranzo,
                 "cena_count": count_cena,
@@ -578,7 +604,16 @@ def get_calendario(
                 "saturazione": round(saturazione, 2),
             }
 
-        return {"anno": anno, "mese": mese, "giorni": giorni}
+        # Turni chiusi del mese: {"2026-12-25": ["cena"]} (giorno intero = tutti e due)
+        chiusi = {}
+        g = date(anno, mese, 1)
+        while g.month == mese:
+            tc = _turni_chiusi(config, g.isoformat())
+            if tc:
+                chiusi[g.isoformat()] = sorted(tc)
+            g += timedelta(days=1)
+
+        return {"anno": anno, "mese": mese, "giorni": giorni, "chiusi": chiusi}
     finally:
         conn.close()
 
@@ -605,6 +640,9 @@ def crea_prenotazione(
             tenuto = tenuto_fino_proposto(conn, req.data_pasto)
         if req.stato not in stati_srv.gruppo("incerta"):
             tenuto = None
+
+        # Turno chiuso: si blocca prima di creare anche il cliente nuovo
+        _blocca_se_chiuso(config, req.data_pasto, _calcola_turno(req.ora_pasto, soglia))
 
         cliente_id = req.cliente_id
 
@@ -662,6 +700,8 @@ def crea_prenotazione(
             "cliente_id": cliente_id,
             "message": "Prenotazione creata",
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logger.exception("Errore creazione prenotazione")
         raise HTTPException(status_code=500, detail=str(e))
@@ -2151,6 +2191,14 @@ def modifica_prenotazione(
 
         config = _get_config(conn)
         soglia = config.get("soglia_pranzo_cena", "15:00")
+
+        # Spostata in un turno chiuso → bloccata (restare dov'era si può sempre)
+        nuova_data = req.data_pasto or existing["data_pasto"]
+        nuovo_turno = _calcola_turno(req.ora_pasto, soglia) if req.ora_pasto is not None else (
+            existing["turno"] or _calcola_turno(existing["ora_pasto"], soglia))
+        vecchio_turno = existing["turno"] or _calcola_turno(existing["ora_pasto"], soglia)
+        if (nuova_data, nuovo_turno) != (existing["data_pasto"], vecchio_turno):
+            _blocca_se_chiuso(config, nuova_data, nuovo_turno)
 
         updates = []
         values = []

@@ -1,4 +1,5 @@
-# @version: v1.0 (2026-11-13) — posta in arrivo della casella del locale (mattone M.D, lettura)
+# @version: v1.1 (2026-11-19) — le altre caselle del locale: email_posta, email_posta_cursore, email_posta_giri
+# v1.0 (2026-11-13) — posta in arrivo della casella del locale (mattone M.D, lettura)
 # Modulo: platform (M.D email) — [core]
 # -*- coding: utf-8 -*-
 """
@@ -32,7 +33,27 @@ email_in_risposte — risposte mandate dalla pagina Posta (a, cc, oggetto, testo
 email_in_giri    — registro dei giri del job (esito, quante nuove, errore). Niente
                    contenuto delle mail, niente credenziali.
 
-Nessuna password qui dentro: le credenziali sono quelle del canale email (M.D).
+LE ALTRE CASELLE DEL LOCALE (2026-11-19, email_caselle_service)
+email_posta — una mail di una casella in più (info@, prenotazioni@, la PEC…), in UNA cartella:
+  casella      TEXT         id della casella (slug dell'indirizzo, es. info-tregobbi-it)
+  cartella     TEXT         nome IMAP della cartella; ruolo = in_arrivo | inviata | spam | cestino
+  message_id …              come email_in; UNIQUE(casella, cartella, message_id): la stessa
+                            mail spostata nel cestino è una riga nuova, quella vecchia diventa
+                            presente = 0
+  letta, risposta_flag, contrassegnata   flag del server (Seen, Answered, Flagged),
+                            riletti a ogni giro per gli ultimi N giorni (NULL = mai letti)
+  presente     INTEGER      1 = ancora in quella cartella sul server; sparita_at quando non c'è più
+  massiva, massiva_perche   newsletter/notifica automatica (List-Id, List-Unsubscribe, Precedence…)
+  spam_marcato INTEGER      l'antispam del provider ha marcato l'oggetto (es. «*****SPAM*****»)
+  pec_tipo     TEXT         NULL | messaggio | ricevuta | anomalia; pec_busta = oggetto della busta
+                            (mittente, oggetto e testo sono quelli del messaggio dentro postacert.eml)
+  primo_import INTEGER      1 = entrata col primo import (non è «arrivata adesso»)
+  Inviata: solo intestazioni (testo vuoto), servono a sapere a cosa si è risposto.
+email_posta_cursore — per casella e cartella: UIDVALIDITY e ultimo UID letto
+email_posta_giri    — registro dei giri per casella (esito, nuove, errore). Niente contenuti.
+
+Nessuna password qui dentro: le credenziali sono quelle del canale email (M.D) per la
+casella del gestionale e quelle di email_caselle.json (cifrate) o del .env per le altre.
 """
 
 import sqlite3
@@ -47,6 +68,11 @@ _INDICI = {
     "idx_email_in_stato": "CREATE INDEX idx_email_in_stato ON email_in(stato)",
     "idx_email_in_giri_inizio": "CREATE INDEX idx_email_in_giri_inizio ON email_in_giri(iniziato_at)",
     "idx_email_in_risposte_mail": "CREATE INDEX idx_email_in_risposte_mail ON email_in_risposte(email_in_id)",
+    "idx_email_posta_data": "CREATE INDEX idx_email_posta_data ON email_posta(data)",
+    "idx_email_posta_casella": "CREATE INDEX idx_email_posta_casella ON email_posta(casella, cartella, uid)",
+    "idx_email_posta_mid": "CREATE INDEX idx_email_posta_mid ON email_posta(message_id)",
+    "idx_email_posta_ruolo": "CREATE INDEX idx_email_posta_ruolo ON email_posta(ruolo, data)",
+    "idx_email_posta_giri": "CREATE INDEX idx_email_posta_giri ON email_posta_giri(casella, id)",
 }
 
 
@@ -129,6 +155,69 @@ def init_email_db(path=None) -> None:
                 lette       INTEGER NOT NULL DEFAULT 0,
                 errore      TEXT,
                 nota        TEXT
+            )
+        """)
+        # Le altre caselle del locale (2026-11-19): una riga per casella + cartella + Message-ID
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS email_posta (
+                id               INTEGER PRIMARY KEY AUTOINCREMENT,
+                casella          TEXT NOT NULL,
+                cartella         TEXT NOT NULL,
+                ruolo            TEXT NOT NULL CHECK (ruolo IN ('in_arrivo','inviata','spam','cestino')),
+                uid              INTEGER,
+                uidvalidity      INTEGER,
+                message_id       TEXT NOT NULL,
+                in_reply_to      TEXT,
+                riferimenti      TEXT,
+                mittente         TEXT,
+                mittente_nome    TEXT,
+                a                TEXT,
+                cc               TEXT,
+                oggetto          TEXT,
+                data             TEXT,
+                testo            TEXT,
+                testo_troncato   INTEGER NOT NULL DEFAULT 0,
+                allegati         TEXT,
+                dimensione       INTEGER,
+                oltre_limite     INTEGER NOT NULL DEFAULT 0,
+                letta            INTEGER,
+                risposta_flag    INTEGER,
+                contrassegnata   INTEGER,
+                flag_at          TEXT,
+                presente         INTEGER NOT NULL DEFAULT 1,
+                sparita_at       TEXT,
+                massiva          INTEGER NOT NULL DEFAULT 0,
+                massiva_perche   TEXT,
+                spam_marcato     INTEGER NOT NULL DEFAULT 0,
+                pec_tipo         TEXT,
+                pec_busta        TEXT,
+                primo_import     INTEGER NOT NULL DEFAULT 0,
+                ricevuta_at      TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+                UNIQUE (casella, cartella, message_id)
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS email_posta_cursore (
+                casella       TEXT NOT NULL,
+                cartella      TEXT NOT NULL,
+                uidvalidity   INTEGER,
+                ultimo_uid    INTEGER NOT NULL DEFAULT 0,
+                aggiornato_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+                PRIMARY KEY (casella, cartella)
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS email_posta_giri (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                casella     TEXT NOT NULL,
+                iniziato_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+                finito_at   TEXT,
+                esito       TEXT,          -- ok | errore | saltato
+                nuove       INTEGER NOT NULL DEFAULT 0,
+                lette       INTEGER NOT NULL DEFAULT 0,
+                errore      TEXT,
+                nota        TEXT,
+                cartelle    TEXT           -- JSON {ruolo: [nomi]} trovate in quel giro
             )
         """)
         esistenti = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='index'")}
