@@ -1,3 +1,4 @@
+# @version: v1.2 (2026-11-20) — intestazione Date sulle mail in uscita (mancava: RFC 5322 la vuole, gli antispam la contano, i programmi di posta mostravano l'ora di arrivo)
 # @version: v1.1 — intestazioni extra (In-Reply-To/References per le risposte dalla Posta, 2026-11-16)
 # v1.0 — Mattone M.D (versione minima, sessione 2026-07-30)
 # -*- coding: utf-8 -*-
@@ -50,7 +51,7 @@ import smtplib
 import ssl
 from dataclasses import dataclass, field
 from email.message import EmailMessage
-from email.utils import formataddr, make_msgid
+from email.utils import formataddr, formatdate, make_msgid
 from pathlib import Path
 from typing import List, Optional, Sequence, Tuple
 
@@ -260,6 +261,7 @@ def _costruisci(
         msg["Reply-To"] = reply_to
     msg["Subject"] = subject
     msg["Message-ID"] = make_msgid(domain=(c["from_addr"].split("@")[-1] or None))
+    msg["Date"] = formatdate(localtime=True)        # obbligatoria (RFC 5322): senza, chi riceve vede l'ora di arrivo
     # Solo intestazioni di thread (risposte): niente From/To/Subject da qui
     for nome, valore in (intestazioni or {}).items():
         if nome in ("In-Reply-To", "References") and valore:

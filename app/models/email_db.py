@@ -1,4 +1,5 @@
-# @version: v1.1 (2026-11-19) — le altre caselle del locale: email_posta, email_posta_cursore, email_posta_giri
+# @version: v1.2 (2026-11-20) — email_posta.data_origine (intestazione | server): da dove viene la data della mail
+# v1.1 (2026-11-19) — le altre caselle del locale: email_posta, email_posta_cursore, email_posta_giri
 # v1.0 (2026-11-13) — posta in arrivo della casella del locale (mattone M.D, lettura)
 # Modulo: platform (M.D email) — [core]
 # -*- coding: utf-8 -*-
@@ -48,6 +49,9 @@ email_posta — una mail di una casella in più (info@, prenotazioni@, la PEC…
   pec_tipo     TEXT         NULL | messaggio | ricevuta | anomalia; pec_busta = oggetto della busta
                             (mittente, oggetto e testo sono quelli del messaggio dentro postacert.eml)
   primo_import INTEGER      1 = entrata col primo import (non è «arrivata adesso»)
+  data_origine TEXT         intestazione = dalla Date della mail | server = INTERNALDATE (mail senza
+                            Date, es. quelle mandate da TRGB prima del 2026-11-20) | NULL = letta
+                            prima della v1.2 (la data può essere l'ora della lettura: il giro la ripara)
   Inviata: solo intestazioni (testo vuoto), servono a sapere a cosa si è risposto.
 email_posta_cursore — per casella e cartella: UIDVALIDITY e ultimo UID letto
 email_posta_giri    — registro dei giri per casella (esito, nuove, errore). Niente contenuti.
@@ -220,6 +224,9 @@ def init_email_db(path=None) -> None:
                 cartelle    TEXT           -- JSON {ruolo: [nomi]} trovate in quel giro
             )
         """)
+        # 2026-11-20 (mig 240): da dove viene la data. Colonna libera (niente NOT NULL), solo se manca.
+        if "data_origine" not in {r[1] for r in conn.execute("PRAGMA table_info(email_posta)")}:
+            conn.execute("ALTER TABLE email_posta ADD COLUMN data_origine TEXT")
         esistenti = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='index'")}
         for nome, sql in _INDICI.items():
             if nome not in esistenti:

@@ -1,4 +1,5 @@
-# @version: v1.1 (2026-11-19) — «da rispondere» salta anche le mail di trgb@ già gestite; caselle per la pagina Posta
+# @version: v1.2 (2026-11-20) — mail senza intestazione Date: data dal server (INTERNALDATE), anche per quelle già lette; mail mandate da una nostra casella = «da noi», non da rispondere
+# v1.1 (2026-11-19) — «da rispondere» salta anche le mail di trgb@ già gestite; caselle per la pagina Posta
 # v1.0 (2026-11-19) — le altre caselle del locale in sola lettura (posta in arrivo, inviata, spam, cestino; PEC)
 # Modulo: platform (mattone M.D, lettura) — [core]
 # -*- coding: utf-8 -*-
@@ -374,13 +375,26 @@ def _massiva(msg, mittente: str, regex: str) -> Optional[str]:
     return None
 
 
+def _ha_data(msg) -> bool:
+    try:
+        from email.utils import parsedate_to_datetime
+        return bool(base._header(msg, "Date")) and parsedate_to_datetime(base._header(msg, "Date")) is not None
+    except Exception:                                   # noqa: BLE001
+        return False
+
+
 def analizza_casella(raw: bytes, cfg: dict, dimensione: Optional[int] = None, oltre_limite: bool = False,
-                     solo_intestazione: bool = False) -> Dict[str, Any]:
-    """Come email_in_service.analizza, più PEC, massiva e spam marcato."""
+                     solo_intestazione: bool = False, data_server: Optional[str] = None) -> Dict[str, Any]:
+    """Come email_in_service.analizza, più PEC, massiva e spam marcato. Senza intestazione
+    Date (succede: le mandava così anche TRGB fino al 2026-11-20) la data è quella in cui il
+    server l'ha ricevuta, non l'ora della lettura."""
     mail = base.analizza(raw, dimensione, oltre_limite, cfg["max_caratteri"])
     if solo_intestazione and not oltre_limite:
         mail["testo"], mail["allegati"] = "", []
     msg = message_from_bytes(raw or b"", policy=policy.default)
+    mail["data_origine"] = "intestazione"
+    if not _ha_data(msg) and data_server:
+        mail["data"], mail["data_origine"] = data_server, "server"
     pec = None if (oltre_limite or solo_intestazione) else _pec(msg)
     mail["pec_tipo"], mail["pec_busta"] = None, None
     controlla = msg
@@ -420,8 +434,8 @@ def _salva(conn, cid: str, cartella: str, ruolo: str, uid: int, uidvalidity, mai
            (casella, cartella, ruolo, uid, uidvalidity, message_id, in_reply_to, riferimenti, mittente,
             mittente_nome, a, cc, oggetto, data, testo, testo_troncato, allegati, dimensione, oltre_limite,
             letta, risposta_flag, contrassegnata, flag_at, massiva, massiva_perche, spam_marcato,
-            pec_tipo, pec_busta, primo_import, ricevuta_at)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            pec_tipo, pec_busta, primo_import, ricevuta_at, data_origine)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (cid, cartella, ruolo, uid, uidvalidity, mail["message_id"], mail.get("in_reply_to"),
          " ".join(mail.get("riferimenti") or []) or None, mail.get("mittente"), mail.get("mittente_nome"),
          ", ".join(mail.get("a") or []), ", ".join(mail.get("cc") or []), mail.get("oggetto"), mail.get("data"),
@@ -429,7 +443,7 @@ def _salva(conn, cid: str, cartella: str, ruolo: str, uid: int, uidvalidity, mai
          json.dumps(mail.get("allegati") or [], ensure_ascii=False), mail.get("dimensione"),
          int(bool(mail.get("oltre_limite"))), letta, risp, contr, adesso() if flag is not None else None,
          int(bool(mail.get("massiva"))), mail.get("massiva_perche"), int(bool(mail.get("spam_marcato"))),
-         mail.get("pec_tipo"), mail.get("pec_busta"), int(bool(primo)), adesso()))
+         mail.get("pec_tipo"), mail.get("pec_busta"), int(bool(primo)), adesso(), mail.get("data_origine")))
     if cur.rowcount:
         return True
     conn.execute("UPDATE email_posta SET uid = ?, uidvalidity = ?, presente = 1, sparita_at = NULL "
@@ -595,6 +609,7 @@ def _giro_cartella(conn, cas, cid: str, cartella: str, ruolo: str, cfg: dict, og
     finestra = set(cas.uid_dal_giorno(oggi - timedelta(days=cfg["giorni_flag"]))) if tutti else set()
     flag = cas.flag(sorted(finestra | set(uids))) if (finestra or uids) else {}
     dim = cas.dimensioni(uids) if uids else {}
+    date_srv = cas.date_interne(uids) if uids else {}
     limite = cfg["max_mb"] * 1024 * 1024
     solo_testa = ruolo == "inviata"
     nuove = lette = 0
@@ -604,7 +619,7 @@ def _giro_cartella(conn, cas, cid: str, cartella: str, ruolo: str, cfg: dict, og
         raw = cas.scarica(uid, solo_intestazione=oltre or solo_testa)   # errore di rete → giro fallito, si riprova
         lette += 1
         try:
-            mail = analizza_casella(raw, cfg, d, oltre, solo_intestazione=solo_testa)
+            mail = analizza_casella(raw, cfg, d, oltre, solo_intestazione=solo_testa, data_server=date_srv.get(uid))
         except Exception:                               # noqa: BLE001
             logger.exception("Casella %s, %s: UID %s illeggibile", cid, cartella, uid)
             mail = _illeggibile(cid, cartella, uid, uidvalidity, d)
@@ -613,8 +628,26 @@ def _giro_cartella(conn, cas, cid: str, cartella: str, ruolo: str, cfg: dict, og
         _scrivi_cursore(conn, cid, cartella, uidvalidity, uid)
         conn.commit()
     _aggiorna_flag(conn, cid, cartella, uidvalidity, flag, set(tutti))
+    _ripara_date(conn, cas, cid, cartella, uidvalidity, set(tutti))
     conn.commit()
     return nuove, lette, nota
+
+
+def _ripara_date(conn, cas, cid: str, cartella: str, uidvalidity, tutti: set) -> None:
+    """Mail lette prima della v1.2 (data_origine NULL) senza intestazione Date: la loro data è
+    l'ora della lettura (uguale a ricevuta_at). Si prende quella del server, una volta sola."""
+    righe = [dict(r) for r in conn.execute(
+        "SELECT id, uid FROM email_posta WHERE casella = ? AND cartella = ? AND uidvalidity = ? AND presente = 1 "
+        "AND data_origine IS NULL AND abs(julianday(data) - julianday(ricevuta_at)) * 86400 <= 3",
+        (cid, cartella, uidvalidity))]
+    righe = [r for r in righe if r["uid"] in tutti]
+    if not righe:
+        return
+    date_srv = cas.date_interne([r["uid"] for r in righe])
+    for r in righe:
+        d = date_srv.get(r["uid"])
+        if d:
+            conn.execute("UPDATE email_posta SET data = ?, data_origine = 'server' WHERE id = ?", (d, r["id"]))
 
 
 def prova(cid: str, apri: Optional[Callable[[dict, str], Any]] = None) -> Dict[str, Any]:
@@ -827,11 +860,15 @@ def elenco(dal: Optional[str] = None, giorni: Optional[int] = None, casella: Opt
     finally:
         conn.close()
 
+    nostri = set(indirizzi_nostri(cfg))
     vere, massive = [], []
     for r in tenute:
         da_dove = indir.get(r["casella"], r["casella"])
         anche = sorted(x for x in altrove.get(r["message_id"], set()) if x != da_dove)
         risposto, come = _stato_risposta(r, risp.get(r["message_id"]), indir)
+        da_noi = (r["mittente"] or "").lower() in nostri
+        if da_noi and not risposto:
+            risposto, come = True, "mandata da una nostra casella (copia): non serve risposta"
         in_ritardo = bool(soglia and (r["data"] or "") < soglia)
         if r["massiva"] and r["ruolo"] != "inviata":
             if anche_massive:
@@ -842,7 +879,10 @@ def elenco(dal: Optional[str] = None, giorni: Optional[int] = None, casella: Opt
             continue
         if solo_da_rispondere and (risposto or r["pec_tipo"] in ("ricevuta", "anomalia") or r["ruolo"] == "inviata"):
             continue
-        vere.append(_riga(r, da_dove, anche, risposto, come, in_ritardo))
+        riga = _riga(r, da_dove, anche, risposto, come, in_ritardo)
+        if da_noi:
+            riga["da_noi"] = True
+        vere.append(riga)
     for m in trgb:
         if solo_da_rispondere and (m.get("risposto") or m.get("stato_trgb") == "gestita"):
             continue
@@ -966,6 +1006,8 @@ def leggi(email_id: int) -> Optional[dict]:
     finally:
         conn.close()
     risposto, come = _stato_risposta(r, inviata, indir)
+    if (r["mittente"] or "").lower() in set(indirizzi_nostri(cfg)) and not risposto:
+        risposto, come = True, "mandata da una nostra casella (copia): non serve risposta"
     out = _riga(r, indir.get(r["casella"], r["casella"]), [], risposto, come, False, completa=True)
     out["altre_copie"] = copie
     out["risposte_mandate"] = risposte

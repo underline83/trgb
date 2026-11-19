@@ -1,4 +1,5 @@
-# @version: v1.2 (2026-11-19) — CasellaImap riusabile per le altre caselle: cartella a scelta, elenco cartelle, flag, tutti gli UID (sempre sola lettura)
+# @version: v1.3 (2026-11-20) — CasellaImap.date_interne (INTERNALDATE: quando il server ha ricevuto la mail)
+# v1.2 (2026-11-19) — CasellaImap riusabile per le altre caselle: cartella a scelta, elenco cartelle, flag, tutti gli UID (sempre sola lettura)
 # v1.1 (2026-11-16) — «Rispondi» dalla pagina Posta: risposta vera (In-Reply-To/References) via M.D, registrata
 # v1.0 (2026-11-13) — posta in arrivo: lettura IMAP in sola lettura della casella del gestionale
 # Modulo: platform (mattone M.D, lettura) — [core]
@@ -543,6 +544,33 @@ class CasellaImap:
                 mu, ms = re.search(rb"UID (\d+)", testa), re.search(rb"RFC822\.SIZE (\d+)", testa)
                 if mu and ms:
                     out[int(mu.group(1))] = int(ms.group(1))
+        return out
+
+    def date_interne(self, uids: List[int]) -> Dict[int, str]:
+        """{uid: "AAAA-MM-GG HH:MM:SS"} nell'ora del locale: quando il server ha ricevuto la mail
+        (INTERNALDATE). Serve per le mail senza intestazione Date."""
+        from app.utils.locale_data import locale_timezone
+        mesi = {m: i + 1 for i, m in enumerate(_MESI_IMAP)}
+        out: Dict[int, str] = {}
+        for i in range(0, len(uids), 200):
+            blocco = ",".join(str(u) for u in uids[i:i + 200])
+            for riga in self._uid("FETCH", blocco, "(UID INTERNALDATE)"):
+                testa = riga[0] if isinstance(riga, tuple) else riga
+                if not isinstance(testa, (bytes, bytearray)):
+                    continue
+                mu = re.search(rb"UID (\d+)", testa)
+                md = re.search(rb'INTERNALDATE "\s*(\d{1,2})-([A-Za-z]{3})-(\d{4}) (\d{2}):(\d{2}):(\d{2}) ([+-])(\d{2})(\d{2})"', testa)
+                if not (mu and md):
+                    continue
+                try:
+                    g, mese, a, hh, mm, ss, segno, oz, mz = [x.decode() for x in md.groups()]
+                    off = (int(oz) * 60 + int(mz)) * (1 if segno == "+" else -1)
+                    from datetime import timezone as _tz
+                    d = datetime(int(a), mesi[mese.capitalize()], int(g), int(hh), int(mm), int(ss),
+                                 tzinfo=_tz(timedelta(minutes=off)))
+                    out[int(mu.group(1))] = d.astimezone(locale_timezone()).strftime("%Y-%m-%d %H:%M:%S")
+                except (KeyError, ValueError):
+                    continue
         return out
 
     def scarica(self, uid: int, solo_intestazione: bool = False) -> bytes:

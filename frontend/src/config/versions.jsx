@@ -839,6 +839,9 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 6.6 (2026-11-20): mig 240 — email_posta.data_origine: le mail senza intestazione Date prendono la data dal server
+    //   (INTERNALDATE), quelle già lette si riparano al giro; le copie mandate da una nostra casella non sono «da rispondere».
+    //   email_service 1.2: le mail in uscita da TRGB hanno ora l'intestazione Date (mancava).
     // 6.5 (2026-11-19): mig 239 — email_posta, email_posta_cursore, email_posta_giri: TRGB legge in sola lettura
     //   le altre caselle del locale (info@, prenotazioni@, la PEC…), Impostazioni › Email «📬 Altre caselle»,
     //   /email/caselle/ e /email/posta, connettore 1.17 (posta_elenco, posta_leggi).
@@ -1002,7 +1005,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "6.5",
+    version: "6.6",
     label: "Sistema",
     status: "stabile",
     color: "green",

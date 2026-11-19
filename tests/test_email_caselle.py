@@ -67,12 +67,13 @@ TZ = ZoneInfo("Europe/Rome")
 
 
 def mail(mid, mittente, oggetto, testo="Buongiorno, vorrei prenotare.", a="info@tregobbi.it", data=None,
-         in_reply_to=None, references=None, intest=None):
+         in_reply_to=None, references=None, intest=None, senza_data=False):
     m = EmailMessage()
     m["From"] = mittente
     m["To"] = a
     m["Subject"] = oggetto
-    m["Date"] = (data or datetime.now(TZ)).strftime("%a, %d %b %Y %H:%M:%S %z")
+    if not senza_data:
+        m["Date"] = (data or datetime.now(TZ)).strftime("%a, %d %b %Y %H:%M:%S %z")
     m["Message-ID"] = mid
     if in_reply_to:
         m["In-Reply-To"] = in_reply_to
@@ -163,6 +164,9 @@ class CasellaFinta:
 
     def dimensioni(self, uids):
         return {u: len(self._m()[u][0]) for u in uids}
+
+    def date_interne(self, uids):
+        return {u: self.cartelle[self.sel].get("interne", {}).get(u, "2026-11-18 09:15:00") for u in uids if u in self._m()}
 
     def scarica(self, uid, solo_intestazione=False):
         self.scaricati.append((self.sel, uid, solo_intestazione))
@@ -284,6 +288,8 @@ class TestCartelle(unittest.TestCase):
                 chiamate.append(("uid", cmd) + a)
                 if cmd == "SEARCH":
                     return "OK", [b"1 5 9"]
+                if "INTERNALDATE" in a[-1]:
+                    return "OK", [b'1 (UID 5 INTERNALDATE "19-Nov-2026 22:06:54 +0000")']
                 return "OK", [(b"1 (UID 5 FLAGS (\\Seen \\Answered))", b""), b"2 (UID 9 FLAGS ())"]
 
             def logout(self):
@@ -296,6 +302,7 @@ class TestCartelle(unittest.TestCase):
             self.assertEqual(cas.seleziona("Posta indesiderata"), 77)
             self.assertEqual(cas.tutti_uid(), [1, 5, 9])
             self.assertEqual(cas.flag([5, 9]), {5: {"\\seen", "\\answered"}, 9: set()})
+            self.assertEqual(cas.date_interne([5]), {5: "2026-11-19 23:06:54"})     # ora di Roma
         self.assertIn(("select", '"Posta indesiderata"', True), chiamate)
         vietati = {"STORE", "COPY", "MOVE", "EXPUNGE", "APPEND"}
         self.assertFalse([c for c in chiamate if c[0] == "uid" and c[1] in vietati])
@@ -460,6 +467,35 @@ class TestGiro(Base):
         self.assertFalse(trgb[0]["risposto"])
         giulia = next(m for m in el["mail"] if m.get("oggetto") == "Cena per 12 sabato")
         self.assertIn("trgb (gestionale)", giulia["anche_in"])
+
+    def test_senza_data_e_copie_da_noi(self):
+        """Le copie dei preventivi che TRGB mandava senza Date (in cc a prenotazioni@): data dal
+        server, e non sono «da rispondere» perché le ha mandate una nostra casella."""
+        cas = CasellaFinta({"INBOX": {"uv": 3, "interne": {1: "2026-11-12 18:40:00"}, "msg": {
+            1: (mail("<p15@tregobbi.it>", "Osteria <trgb@tregobbi.it>", "Proposta menù — 22 novembre",
+                     a="cliente@x.it", senza_data=True), {"\\Seen"}),
+        }}})
+        C.esegui_giro(apri=cas)
+        r = righe("SELECT data FROM email_posta WHERE message_id = '<p15@tregobbi.it>'")[0]
+        self.assertEqual(r["data"], "2026-11-12 18:40:00")
+        el = C.elenco(giorni=30, anche_trgb=False)
+        m = el["mail"][0]
+        self.assertTrue(m["da_noi"])
+        self.assertTrue(m["risposto"])
+        self.assertEqual(C.elenco(giorni=30, solo_da_rispondere=True, anche_trgb=False)["mail"], [])
+
+    def test_ripara_date_gia_lette(self):
+        """Mail lette dalla v1.1 senza Date: data = ora della lettura. Il giro dopo la ripara."""
+        cas = CasellaFinta({"INBOX": {"uv": 3, "interne": {1: "2026-11-10 08:00:00"}, "msg": {
+            1: (mail("<old@tregobbi.it>", "x@y.it", "Senza data", senza_data=True), set()),
+        }}})
+        C.esegui_giro(apri=cas)
+        conn = get_email_conn()
+        conn.execute("UPDATE email_posta SET data = ricevuta_at, data_origine = NULL")   # come le aveva salvate la v1.1
+        conn.commit()
+        conn.close()
+        C.esegui_giro(apri=cas)
+        self.assertEqual(righe("SELECT data FROM email_posta")[0]["data"], "2026-11-10 08:00:00")
 
     def test_prova(self):
         r = C.prova("info-tregobbi-it", apri=self.casella())
