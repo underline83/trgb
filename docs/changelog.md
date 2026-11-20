@@ -3,6 +3,9 @@
 
 ---
 
+## 2026-11-20 — Clienti 3.43: le risposte da TRGB entrano nella conversazione e la bozza sparisce `[core]`
+Caso di Stephen Ritchie (info@, Exchange): la risposta mandata dalla pagina Posta era partita ma (1) gli header In-Reply-To/References erano codificati «=?utf-8?q?…?=» e in minuscolo, perché i Message-ID di Exchange superano i 78 caratteri, quindi il programma del cliente non la metteva nella conversazione; (2) la bozza restava nelle Bozze di info@. Ora: gli ID partono in chiaro tra < >, con le maiuscole originali (rilette dal server), e si va a capo solo tra un ID e l'altro (email_service 1.4); TRGB legge le capacità del server dopo il login (Aruba annuncia lì UIDPLUS: prima l'UID EXPUNGE non partiva mai) e, se manca, sposta la bozza nel Cestino; la mail a cui si risponde prende il flag «risposta» anche sul server (Apple Mail, iPhone); in Posta una mail risulta risposta anche solo perché la sua bozza TRGB è stata inviata. A ogni giro delle caselle (10') si tolgono dalle Bozze le bozze di TRGB già inviate o annullate negli ultimi 7 giorni: la bozza del 20/11 sparisce da sola dopo il push (email_scrittura_service 1.1, email_caselle_service 1.6). Test: `tests/test_email_intestazioni.py` (5) + `test_email_scrittura.py` (20). Nessuna migrazione.
+
 ## 2026-11-20 — Vini 4.18: «2025 in cantina» archivia l'annata vecchia `[core]`
 Nel widget riordino della dashboard e in Ordini fornitori, il chip verde «➡️ <annata> in cantina · N bt» ora segna la riga dell'annata vecchia come 🗓️ «Annata esaurita»: esce dalla lista e non viene più riproposta (se era in bozza ne esce). Prima il chip apriva solo la bottiglia nuova e la vecchia restava lì. Si ripristina da Ordini › «Messi da parte». Nessuna modifica backend.
 

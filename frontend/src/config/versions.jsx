@@ -574,6 +574,10 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   clienti: {
+    // 3.43 (2026-11-20): Posta — le risposte mandate da TRGB si agganciano alla conversazione anche coi Message-ID lunghi di Exchange
+    //   (email_service 1.4: In-Reply-To/References mai codificati, maiuscole originali); la bozza inviata sparisce dalle Bozze
+    //   (capacità IMAP lette dopo il login, MOVE nel Cestino se manca UIDPLUS), \Answered sull'originale, «risposto» anche dalla
+    //   bozza inviata; a ogni giro si tolgono le bozze di TRGB rimaste (email_scrittura_service 1.1, email_caselle_service 1.6).
     // 3.42 (2026-11-20): Posta — bozze preparate da Q: chip «📝 bozza di Q», trgb@ col «Rispondi» già compilato, altre caselle col riquadro
     //   della bozza («Invia da qui» con conferma, «Annulla bozza»; la PEC no).
     // 3.41 (2026-11-20): Posta — la mail aperta resta in vista (riquadro che scorre con la pagina; su telefono si torna in cima);
@@ -680,7 +684,7 @@ const MODULE_VERSIONS = {
     //   annullo/riattiva con storico movimenti, PDF buono A5 con identita'
     //   del locale, alert M.F sulle card in scadenza. Nessun impatto su
     //   corrispettivi/chiusure: registro informativo separato dalla cassa.
-    version: "3.42",
+    version: "3.43",
     label: "Gestione Clienti",
     status: "beta",
     color: "blue",

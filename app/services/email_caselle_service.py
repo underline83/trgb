@@ -1,4 +1,6 @@
-# @version: v1.5 (2026-11-20) — invio per casella: smtp_host/smtp_port (dedotti dall'IMAP), puo_inviare (no per la PEC), nome_mittente; cartella Bozze trovata da sola
+# @version: v1.6 (2026-11-20) — «risposto» anche se una bozza di TRGB per quella mail risulta inviata (senza aspettare la copia
+#   nell'Inviata né gli header); a fine giro email_scrittura_service.ripulisci (bozze rimaste nelle Bozze, flag \Answered)
+# v1.5 (2026-11-20) — invio per casella: smtp_host/smtp_port (dedotti dall'IMAP), puo_inviare (no per la PEC), nome_mittente; cartella Bozze trovata da sola
 # v1.4 (2026-11-20) — «scartata»: cancellata/archiviata/spostata da Marco (era in arrivo e non c'è più) o letta nel cestino/spam = vista, fuori da «da rispondere»
 # v1.3 (2026-11-20) — «arrivata in ritardo» solo se il SERVER l'ha ricevuta da poco (INTERNALDATE), non se l'ha letta tardi TRGB (primo import a rate); le mail marcate spam dal provider stanno con le massive
 # v1.2 (2026-11-20) — mail senza intestazione Date: data dal server (INTERNALDATE), anche per quelle già lette; mail mandate da una nostra casella = «da noi», non da rispondere
@@ -546,6 +548,13 @@ def esegui_giro(apri: Optional[Callable[[dict, str], Any]] = None, oggi: Optiona
             if not c["attiva"] and not solo:
                 continue
             out.append(_giro_casella(c, cfg, apri or _apri, oggi or date.today()))
+        if apri is None:
+            # bozze di TRGB già mandate/annullate ancora nelle Bozze, mail risposte da segnare sul server
+            try:
+                from app.services import email_scrittura_service as scr
+                scr.ripulisci()
+            except Exception as e:                      # noqa: BLE001 — la pulizia non ferma il giro
+                logger.warning("Altre caselle: pulizia bozze — %s", type(e).__name__)
         if solo and not out:
             return {"esito": "errore", "errore": f"Casella {solo} non trovata"}
         esito = "ok" if all(x["esito"] in ("ok", "saltato") for x in out) else "errore"
@@ -834,6 +843,20 @@ def _risposte(conn, mids: Iterable[str]) -> Dict[str, dict]:
     return out
 
 
+def _risposte_da_bozze(conn, ids: Iterable[int]) -> Dict[int, str]:
+    """{email_posta.id: quando} per le mail a cui TRGB ha mandato una sua bozza (stato «inviata»).
+    Vale anche se la copia nell'Inviata non è ancora stata letta o non ha gli header giusti."""
+    ids = sorted({int(i) for i in ids if i})
+    out: Dict[int, str] = {}
+    for i in range(0, len(ids), 400):
+        blocco = ids[i:i + 400]
+        for x in conn.execute(
+                f"SELECT rif_id, MIN(inviata_at) AS q FROM email_bozze WHERE rif_fonte = 'casella' AND stato = 'inviata' "
+                f"AND rif_id IN ({','.join('?' * len(blocco))}) GROUP BY rif_id", blocco):
+            out[x["rif_id"]] = x["q"] or ""
+    return out
+
+
 def _indirizzo_di(cfg: dict) -> Dict[str, str]:
     return {c["id"]: c["indirizzo"] for c in cfg["caselle"]}
 
@@ -902,6 +925,7 @@ def elenco(dal: Optional[str] = None, giorni: Optional[int] = None, casella: Opt
                 scelte[k] = r
         tenute = sorted(scelte.values(), key=lambda r: (r["data"] or "", r["id"]), reverse=True)
         risp = _risposte(conn, [r["message_id"] for r in tenute if not r["massiva"]])
+        da_bozze = _risposte_da_bozze(conn, [r["id"] for r in tenute if not r["massiva"]])
         # dove altro è arrivata la stessa mail (altre caselle, casella del gestionale)
         mids = list({r["message_id"] for r in tenute})
         altrove: Dict[str, set] = {}
@@ -933,6 +957,8 @@ def elenco(dal: Optional[str] = None, giorni: Optional[int] = None, casella: Opt
         da_dove = indir.get(r["casella"], r["casella"])
         anche = sorted(x for x in altrove.get(r["message_id"], set()) if x != da_dove)
         risposto, come = _stato_risposta(r, risp.get(r["message_id"]), indir)
+        if not risposto and r["id"] in da_bozze:
+            risposto, come = True, f"risposto il {da_bozze[r['id']][:16]} da TRGB"
         da_noi = (r["mittente"] or "").lower() in nostri
         if da_noi and not risposto:
             risposto, come = True, "mandata da una nostra casella (copia): non serve risposta"
@@ -1098,6 +1124,7 @@ def leggi(email_id: int) -> Optional[dict]:
                         "SELECT data, casella, a, oggetto FROM email_posta WHERE ruolo = 'inviata' AND "
                         "(instr(IFNULL(in_reply_to,''), ?) > 0 OR instr(IFNULL(riferimenti,''), ?) > 0) ORDER BY data",
                         (r["message_id"], r["message_id"]))]
+        da_bozze = _risposte_da_bozze(conn, [r["id"]])
         inviata = None
         if risposte:
             inviata = {"data": risposte[0]["data"], "casella": next(
@@ -1105,6 +1132,8 @@ def leggi(email_id: int) -> Optional[dict]:
     finally:
         conn.close()
     risposto, come = _stato_risposta(r, inviata, indir)
+    if not risposto and r["id"] in da_bozze:
+        risposto, come = True, f"risposto il {da_bozze[r['id']][:16]} da TRGB"
     if (r["mittente"] or "").lower() in set(indirizzi_nostri(cfg)) and not risposto:
         risposto, come = True, "mandata da una nostra casella (copia): non serve risposta"
     out = _riga(r, indir.get(r["casella"], r["casella"]), [], risposto, come, False, completa=True)

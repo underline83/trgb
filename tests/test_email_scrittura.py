@@ -98,11 +98,13 @@ from app.models.email_db import init_email_db, get_email_conn  # noqa: E402
 
 class ScrittoreFinto:
     """Fa le veci di ScrittoreImap: cartelle in memoria."""
-    def __init__(self, senza_bozze=False):
+    def __init__(self, senza_bozze=False, originali=None):
         self.cartelle = {"INBOX": {}, "INBOX.Sent": {}, "INBOX.Trash": {}}
         if not senza_bozze:
             self.cartelle["INBOX.Drafts"] = {}
         self.login = None
+        self.originali = originali or {}          # {message_id minuscolo: [ID come sul server]}
+        self.risposte = []                        # (cartella, message_id) segnate \Answered
 
     def __call__(self, c, pw):
         self.login = (c["utente"], pw)
@@ -123,7 +125,14 @@ class ScrittoreFinto:
         self.cartelle[cartella][uid] = (raw, flag)
         return uid
 
-    def togli_bozza(self, cartella, mid):
+    def ids_originali(self, cartella, mid):
+        return self.originali.get(mid.lower(), [])
+
+    def segna_risposta(self, cartella, mid):
+        self.risposte.append((cartella, mid))
+        return True
+
+    def togli_bozza(self, cartella, mid, cestino=None):
         for uid, (raw, _) in list(self.cartelle[cartella].items()):
             if message_from_bytes(raw, policy=policy.default)["Message-ID"] == mid:
                 del self.cartelle[cartella][uid]
@@ -267,16 +276,89 @@ class TestBozze(Base):
         self.assertEqual(s.cartelle["INBOX.Drafts"], {})
 
 
+EXCH = "<BESPR01MB594171AA763DB8AD44ACDFEE3E8C782@BESPR01MB594171.eurprd01.prod.exchangelabs.com>"
+EXCH_PRIMA = "<BESPR01MB594171D29D420581546DF341B68C702@BESPR01MB594171.eurprd01.prod.exchangelabs.com>"
+
+
+class TestRisposteExchange(Base):
+    """Caso del 20/11 (Ritchie, info@): Message-ID lunghi di Exchange, in maiuscolo."""
+    def setUp(self):
+        super().setUp()
+        conn = get_email_conn()
+        conn.execute(
+            """INSERT INTO email_posta (id, casella, cartella, ruolo, uid, uidvalidity, message_id, riferimenti, mittente,
+               a, oggetto, data, testo, presente, risposta_flag) VALUES
+               (20, 'info-tregobbi-it', 'INBOX', 'in_arrivo', 2, 1, ?, ?, 'stephen@barlibrary.com', 'info@tregobbi.it',
+                'Re: Dinner December 31', ?, 'Change of plans', 1, 0)""",
+            (EXCH.lower(), "<18c7279b@barlibrary.com> " + EXCH_PRIMA.lower(),
+             datetime.now(TZ).strftime("%Y-%m-%d %H:%M:%S")))
+        conn.commit()
+        conn.close()
+        self.s = ScrittoreFinto(originali={EXCH.lower(): ["<18c7279b@barlibrary.com>", EXCH_PRIMA, EXCH]})
+
+    def test_id_con_le_maiuscole_originali(self):
+        b = W.crea_bozza("Dear Stephen", "Q", rif_fonte="casella", rif_id=20, apri=self.s)
+        m = msg(self.s.cartelle["INBOX.Drafts"][1][0])
+        self.assertEqual(m["In-Reply-To"], EXCH)
+        self.assertEqual(m["References"].split(), ["<18c7279b@barlibrary.com>", EXCH_PRIMA, EXCH])
+        r = W.invia_bozza(b["id"], "marco", apri=self.s)
+        self.assertTrue(r["ok"], r)
+        self.assertEqual(INVII[0]["intestazioni"]["In-Reply-To"], EXCH)
+
+    def test_dopo_invio_bozza_via_e_risposta_segnata(self):
+        b = W.crea_bozza("Dear Stephen", "Q", rif_fonte="casella", rif_id=20, apri=self.s)
+        W.invia_bozza(b["id"], "marco", apri=self.s)
+        self.assertEqual(self.s.cartelle["INBOX.Drafts"], {})
+        self.assertEqual(self.s.risposte, [("INBOX", EXCH.lower())])
+        m = C.leggi(20)
+        self.assertTrue(m["risposto"])
+
+    def test_risposto_dalla_bozza_inviata_anche_senza_copia(self):
+        """Senza flag e senza copia nell'Inviata letta: basta la bozza TRGB inviata."""
+        conn = get_email_conn()
+        conn.execute("""INSERT INTO email_bozze (casella, rif_fonte, rif_id, a, oggetto, testo, stato, creata_da, creata_at,
+                        inviata_da, inviata_at) VALUES ('info-tregobbi-it', 'casella', 20, 'stephen@barlibrary.com',
+                        'Re: Dinner', 'x', 'inviata', 'Q', '2026-11-20 13:29:59', 'marco', '2026-11-20 13:31:12')""")
+        conn.commit()
+        conn.close()
+        m = C.leggi(20)
+        self.assertTrue(m["risposto"])
+        self.assertIn("13:31", m["risposto_come"])
+        self.assertNotIn(20, [x.get("id") for x in C.elenco(anche_trgb=False, solo_da_rispondere=True)["mail"]])
+
+    def test_ripulisci_toglie_bozze_rimaste_e_segna(self):
+        """Bozza inviata rimasta nelle Bozze (come la 3 del 20/11): la toglie il giro dopo."""
+        b = W.crea_bozza("Dear Stephen", "Q", rif_fonte="casella", rif_id=20, apri=self.s)
+        conn = get_email_conn()
+        conn.execute("UPDATE email_bozze SET stato = 'inviata', inviata_da = 'marco', inviata_at = creata_at WHERE id = ?",
+                     (b["id"],))
+        conn.commit()
+        conn.close()
+        self.assertEqual(len(self.s.cartelle["INBOX.Drafts"]), 1)
+        out = W.ripulisci(apri=self.s)
+        self.assertEqual(out, {"tolte": 1, "segnate": 1, "errori": 0})
+        self.assertEqual(self.s.cartelle["INBOX.Drafts"], {})
+        self.assertEqual(W.ripulisci(apri=self.s), {"tolte": 0, "segnate": 0, "errori": 0})   # flag già messo
+
+    def test_bozza_aperta_non_si_tocca(self):
+        W.crea_bozza("Dear Stephen", "Q", rif_fonte="casella", rif_id=20, apri=self.s)
+        self.assertEqual(W.ripulisci(apri=self.s)["tolte"], 0)
+        self.assertEqual(len(self.s.cartelle["INBOX.Drafts"]), 1)
+
+
 class TestScrittoreVero(unittest.TestCase):
     def test_togli_solo_la_sua_bozza(self):
         """ScrittoreImap con un imaplib finto: STORE \\Deleted e UID EXPUNGE solo sugli UID trovati."""
         chiamate = []
 
         class M:
-            capabilities = ("IMAP4REV1", "UIDPLUS")
+            capabilities = ("IMAP4REV1", "AUTH=PLAIN")        # prima del login (come Aruba): niente UIDPLUS
 
             def login(self, u, p):
                 pass
+
+            def capability(self):
+                return "OK", [b"IMAP4rev1 UIDPLUS MOVE IDLE"]
 
             def select(self, n, readonly=False):
                 chiamate.append(("select", n, readonly))
@@ -302,6 +384,50 @@ class TestScrittoreVero(unittest.TestCase):
         self.assertIn(("STORE", "7", "+FLAGS", "(\\Deleted)"), chiamate)
         self.assertIn(("EXPUNGE", "7"), chiamate)
         self.assertIn(("SEARCH", None, "HEADER", "Message-ID", "abc@tregobbi.it"), chiamate)
+
+    def _m(self, dopo_login, chiamate):
+        class M:
+            capabilities = ("IMAP4REV1",)
+
+            def login(self, u, p):
+                pass
+
+            def capability(self):
+                return "OK", [dopo_login]
+
+            def select(self, n, readonly=False):
+                return "OK", [b"1"]
+
+            def uid(self, cmd, *a):
+                chiamate.append((cmd,) + a)
+                return ("OK", [b"9"]) if cmd == "SEARCH" else ("OK", [b""])
+
+            def logout(self):
+                pass
+        return M
+
+    def test_senza_uidplus_sposta_nel_cestino(self):
+        chiamate = []
+        M = self._m(b"IMAP4rev1 MOVE", chiamate)
+        with W.ScrittoreImap("h", 993, "u", "p", fabbrica=lambda h, p: M()) as cas:
+            self.assertTrue(cas.togli_bozza("INBOX.Drafts", "<abc@tregobbi.it>", "INBOX.Trash"))
+        self.assertIn(("MOVE", "9", "INBOX.Trash"), chiamate)
+        self.assertNotIn("EXPUNGE", [c[0] for c in chiamate])
+
+    def test_senza_uidplus_ne_move_resta_segnata(self):
+        chiamate = []
+        M = self._m(b"IMAP4rev1", chiamate)
+        with W.ScrittoreImap("h", 993, "u", "p", fabbrica=lambda h, p: M()) as cas:
+            self.assertFalse(cas.togli_bozza("INBOX.Drafts", "<abc@tregobbi.it>", "INBOX.Trash"))
+        self.assertIn(("STORE", "9", "+FLAGS", "(\\Deleted)"), chiamate)
+        self.assertNotIn("EXPUNGE", [c[0] for c in chiamate])
+
+    def test_segna_risposta(self):
+        chiamate = []
+        M = self._m(b"IMAP4rev1 UIDPLUS", chiamate)
+        with W.ScrittoreImap("h", 993, "u", "p", fabbrica=lambda h, p: M()) as cas:
+            self.assertTrue(cas.segna_risposta("INBOX", EXCH.lower()))
+        self.assertIn(("STORE", "9", "+FLAGS", "(\\Answered)"), chiamate)
 
 
 if __name__ == "__main__":

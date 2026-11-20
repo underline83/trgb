@@ -1,4 +1,6 @@
-# @version: v1.3 (2026-11-20) — `account`: si può mandare (o solo costruire, per le bozze) da un'altra casella del locale con le sue credenziali
+# @version: v1.4 (2026-11-20) — In-Reply-To/References mai codificati =?utf-8?q?…?=: gli ID lunghi di Exchange
+#   (oltre 78 caratteri) venivano trattati come testo e codificati, e la risposta non si agganciava alla conversazione
+# v1.3 (2026-11-20) — `account`: si può mandare (o solo costruire, per le bozze) da un'altra casella del locale con le sue credenziali
 # v1.2 (2026-11-20) — intestazione Date sulle mail in uscita (mancava: RFC 5322 la vuole, gli antispam la contano, i programmi di posta mostravano l'ora di arrivo)
 # @version: v1.1 — intestazioni extra (In-Reply-To/References per le risposte dalla Posta, 2026-11-16)
 # v1.0 — Mattone M.D (versione minima, sessione 2026-07-30)
@@ -48,9 +50,12 @@ import hashlib
 import json
 import logging
 import os
+import re
 import smtplib
 import ssl
 from dataclasses import dataclass, field
+from email import policy as _policy
+from email.headerregistry import HeaderRegistry, UnstructuredHeader
 from email.message import EmailMessage
 from email.utils import formataddr, formatdate, make_msgid
 from pathlib import Path
@@ -242,6 +247,48 @@ def stato() -> dict:
 # ─────────────────────────────────────────────
 # INVIO
 # ─────────────────────────────────────────────
+# Intestazioni di collegamento (In-Reply-To, References)
+# ─────────────────────────────────────────────
+#
+# PERCHÉ (2026-11-20, risposta a un cliente su Exchange): con la policy di default
+# Python tratta In-Reply-To e References come testo libero. Un Message-ID di
+# Exchange è lungo più di 78 caratteri: per farlo stare nella riga la libreria lo
+# codificava in «=?utf-8?q?=3C…=40…?=». Il programma di posta del cliente non
+# ritrova più l'ID e la risposta non entra nella conversazione.
+# Qui gli ID restano ASCII, tra < >, esattamente come arrivano (maiuscole
+# comprese); se la riga è lunga si va a capo SOLO tra un ID e l'altro.
+
+_MSG_ID = re.compile(r"<[\x21-\x3b\x3d\x3f-\x7e]+>")      # <…> in ASCII stampabile, senza < > dentro
+
+
+class _IntestazioneId(UnstructuredHeader):
+    """Elenco di Message-ID: mai codificato, piegato solo tra un ID e l'altro."""
+
+    @classmethod
+    def parse(cls, value, kwds):
+        kwds["parse_tree"] = None
+        kwds["decoded"] = " ".join(_MSG_ID.findall(str(value or "")))
+        kwds["defects"] = []
+
+    def fold(self, *, policy):
+        limite = policy.max_line_length or 78
+        testa = self.name + ":"
+        righe, riga = [], testa
+        for mid in str(self).split():
+            if riga != testa and len(riga) + 1 + len(mid) > limite:
+                righe.append(riga)
+                riga = " " + mid
+            else:
+                riga += " " + mid
+        righe.append(riga)
+        return policy.linesep.join(righe) + policy.linesep
+
+
+_registro = HeaderRegistry()
+_registro.map_to_type("in-reply-to", _IntestazioneId)
+_registro.map_to_type("references", _IntestazioneId)
+POLICY_POSTA = _policy.default.clone(header_factory=_registro)
+
 
 def _costruisci(
     to: Sequence[str],
@@ -254,7 +301,7 @@ def _costruisci(
     account: Optional[dict] = None,
 ) -> EmailMessage:
     c = account or _cfg()
-    msg = EmailMessage()
+    msg = EmailMessage(policy=POLICY_POSTA)
     msg["From"] = formataddr((c["from_name"], c["from_addr"])) if c["from_name"] else c["from_addr"]
     msg["To"] = ", ".join(to)
     if cc:
@@ -266,8 +313,8 @@ def _costruisci(
     msg["Date"] = formatdate(localtime=True)        # obbligatoria (RFC 5322): senza, chi riceve vede l'ora di arrivo
     # Solo intestazioni di thread (risposte): niente From/To/Subject da qui
     for nome, valore in (intestazioni or {}).items():
-        if nome in ("In-Reply-To", "References") and valore:
-            msg[nome] = valore
+        if nome in ("In-Reply-To", "References") and valore and _MSG_ID.search(str(valore)):
+            msg[nome] = valore          # _IntestazioneId: ID in chiaro, mai =?utf-8?q?…?=
     msg.set_content(body or "")
 
     for nome, contenuto, mime in (allegati or []):
