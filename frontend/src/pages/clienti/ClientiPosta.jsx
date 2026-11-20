@@ -1,4 +1,7 @@
-// @version: v1.2 (2026-11-19) — tutte le caselle del locale insieme, selettore per casella (Tutte · trgb · info · …):
+// @version: v1.4 (2026-11-20) — mail «messe da parte» da Marco (cancellate/archiviate da Mail, o lette nel cestino): chip grigio, niente pallino, fuori da «Da rispondere»
+// v1.3 (2026-11-20) — la mail aperta resta in vista: su schermo largo il riquadro di lettura scorre con la pagina
+//   (sticky, con scroll suo), su telefono aprendo una mail si torna in cima
+// v1.2 (2026-11-19) — tutte le caselle del locale insieme, selettore per casella (Tutte · trgb · info · …):
 //   le altre caselle da GET /email/posta (sola lettura: letta/risposto dal server, spam e cestino, PEC), la casella
 //   del gestionale com'era (Da gestire/Gestite, preventivi, Rispondi)
 // v1.1 (2026-11-16) — «↩️ Rispondi»: risposta dalla casella del gestionale, nella stessa conversazione
@@ -8,7 +11,7 @@
 // destra. Il testo è già testo semplice ripulito lato server e qui si mostra SOLO come testo
 // (whitespace-pre-wrap): niente HTML, niente immagini remote, niente link cliccabili.
 // Da v1.1 si risponde: la mail parte solo col clic su «Invia» (POST /email/in/{id}/rispondi).
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import ClientiNav from "./ClientiNav";
@@ -84,6 +87,8 @@ export default function ClientiPosta() {
   const [inviando, setInviando] = useState(false);
   const idAperta = params.get("id");       // mail della casella del gestionale
   const pidAperta = params.get("pid");     // mail di un'altra casella
+  const pannello = useRef(null);           // riquadro della mail aperta: a ogni mail nuova si riparte dall'alto
+  useEffect(() => { if (pannello.current) pannello.current.scrollTop = 0; }, [idAperta, pidAperta]);
 
   useEffect(() => {
     apiFetch(`${API_BASE}/email/caselle/`)
@@ -179,6 +184,8 @@ export default function ClientiPosta() {
   const apri = (id, fonte) => {
     setRisp(null);
     setParams(!id ? {} : fonte === "casella" ? { pid: String(id) } : { id: String(id) });
+    // su telefono l'elenco sparisce e la mail prende il suo posto: si riparte dall'alto
+    if (id && typeof window !== "undefined" && window.innerWidth < 1024) window.scrollTo({ top: 0, behavior: "smooth" });
   };
   const scegliCasella = (c) => { setCasella(c); apri(null); };
 
@@ -271,7 +278,7 @@ export default function ClientiPosta() {
   const agg = modoTrgb ? dati?.aggiornamento : dati?.trgb_aggiornamento;
   const massive = (!modoTrgb && dati?.massive) || [];
   const caselleKo = (!modoTrgb && dati?.caselle ? dati.caselle : []).filter((c) => c.attiva && c.errori_di_fila > 0);
-  const daRispondereN = !modoTrgb ? mail.filter((m) => !m.risposto && m.stato_trgb !== "gestita").length : 0;
+  const daRispondereN = !modoTrgb ? mail.filter((m) => !m.risposto && !m.scartata && m.stato_trgb !== "gestita").length : 0;
   const etichetta = (indirizzo) => nomeCasella(caselle.find((c) => c.indirizzo === indirizzo)) || indirizzo;
   const apertaTrgb = aperta && !aperta._casella;
 
@@ -448,7 +455,7 @@ export default function ClientiPosta() {
             </div>
 
             {/* MAIL APERTA */}
-            <div className={`${aperta || caricaMail ? "" : "hidden lg:block"} flex-1 min-w-0`}>
+            <div ref={pannello} className={`${aperta || caricaMail ? "" : "hidden lg:block"} flex-1 min-w-0 lg:sticky lg:top-20 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto`}>
               {caricaMail && !aperta ? (
                 <div className="bg-white rounded-xl border border-neutral-200 shadow-sm p-6 text-sm text-neutral-400">Caricamento…</div>
               ) : !aperta ? (
@@ -648,7 +655,7 @@ function RigaCasella({ m, sel, onClick, etichetta }) {
       <button type="button" onClick={onClick}
         className={`w-full text-left px-4 py-3 min-h-[44px] transition ${sel ? "bg-teal-50" : "hover:bg-neutral-50"}`}>
         <div className="flex items-baseline gap-2">
-          {!m.risposto && <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0 translate-y-[-1px]" title="Senza risposta" />}
+          {!m.risposto && !m.scartata && <span className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0 translate-y-[-1px]" title="Senza risposta" />}
           <span className={`truncate text-sm ${nonLetta ? "font-semibold text-neutral-900" : "text-neutral-700"}`}>
             {m.mittente_nome || m.mittente || "(mittente sconosciuto)"}
           </span>
@@ -666,6 +673,7 @@ function RigaCasella({ m, sel, onClick, etichetta }) {
           {m.spam_marcato && <span className="text-[10px] px-1.5 py-0.5 rounded bg-neutral-200 text-neutral-600">segnata spam</span>}
           {m.in_ritardo && <span className="text-[10px] px-1.5 py-0.5 rounded bg-neutral-100 text-neutral-600">arrivata in ritardo</span>}
           {m.risposto && <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">↩️ risposto</span>}
+          {m.scartata && <span className="text-[10px] px-1.5 py-0.5 rounded bg-neutral-200 text-neutral-600">🗑 {m.scartata}</span>}
           {(m.anche_in || []).length > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded bg-neutral-100 text-neutral-500">anche in {m.anche_in.join(", ")}</span>}
         </div>
       </button>
@@ -681,7 +689,9 @@ function MailCasella({ m, etichetta, onChiudi }) {
 
       <div className="flex flex-wrap items-start justify-between gap-2">
         <h2 className="text-lg font-semibold text-neutral-900 break-words">{m.oggetto || "(senza oggetto)"}</h2>
-        <StatusBadge tone={m.risposto ? "success" : "danger"} dot>{m.risposto ? "Risposto" : "Senza risposta"}</StatusBadge>
+        <StatusBadge tone={m.risposto ? "success" : m.scartata ? "neutral" : "danger"} dot>
+          {m.risposto ? "Risposto" : m.scartata ? "Messa da parte" : "Senza risposta"}
+        </StatusBadge>
       </div>
 
       <dl className="text-xs text-neutral-600 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
@@ -703,6 +713,7 @@ function MailCasella({ m, etichetta, onChiudi }) {
         </div>
       )}
       {m.risposto_come && <p className="text-xs text-emerald-800">↩️ {m.risposto_come}</p>}
+      {m.scartata && <p className="text-xs text-neutral-500">🗑 {m.scartata}: non è tra quelle da rispondere</p>}
       {m.massiva && <p className="text-xs text-neutral-500">📰 Newsletter o notifica automatica ({m.massiva_perche})</p>}
 
       <pre className="whitespace-pre-wrap break-words font-sans text-sm text-neutral-800 bg-neutral-50 border border-neutral-100 rounded-lg p-3 max-h-[60vh] overflow-auto">

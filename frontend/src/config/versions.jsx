@@ -572,6 +572,8 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   clienti: {
+    // 3.41 (2026-11-20): Posta — la mail aperta resta in vista (riquadro che scorre con la pagina; su telefono si torna in cima);
+    //   mail messe da parte da Marco (cancellate/archiviate da Mail, lette nel cestino) fuori da «Da rispondere»; spam di Aruba con le newsletter.
     // 3.40 (2026-11-19): Posta — tutte le caselle del locale insieme con un selettore per casella (Tutte · trgb@ · info@ · …): le altre caselle
     //   in sola lettura (letta/risposto dal server, spam e cestino, PEC, newsletter a parte), trgb@ com'era (Da gestire, preventivi, Rispondi).
     //   Impostazioni › Email: un riquadro solo «Caselle lette dal gestionale».
@@ -674,7 +676,7 @@ const MODULE_VERSIONS = {
     //   annullo/riattiva con storico movimenti, PDF buono A5 con identita'
     //   del locale, alert M.F sulle card in scadenza. Nessun impatto su
     //   corrispettivi/chiusure: registro informativo separato dalla cassa.
-    version: "3.40",
+    version: "3.41",
     label: "Gestione Clienti",
     status: "beta",
     color: "blue",

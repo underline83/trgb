@@ -516,6 +516,28 @@ class TestGiro(Base):
         self.assertEqual(righe("SELECT primo_import FROM email_posta")[0]["primo_import"], 1)
         self.assertEqual(C.elenco(dal=datetime.now(TZ).strftime("%Y-%m-%d"), anche_trgb=False)["mail"], [])
 
+    def test_scartate_da_marco(self):
+        """Cancellata o archiviata da Marco = vista: fuori da «da rispondere», resta sotto «Tutte».
+        Finita nel cestino da sola e mai letta: resta da rispondere. Letta nel cestino: vista."""
+        cas = self.casella()
+        cas.cartelle["INBOX.Trash"]["msg"][7] = (mail("<filtro@x.it>", "Anna <anna@x.it>", "Tavolo sabato"), set())
+        cas.cartelle["INBOX.Trash"]["msg"][8] = (mail("<vecchia@x.it>", "Bob <bob@x.it>", "Già vista"), {"\\Seen"})
+        C.esegui_giro(apri=cas)
+        cas.cartelle["INBOX.Trash"]["msg"][9] = cas.cartelle["INBOX"]["msg"].pop(1)     # Giulia: cancellata (UID nuovo, come IMAP)
+        cas.cartelle["INBOX"]["msg"].pop(3)                                              # Rizzo: archiviata
+        C.esegui_giro(apri=cas)
+        da = {m["oggetto"] for m in C.elenco(solo_da_rispondere=True, anche_trgb=False)["mail"]}
+        self.assertNotIn("Cena per 12 sabato", da)
+        self.assertNotIn("Già vista", da)
+        self.assertIn("Tavolo sabato", da)
+        self.assertIn("Comunione 40 persone", da)
+        tutte = {m["oggetto"]: m for m in C.elenco(anche_trgb=False)["mail"]}
+        self.assertEqual(tutte["Cena per 12 sabato"]["scartata"], "cancellata da te")
+        self.assertEqual(tutte["Buste paga"]["scartata"], "archiviata o cancellata da te")
+        self.assertEqual(tutte["Già vista"]["scartata"], "letta nel cestino")
+        self.assertNotIn("scartata", tutte["Tavolo sabato"])
+        self.assertEqual(C.leggi(tutte["Cena per 12 sabato"]["id"])["scartata"], "cancellata da te")
+
     def test_prova(self):
         r = C.prova("info-tregobbi-it", apri=self.casella())
         self.assertTrue(r["ok"])

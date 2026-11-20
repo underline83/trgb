@@ -1,4 +1,5 @@
-# @version: v1.3 (2026-11-20) — «arrivata in ritardo» solo se il SERVER l'ha ricevuta da poco (INTERNALDATE), non se l'ha letta tardi TRGB (primo import a rate); le mail marcate spam dal provider stanno con le massive
+# @version: v1.4 (2026-11-20) — «scartata»: cancellata/archiviata/spostata da Marco (era in arrivo e non c'è più) o letta nel cestino/spam = vista, fuori da «da rispondere»
+# v1.3 (2026-11-20) — «arrivata in ritardo» solo se il SERVER l'ha ricevuta da poco (INTERNALDATE), non se l'ha letta tardi TRGB (primo import a rate); le mail marcate spam dal provider stanno con le massive
 # v1.2 (2026-11-20) — mail senza intestazione Date: data dal server (INTERNALDATE), anche per quelle già lette; mail mandate da una nostra casella = «da noi», non da rispondere
 # v1.1 (2026-11-19) — «da rispondere» salta anche le mail di trgb@ già gestite; caselle per la pagina Posta
 # v1.0 (2026-11-19) — le altre caselle del locale in sola lettura (posta in arrivo, inviata, spam, cestino; PEC)
@@ -881,6 +882,14 @@ def elenco(dal: Optional[str] = None, giorni: Optional[int] = None, casella: Opt
                 altrove.setdefault(x["message_id"], set()).add(indir.get(x["casella"], x["casella"]))
             for x in conn.execute(f"SELECT message_id FROM email_in WHERE message_id IN ({ph})", blocco):
                 altrove.setdefault(x["message_id"], set()).add("trgb (gestionale)")
+        # erano nella posta in arrivo? (se sì e ora stanno altrove, le ha tolte Marco)
+        passate: set = set()
+        for i in range(0, len(mids), 400):
+            blocco = mids[i:i + 400]
+            ph = ",".join("?" * len(blocco))
+            for x in conn.execute(f"SELECT casella, message_id FROM email_posta WHERE ruolo = 'in_arrivo' "
+                                  f"AND message_id IN ({ph})", blocco):
+                passate.add((x["casella"], x["message_id"]))
         trgb = []
         if anche_trgb and not ids_casella or (casella and "trgb" in casella.lower()):
             trgb = _da_trgb(conn, soglia, q, limite)
@@ -906,11 +915,15 @@ def elenco(dal: Optional[str] = None, giorni: Optional[int] = None, casella: Opt
                     "perche": "marcata spam dal provider" if r["spam_marcato"] else r["massiva_perche"],
                     "in_ritardo": in_ritardo or None}))
             continue
-        if solo_da_rispondere and (risposto or r["pec_tipo"] in ("ricevuta", "anomalia") or r["ruolo"] == "inviata"):
+        scartata = _scartata(r, (r["casella"], r["message_id"]) in passate)
+        if solo_da_rispondere and (risposto or scartata or r["pec_tipo"] in ("ricevuta", "anomalia")
+                                   or r["ruolo"] == "inviata"):
             continue
         riga = _riga(r, da_dove, anche, risposto, come, in_ritardo)
         if da_noi:
             riga["da_noi"] = True
+        if scartata:
+            riga["scartata"] = scartata
         vere.append(riga)
     for m in trgb:
         if solo_da_rispondere and (m.get("risposto") or m.get("stato_trgb") == "gestita"):
@@ -920,6 +933,21 @@ def elenco(dal: Optional[str] = None, giorni: Optional[int] = None, casella: Opt
     return {"quante": min(len(vere), limite), "mail": vere[:limite], "massive": massive[:limite * 2],
             "n_massive": len(massive), "caselle": aggiornamento(cfg=cfg),
             "trgb_aggiornamento": base.aggiornamento() if trgb or anche_trgb else None}
+
+
+def _scartata(r: dict, era_in_arrivo: bool) -> Optional[str]:
+    """Vista da Marco e messa da parte, quindi non «da rispondere» (resta sotto «Tutte»):
+    - era nella posta in arrivo e ora sta nel cestino/spam, o non c'è più (archiviata, cancellata);
+    - sta nel cestino o nello spam ed è letta (l'ha aperta lui: i filtri non le segnano lette).
+    Una mail finita nel cestino o nello spam da sola, mai letta, resta da guardare."""
+    if r["ruolo"] == "in_arrivo":
+        return None if r["presente"] else "archiviata o cancellata da te"
+    if r["ruolo"] in ("cestino", "spam"):
+        if era_in_arrivo:
+            return "cancellata da te" if r["ruolo"] == "cestino" else "spostata nello spam da te"
+        if r.get("letta"):
+            return f"letta nel {'cestino' if r['ruolo'] == 'cestino' else 'spam'}"
+    return None
 
 
 def _stato_risposta(r: dict, inviata: Optional[dict], indir: Dict[str, str]):
@@ -1038,6 +1066,10 @@ def leggi(email_id: int) -> Optional[dict]:
     if (r["mittente"] or "").lower() in set(indirizzi_nostri(cfg)) and not risposto:
         risposto, come = True, "mandata da una nostra casella (copia): non serve risposta"
     out = _riga(r, indir.get(r["casella"], r["casella"]), [], risposto, come, False, completa=True)
+    era_in_arrivo = any(c.get("id") and c["dove"].startswith("posta in arrivo") for c in copie if c["casella"] == indir.get(r["casella"], r["casella"]))
+    sc = _scartata(r, era_in_arrivo)
+    if sc:
+        out["scartata"] = sc
     out["altre_copie"] = copie
     out["risposte_mandate"] = risposte
     return out
