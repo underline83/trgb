@@ -680,6 +680,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   prenotazioni: {
+    // 2.38 (2026-11-20): Planning — ?apri=<id> apre la prenotazione e scorre fino alla riga (link dall'orario nella Home).
     // 2.37 (2026-11-19): turni chiusi dal calendario chiusure (Vendite › Chiusure) — Planning con banner
     //   «Turno chiuso», Settimana e mini-calendario li segnano, prenotazioni a mano BLOCCATE sul turno chiuso
     //   (crea e sposta), fasce del turno chiuse e online chiuso anche su TheFork (si chiude solo in TRGB);
@@ -716,7 +717,7 @@ const MODULE_VERSIONS = {
     // 2.16 (2026-10-19): Prenotazioni › Archivio (tutte le prenotazioni con filtri), spostato da
     //   Clienti; API nuova GET /prenotazioni/archivio/ (+ /riepilogo/). /clienti/prenotazioni rimanda qui.
     // 2.15 (2026-10-19): PrenotazioniForm accetta defaultCliente (bottone «Prenota» della scheda cliente).
-    version: "2.37",
+    version: "2.38",
     label: "Prenotazioni",
     status: "beta",
     color: "blue",
@@ -780,6 +781,8 @@ const MODULE_VERSIONS = {
     color: "orange",
   },
   home: {
+    // 4.4 (2026-11-20): «Il turno» — nome del cliente → scheda cliente, orario → la prenotazione nel Planning,
+    //   «📅 Prenotazioni» → Planning del giorno. Link solo a chi vede la pagina (clienti › lista, modulo prenotazioni).
     // 4.3 (2026-11-06): «I miei turni» diventa widget condiviso (MieiTurniCard) ed entra in tutte
     //   le Home (admin/capo sala, sala, sommelier, cucina); sparisce se l'utente non è collegato a un dipendente.
     // 4.2 (2026-11-05): il ruolo sommelier atterra su HomeSommelier (come sala → DashboardSala);
@@ -800,7 +803,7 @@ const MODULE_VERSIONS = {
     // turni, task) + nota del turno a frizione zero + strato eventi che
     // assorbe la vecchia card Alert. Stesso widget anche in DashboardSala,
     // dove il ruolo sala lo vede in sola lettura.
-    version: "4.3",
+    version: "4.4",
     label: "Home",
     status: "beta",
     color: "blue",

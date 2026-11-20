@@ -3,8 +3,14 @@
 
 ---
 
+## 2026-11-20 — Home: dal «Il turno» si va al cliente e alla prenotazione (home 4.4, prenotazioni 2.38) `[core]`
+Nella card «Il turno» della Home (anche Dashboard Sala) il nome del cliente apre la sua scheda, l'orario apre la prenotazione nel Planning (riga già aperta e in vista, via `?apri=<id>`) e l'etichetta «📅 Prenotazioni» porta al Planning del giorno. I link compaiono solo a chi può vedere la pagina di arrivo (Clienti › Lista per la scheda, modulo Prenotazioni per il Planning); gli altri vedono la lista come prima. `/dashboard/home` manda ora `id`, `cliente_id` di ogni prenotazione e la `data` della lista (dashboard_router 1.3). Nessuna migrazione.
+
 ## 2026-11-19 — Chiusure: un calendario solo per Turni, Prenotazioni e TheFork (dipendenti 2.46, prenotazioni 2.37, mattone M.L) `[core]`
 Marco aveva chiuso in Vendite › Chiusure la cena della vigilia e di Natale, ma il foglio turni e il Planning non se ne accorgevano: i Turni leggevano solo giorno fisso e giorni interi, il Planning solo il suo «giorno di chiusura»; TheFork l'aveva chiuso a mano. Ora le chiusure stanno in un posto solo (`calendario_chiusure`, mattone M.L). Turni: servizio chiuso grigio in foglio, telefono, mese e PDF, niente turni nuovi, copia e template lo saltano. Prenotazioni: banner «Turno chiuso» nel Planning, Settimana e mini-calendario lo segnano, prenotazioni a mano bloccate sul turno chiuso (scelta di Marco: blocca, non avvisa). TheFork: si chiude solo in TRGB e TRGB chiude l'online su tutto il turno (fasce comprese); riaperto il turno, torna aperto. Il motore online non riapre più un turno chiuso. Aperture straordinarie (corrispettivi 4.15): nel calendario un clic su un mercoledì lo apre (verde), e Turni e Prenotazioni lo trattano come un giorno normale, anche contro il «giorno di chiusura» delle Prenotazioni; su TheFork il giorno va aperto a mano. Test: `tests/test_chiusure.py` (13).
+
+## 2026-11-20 — Posta: niente falsi «in ritardo», lo spam di Aruba con le newsletter `[core]`
+Le mail vecchie lette solo al secondo giro non risultano più «arrivate in ritardo»: lo è solo una mail che il server ha ricevuto davvero tardi. Le mail che l'antispam di Aruba marca «*****SPAM*****» stanno con newsletter e notifiche, non tra quelle da rispondere.
 
 ## 2026-11-20 — Sistema 6.6: le mail di TRGB hanno la data, e le copie non sono «da rispondere» (mig 240) `[core]`
 Le mail che TRGB manda (preventivi, proposte menù, intermittenti) non avevano l'intestazione con la data: chi le riceveva vedeva l'ora di arrivo e gli antispam la contano come difetto. Ora c'è. Nella Posta, le mail senza data prendono quella in cui il server le ha ricevute (anche quelle già lette), e le copie mandate da una nostra casella non compaiono più tra quelle da rispondere.

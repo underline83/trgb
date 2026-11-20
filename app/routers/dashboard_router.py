@@ -3,7 +3,8 @@
 # Dashboard Home — endpoint aggregatore per widget Home v3
 # ============================================================
 
-# @version: v1.2-dashboard-home — incasso/coperti della Home solo ad admin e capo sala, flag mostra_numeri_cassa (2026-11-05)
+# @version: v1.3-dashboard-home — lista prenotazioni con id, cliente_id e data per i link della Home (2026-11-20)
+# v1.2-dashboard-home — incasso/coperti della Home solo ad admin e capo sala, flag mostra_numeri_cassa (2026-11-05)
 # v1.1-dashboard-home — /home senza selezioni (le porta la Lavagna) + ?lieve=1 per l'aggiornamento automatico (2026-11-04)
 # -*- coding: utf-8 -*-
 """
@@ -49,6 +50,10 @@ router = APIRouter(
 # ─────────────────────────────────────────────────────────
 
 class PrenotazioneWidget(BaseModel):
+    # id e cliente_id: la Home apre la prenotazione nel Planning e la scheda
+    # cliente (link solo per chi ha i permessi, 2026-11-20)
+    id: Optional[int] = None
+    cliente_id: Optional[int] = None
     ora: str
     nome: str
     pax: int
@@ -57,6 +62,7 @@ class PrenotazioneWidget(BaseModel):
     turno: str = "pranzo"
 
 class PrenotazioniOggi(BaseModel):
+    data: str = ""  # giorno della lista (YYYY-MM-DD), per il link al Planning
     pranzo_count: int = 0
     pranzo_pax: int = 0
     cena_count: int = 0
@@ -188,7 +194,7 @@ def _prenotazioni_oggi(oggi: str) -> PrenotazioniOggi:
     try:
         conn = get_clienti_conn()
         rows = conn.execute("""
-            SELECT p.ora_pasto, p.pax, p.stato, p.nota_ristorante, p.allergie_segnalate,
+            SELECT p.id, p.cliente_id, p.ora_pasto, p.pax, p.stato, p.nota_ristorante, p.allergie_segnalate,
                    COALESCE(c.nome, '') as nome, COALESCE(c.cognome, '') as cognome
             FROM clienti_prenotazioni p
             LEFT JOIN clienti c ON p.cliente_id = c.id
@@ -228,6 +234,8 @@ def _prenotazioni_oggi(oggi: str) -> PrenotazioniOggi:
             nota = r["allergie_segnalate"] or r["nota_ristorante"] or ""
 
             lista.append(PrenotazioneWidget(
+                id=r["id"],
+                cliente_id=r["cliente_id"],
                 ora=ora[:5],  # HH:MM
                 nome=nome,
                 pax=pax,
@@ -237,6 +245,7 @@ def _prenotazioni_oggi(oggi: str) -> PrenotazioniOggi:
             ))
 
         return PrenotazioniOggi(
+            data=oggi,
             pranzo_count=pranzo_c, pranzo_pax=pranzo_p,
             cena_count=cena_c, cena_pax=cena_p,
             totale_pax=pranzo_p + cena_p,

@@ -1,8 +1,8 @@
-// @version: v1.16-chiusure — turno chiuso nel calendario chiusure: banner rosso, «Nessuna prenotazione» diventa «Turno chiuso» (2026-11-19); v1.15-stelle — stelle TRGB e pallino del segmento accanto al nome (al posto della ⭐ VIP TheFork) (2026-11-16); v1.14-stati — «In opzione» (tavolo tenuto fino al…, proroga, coperti a parte) e «Lista d'attesa» (sezione propria, non occupa); pulsanti di stato dai passaggi permessi della tabella stati (sparito «Seduto» su «Da confermare», che dava errore) (2026-11-13); v1.13-scadenza-preventivo — ⏳ prenotazione in attesa di conferma preventivo (scadenza), «Libera tavolo», motivo della cancellazione (2026-11-03); v1.12-motore — tavolo suggerito dal motore per tavoli (clic = assegna, «Assegna i suggeriti»), «non entra» in rosso, tavoli doppi; v1.11-sale — sale aperte/chiuse per turno nell'intestazione (capienza dai tavoli); v1.10-modifica — «✏️ Modifica» nella riga aperta (stesso form della nuova prenotazione); v1.9-nome — nome anche col solo cognome; v1.8-menu-evento — menù dell'evento confermato nella riga aperta; v1.7-preventivo — tasto «📋 Preventivo» nella riga aperta (crea o apre il preventivo della prenotazione, solo per chi può crearli); v1.6-fasce — fasce orarie del turno (apertura, limiti, online anche su TheFork); v1.5-affidabilita — badge no-show del cliente, riconferma WhatsApp; v1.4 scheda inline — scheda cliente aperta dentro il Planning; v1.3 timeline — bollino cliente (prima/occasionale/frequente) + timeline sala per orario; badge «doppione?»
+// @version: v1.17-apri — ?apri=<id> apre la prenotazione e ci scorre sopra (link dalla Home, 2026-11-20); v1.16-chiusure — turno chiuso nel calendario chiusure: banner rosso, «Nessuna prenotazione» diventa «Turno chiuso» (2026-11-19); v1.15-stelle — stelle TRGB e pallino del segmento accanto al nome (al posto della ⭐ VIP TheFork) (2026-11-16); v1.14-stati — «In opzione» (tavolo tenuto fino al…, proroga, coperti a parte) e «Lista d'attesa» (sezione propria, non occupa); pulsanti di stato dai passaggi permessi della tabella stati (sparito «Seduto» su «Da confermare», che dava errore) (2026-11-13); v1.13-scadenza-preventivo — ⏳ prenotazione in attesa di conferma preventivo (scadenza), «Libera tavolo», motivo della cancellazione (2026-11-03); v1.12-motore — tavolo suggerito dal motore per tavoli (clic = assegna, «Assegna i suggeriti»), «non entra» in rosso, tavoli doppi; v1.11-sale — sale aperte/chiuse per turno nell'intestazione (capienza dai tavoli); v1.10-modifica — «✏️ Modifica» nella riga aperta (stesso form della nuova prenotazione); v1.9-nome — nome anche col solo cognome; v1.8-menu-evento — menù dell'evento confermato nella riga aperta; v1.7-preventivo — tasto «📋 Preventivo» nella riga aperta (crea o apre il preventivo della prenotazione, solo per chi può crearli); v1.6-fasce — fasce orarie del turno (apertura, limiti, online anche su TheFork); v1.5-affidabilita — badge no-show del cliente, riconferma WhatsApp; v1.4 scheda inline — scheda cliente aperta dentro il Planning; v1.3 timeline — bollino cliente (prima/occasionale/frequente) + timeline sala per orario; badge «doppione?»
 // Modulo: prenotazioni
 // Vista planning giornaliero — modulo Prenotazioni TRGB
 import React, { useState, useEffect, useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import PrenotazioniNav from "./PrenotazioniNav";
 import PrenotazioniForm from "./PrenotazioniForm";
@@ -132,7 +132,8 @@ function RigaPrenotazione({ pren, motore, onAssegna, onStatoChange, onExpand, ex
   return (
     <>
       <tr
-        className={`border-b border-neutral-100 cursor-pointer hover:bg-neutral-50/50 transition ${rigaClasses(pren)}`}
+        id={`pren-${pren.id}`}
+        className={`border-b border-neutral-100 cursor-pointer hover:bg-neutral-50/50 transition scroll-mt-24 ${rigaClasses(pren)}`}
         onClick={() => onExpand(pren.id)}
       >
         {/* Ora */}
@@ -617,6 +618,9 @@ function TabellaPrenotazioni({ titolo, chiusura, prenotazioni, conteggio, pax, o
 export default function PrenotazioniPlanning() {
   const { data: dataParam } = useParams();
   const navigate = useNavigate();
+  // ?apri=<id>: arrivo dalla Home cliccando l'orario → riga aperta e in vista
+  const [searchParams, setSearchParams] = useSearchParams();
+  const apriId = Number(searchParams.get("apri")) || null;
   // «📋 Preventivo»: solo per chi vede Gestione Clienti › Preventivi e può crearli
   // (le scritture dei preventivi sono admin/superadmin lato backend).
   const { canAccessSub } = useModuleAccess();
@@ -746,6 +750,17 @@ export default function PrenotazioniPlanning() {
     }
     setTimeout(() => setToast(null), 3000);
   };
+
+  // Apre la prenotazione chiesta da ?apri= appena il Planning è caricato, poi
+  // toglie il parametro (un refresh non la riapre, il tasto indietro torna alla Home).
+  useEffect(() => {
+    if (!apriId || loading || !planning) return;
+    setExpandedId(apriId);
+    setSearchParams((sp) => { sp.delete("apri"); return sp; }, { replace: true });
+    setTimeout(() => {
+      document.getElementById(`pren-${apriId}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 80);
+  }, [apriId, loading, planning, setSearchParams]);
 
   const handleExpand = (id) => {
     setExpandedId(expandedId === id ? null : id);

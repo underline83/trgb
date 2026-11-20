@@ -347,10 +347,11 @@ class TestGiro(Base):
         self.assertTrue(ogg["Buste paga"]["risposto"])
         self.assertIn("info@tregobbi.it", ogg["Buste paga"]["risposto_come"])
         self.assertEqual(ogg["Comunione 40 persone"]["dove"], "spam")
-        self.assertTrue(ogg["*****SPAM***** guadagna"]["spam_marcato"])
+        self.assertNotIn("*****SPAM***** guadagna", ogg)                 # marcata spam: con le massive
+        self.assertIn(("*****SPAM***** guadagna", "marcata spam dal provider"),
+                      [(m["oggetto"], m["perche"]) for m in el["massive"]])
         self.assertNotIn("Le offerte", ogg)                          # massiva: a parte
-        self.assertEqual(el["massive"][0]["oggetto"], "Le offerte")
-        self.assertEqual(el["massive"][0]["perche"], "List-Unsubscribe")
+        self.assertIn(("Le offerte", "List-Unsubscribe"), [(m["oggetto"], m["perche"]) for m in el["massive"]])
         self.assertNotIn("Re: Buste paga", ogg)                      # le inviate non sono nella lista
         da = {m["oggetto"] for m in C.elenco(solo_da_rispondere=True, anche_trgb=False)["mail"]}
         self.assertIn("Cena per 12 sabato", da)
@@ -443,9 +444,13 @@ class TestGiro(Base):
         # una PEC arrivata adesso ma datata tre giorni fa
         vecchia = datetime.now(TZ) - timedelta(days=3)
         cas.cartelle["INBOX"]["msg"][9] = (mail("<late@comune.it>", "Comune <suap@comune.it>", "SCIA", data=vecchia), set())
+        cas.cartelle["INBOX"].setdefault("interne", {})[9] = datetime.now(TZ).strftime("%Y-%m-%d %H:%M:%S")  # il server l'ha appena ricevuta
+        # e una vecchia che TRGB legge solo adesso (primo import a rate): NON è in ritardo
+        cas.cartelle["INBOX"]["msg"][10] = (mail("<rata@x.it>", "x <x@x.it>", "Vecchia letta tardi", data=vecchia), set())
+        cas.cartelle["INBOX"]["interne"][10] = vecchia.strftime("%Y-%m-%d %H:%M:%S")
         C.esegui_giro(apri=cas)
         conn = get_email_conn()
-        conn.execute("UPDATE email_posta SET ricevuta_at = ? WHERE message_id = '<late@comune.it>'",
+        conn.execute("UPDATE email_posta SET ricevuta_at = ? WHERE message_id IN ('<late@comune.it>', '<rata@x.it>')",
                      ((dopo + timedelta(minutes=1)).strftime("%Y-%m-%d %H:%M:%S"),))
         conn.commit()
         conn.close()
@@ -496,6 +501,20 @@ class TestGiro(Base):
         conn.close()
         C.esegui_giro(apri=cas)
         self.assertEqual(righe("SELECT data FROM email_posta")[0]["data"], "2026-11-10 08:00:00")
+
+    def test_ripara_ritardi_gia_letti(self):
+        """Righe salvate prima della v1.3 come nuove ma lette tardi: il giro le verifica col server."""
+        vecchia = datetime.now(TZ) - timedelta(days=5)
+        cas = CasellaFinta({"INBOX": {"uv": 3, "interne": {1: vecchia.strftime("%Y-%m-%d %H:%M:%S")}, "msg": {
+            1: (mail("<v1@x.it>", "x@y.it", "Vecchia", data=vecchia), set())}}})
+        C.esegui_giro(apri=cas)
+        conn = get_email_conn()
+        conn.execute("UPDATE email_posta SET primo_import = 0")         # come le aveva salvate la v1.2
+        conn.commit()
+        conn.close()
+        C.esegui_giro(apri=cas)
+        self.assertEqual(righe("SELECT primo_import FROM email_posta")[0]["primo_import"], 1)
+        self.assertEqual(C.elenco(dal=datetime.now(TZ).strftime("%Y-%m-%d"), anche_trgb=False)["mail"], [])
 
     def test_prova(self):
         r = C.prova("info-tregobbi-it", apri=self.casella())

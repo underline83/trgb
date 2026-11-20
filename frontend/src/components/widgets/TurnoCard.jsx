@@ -1,5 +1,7 @@
 // FILE: frontend/src/components/widgets/TurnoCard.jsx
-// @version: v1.0 — card «Il turno» della Home v10 (2026-11-04)
+// @version: v1.1-link — nome cliente → scheda cliente, orario → la prenotazione nel Planning,
+//   «Prenotazioni» → Planning del giorno; link solo per chi ha il permesso (2026-11-20)
+// v1.0 — card «Il turno» della Home v10 (2026-11-04)
 // Modulo: platform (Home) — legge prenotazioni (clienti) via /dashboard/home e
 // il briefing via /dashboard/lavagna; nessuna chiamata diretta ad altri moduli.
 //
@@ -14,6 +16,8 @@
 // Pezzi della Lavagna riusati da Lavagna.jsx (niente copie).
 
 import React, { useState } from "react";
+import { Link } from "react-router-dom";
+import useModuleAccess from "../../hooks/useModuleAccess";
 import {
   CopiaBriefing, LavagnaNota, LavagnaServizio, LavagnaEventi, BachecaLink, LavagnaVuota,
 } from "./Lavagna";
@@ -46,6 +50,14 @@ export default function TurnoCard({
   // «In opzione»: tavolo tenuto ma non confermato, coperti a parte (2026-11-13)
   const opz = { pranzo: prenotazioni?.pranzo_opzione_pax || 0, cena: prenotazioni?.cena_opzione_pax || 0 };
   const t = TURNI[tab];
+
+  // Link solo se l'utente vede la pagina di arrivo (stessi controlli delle route
+  // in App.jsx: /clienti/:id = clienti › lista, Planning = modulo prenotazioni).
+  const { canAccessModule, canAccessSub, loading: permessiLoading } = useModuleAccess();
+  const puoPrenotazioni = !permessiLoading && canAccessModule("prenotazioni");
+  const puoClienti = !permessiLoading && canAccessSub("clienti", "lista");
+  const giorno = prenotazioni?.data || "";
+  const planningUrl = giorno ? `/prenotazioni/planning/${giorno}` : "/prenotazioni";
 
   if (lavagnaLoading && !lavagna) return <LavagnaVuota testo="Caricamento…" />;
 
@@ -104,15 +116,36 @@ export default function TurnoCard({
         <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] md:divide-x divide-[#f0ede8]">
           {/* Sinistra: le prenotazioni del tab */}
           <div className="pt-2 pb-2">
-            <div className="px-4 pb-1 text-[10px] font-bold uppercase tracking-[.9px] text-[#a8a49e]">
-              📅 Prenotazioni · {t.label.toLowerCase()}
-            </div>
+            {puoPrenotazioni ? (
+              <Link to={planningUrl} title="Apri il Planning delle prenotazioni"
+                    className="block px-4 pb-1 text-[10px] font-bold uppercase tracking-[.9px] text-[#a8a49e] hover:text-brand-blue transition">
+                📅 Prenotazioni · {t.label.toLowerCase()} ›
+              </Link>
+            ) : (
+              <div className="px-4 pb-1 text-[10px] font-bold uppercase tracking-[.9px] text-[#a8a49e]">
+                📅 Prenotazioni · {t.label.toLowerCase()}
+              </div>
+            )}
             {lista.length > 0 ? (
               lista.map((r, i) => (
                 <div key={i} className={`flex items-center gap-2.5 px-4 py-2.5 ${i < lista.length - 1 ? "border-b border-[#f8f6f2]" : ""}`}>
-                  <span className="text-[11px] font-semibold text-[#a8a49e] w-10 flex-shrink-0 tabular-nums">{r.ora?.slice(0, 5)}</span>
+                  {puoPrenotazioni && r.id ? (
+                    <Link to={`${planningUrl}?apri=${r.id}`} title="Apri la prenotazione"
+                          className="text-[11px] font-semibold text-[#a8a49e] w-10 flex-shrink-0 tabular-nums underline decoration-dotted underline-offset-2 hover:text-brand-blue transition">
+                      {r.ora?.slice(0, 5)}
+                    </Link>
+                  ) : (
+                    <span className="text-[11px] font-semibold text-[#a8a49e] w-10 flex-shrink-0 tabular-nums">{r.ora?.slice(0, 5)}</span>
+                  )}
                   <div className="flex-1 min-w-0">
-                    <div className="text-[13px] font-semibold text-brand-ink leading-tight truncate">{r.nome}</div>
+                    {puoClienti && r.cliente_id ? (
+                      <Link to={`/clienti/${r.cliente_id}`} title="Apri la scheda cliente"
+                            className="block text-[13px] font-semibold text-brand-ink leading-tight truncate hover:text-brand-blue hover:underline transition">
+                        {r.nome}
+                      </Link>
+                    ) : (
+                      <div className="text-[13px] font-semibold text-brand-ink leading-tight truncate">{r.nome}</div>
+                    )}
                     {r.nota && <div className="text-[11px] text-[#a8a49e] mt-0.5 truncate">{r.nota}</div>}
                   </div>
                   <span className="text-[13px] font-bold text-brand-ink w-6 text-right">{r.pax}</span>

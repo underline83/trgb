@@ -1,4 +1,5 @@
-# @version: v1.2 (2026-11-20) — mail senza intestazione Date: data dal server (INTERNALDATE), anche per quelle già lette; mail mandate da una nostra casella = «da noi», non da rispondere
+# @version: v1.3 (2026-11-20) — «arrivata in ritardo» solo se il SERVER l'ha ricevuta da poco (INTERNALDATE), non se l'ha letta tardi TRGB (primo import a rate); le mail marcate spam dal provider stanno con le massive
+# v1.2 (2026-11-20) — mail senza intestazione Date: data dal server (INTERNALDATE), anche per quelle già lette; mail mandate da una nostra casella = «da noi», non da rispondere
 # v1.1 (2026-11-19) — «da rispondere» salta anche le mail di trgb@ già gestite; caselle per la pagina Posta
 # v1.0 (2026-11-19) — le altre caselle del locale in sola lettura (posta in arrivo, inviata, spam, cestino; PEC)
 # Modulo: platform (mattone M.D, lettura) — [core]
@@ -83,8 +84,9 @@ DEFAULT = {
     "mittenti_massivi": r"(^|[._+-])(no-?reply|do-?not-?reply|noreply|newsletter|news|mailer-daemon|"
                         r"notifications?|notifiche|marketing|promo)([._+-]|@)",
     "segni_spam": ["*****SPAM*****"],
+    "ore_nuova": 24,
 }
-NUMERICI = ("minuti", "giorni_primo_import", "giorni_flag", "max_mb", "max_caratteri", "max_per_giro")
+NUMERICI = ("minuti", "giorni_primo_import", "giorni_flag", "max_mb", "max_caratteri", "max_per_giro", "ore_nuova")
 GIRI_TENUTI = 2000
 AVVISO_TERZI = base.AVVISO_TERZI
 
@@ -610,6 +612,7 @@ def _giro_cartella(conn, cas, cid: str, cartella: str, ruolo: str, cfg: dict, og
     flag = cas.flag(sorted(finestra | set(uids))) if (finestra or uids) else {}
     dim = cas.dimensioni(uids) if uids else {}
     date_srv = cas.date_interne(uids) if uids else {}
+    soglia_nuova = (datetime.now(locale_timezone()) - timedelta(hours=cfg["ore_nuova"])).strftime("%Y-%m-%d %H:%M:%S")
     limite = cfg["max_mb"] * 1024 * 1024
     solo_testa = ruolo == "inviata"
     nuove = lette = 0
@@ -623,14 +626,38 @@ def _giro_cartella(conn, cas, cid: str, cartella: str, ruolo: str, cfg: dict, og
         except Exception:                               # noqa: BLE001
             logger.exception("Casella %s, %s: UID %s illeggibile", cid, cartella, uid)
             mail = _illeggibile(cid, cartella, uid, uidvalidity, d)
-        if _salva(conn, cid, cartella, ruolo, uid, uidvalidity, mail, flag.get(uid), primo):
+        # «nuova» = il server l'ha ricevuta da poco. Una mail vecchia letta adesso (primo import
+        # che continua al giro dopo, cartella riletta) non è arrivata adesso.
+        vecchia = bool(date_srv.get(uid) and date_srv[uid] < soglia_nuova)
+        if _salva(conn, cid, cartella, ruolo, uid, uidvalidity, mail, flag.get(uid), primo or vecchia):
             nuove += 1
         _scrivi_cursore(conn, cid, cartella, uidvalidity, uid)
         conn.commit()
     _aggiorna_flag(conn, cid, cartella, uidvalidity, flag, set(tutti))
     _ripara_date(conn, cas, cid, cartella, uidvalidity, set(tutti))
+    _ripara_ritardi(conn, cas, cid, cartella, uidvalidity, set(tutti), cfg)
     conn.commit()
     return nuove, lette, nota
+
+
+def _ripara_ritardi(conn, cas, cid: str, cartella: str, uidvalidity, tutti: set, cfg: dict) -> None:
+    """Righe che sembrano «arrivate in ritardo» (lette da TRGB più di ore_nuova ore dopo la loro
+    data) ma non verificate: se il server le aveva da tempo erano solo lette tardi (primo_import
+    = 1); se il server le ha ricevute davvero tardi restano in ritardo, verificate (= 2)."""
+    righe = [dict(r) for r in conn.execute(
+        "SELECT id, uid, ricevuta_at FROM email_posta WHERE casella = ? AND cartella = ? AND uidvalidity = ? "
+        "AND presente = 1 AND primo_import = 0 AND (julianday(ricevuta_at) - julianday(data)) * 24 > ?",
+        (cid, cartella, uidvalidity, cfg["ore_nuova"]))]
+    righe = [r for r in righe if r["uid"] in tutti]
+    if not righe:
+        return
+    date_srv = cas.date_interne([r["uid"] for r in righe])
+    for r in righe:
+        d = date_srv.get(r["uid"])
+        if not d:
+            continue
+        lim = (datetime.strptime(r["ricevuta_at"], "%Y-%m-%d %H:%M:%S") - timedelta(hours=cfg["ore_nuova"])).strftime("%Y-%m-%d %H:%M:%S")
+        conn.execute("UPDATE email_posta SET primo_import = ? WHERE id = ?", (1 if d < lim else 2, r["id"]))
 
 
 def _ripara_date(conn, cas, cid: str, cartella: str, uidvalidity, tutti: set) -> None:
@@ -807,7 +834,7 @@ def elenco(dal: Optional[str] = None, giorni: Optional[int] = None, casella: Opt
     if dal and (not soglia or dal > soglia):
         soglia = dal
     if soglia:
-        where.append("(data >= ? OR (ricevuta_at >= ? AND primo_import = 0))")
+        where.append("(data >= ? OR (ricevuta_at >= ? AND primo_import != 1))")
         par += [soglia, soglia]
     ids_casella = None
     if casella:
@@ -870,12 +897,14 @@ def elenco(dal: Optional[str] = None, giorni: Optional[int] = None, casella: Opt
         if da_noi and not risposto:
             risposto, come = True, "mandata da una nostra casella (copia): non serve risposta"
         in_ritardo = bool(soglia and (r["data"] or "") < soglia)
-        if r["massiva"] and r["ruolo"] != "inviata":
+        if (r["massiva"] or r["spam_marcato"]) and r["ruolo"] != "inviata":
             if anche_massive:
                 massive.append(_senza_vuoti({
                     "id": r["id"], "casella": da_dove, "dove": _dove(r["ruolo"], r["presente"]),
                     "data": r["data"], "mittente": r["mittente"], "mittente_nome": r["mittente_nome"],
-                    "oggetto": r["oggetto"], "perche": r["massiva_perche"], "in_ritardo": in_ritardo or None}))
+                    "oggetto": r["oggetto"],
+                    "perche": "marcata spam dal provider" if r["spam_marcato"] else r["massiva_perche"],
+                    "in_ritardo": in_ritardo or None}))
             continue
         if solo_da_rispondere and (risposto or r["pec_tipo"] in ("ricevuta", "anomalia") or r["ruolo"] == "inviata"):
             continue
