@@ -1,4 +1,4 @@
-// @version: v1.12 — servizi chiusi (solo pranzo / solo cena) dal calendario chiusure: grigi e bloccati (2026-11-19); v1.11-mattoni — M.I primitives (Btn) su Pubblica + Invia WA
+// @version: v1.13 — coperti previsti accanto al giorno (GET /turni/previsione-coperti, solo chi scrive i turni) (2026-11-20); v1.12 — servizi chiusi (solo pranzo / solo cena) dal calendario chiusure: grigi e bloccati (2026-11-19); v1.11-mattoni — M.I primitives (Btn) su Pubblica + Invia WA
 // Foglio Settimana Turni v2 — TRGB Gestionale
 //
 // Matrice: 7 giorni (Lun..Dom) × slot (P1..Pn + C1..Cn) per reparto.
@@ -6,6 +6,7 @@
 // - Click cella → popover assegnazione (dipendente, orari, stato OPZIONALE)
 // - Asterisco giallo per stato OPZIONALE (turno da confermare all'ultimo)
 // - Badge "a chiamata" per dipendenti pagati a ore senza contratto fisso
+// - Accanto al giorno: coperti previsti pranzo/cena (☀️ ~12 · 🌙 ~19), passati = fatti
 // - Riga grigia per giorno di chiusura, metà riga grigia per servizio chiuso (foglio.turni_chiusi)
 // - Pannello destro: ore lorde/nette per dipendente con semaforo 40/48
 // - Pulsanti ←/→ per navigazione settimana, pulsante "Copia settimana"
@@ -125,6 +126,7 @@ export default function FoglioSettimana() {
     return last || null;
   });
   const [foglio, setFoglio] = useState(null);
+  const [previsione, setPrevisione] = useState(null);
   const [ore, setOre] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -276,6 +278,18 @@ export default function FoglioSettimana() {
   }, [repartoId, settimana]);
 
   useEffect(() => { caricaFoglio(); }, [caricaFoglio]);
+
+  // Coperti previsti: a parte, non blocca il foglio (se fallisce non si vede e basta)
+  useEffect(() => {
+    if (!puoModificare) { setPrevisione(null); return; }
+    let vivo = true;
+    setPrevisione(null);
+    apiFetch(`${API_BASE}/turni/previsione-coperti?settimana=${settimana}`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(j => { if (vivo) setPrevisione(j); })
+      .catch(() => {});
+    return () => { vivo = false; };
+  }, [settimana, puoModificare]);
 
   const reparto = useMemo(
     () => reparti.find(r => r.id === repartoId) || null,
@@ -663,7 +677,7 @@ export default function FoglioSettimana() {
                 nSlotPranzo={nSlotPranzo} nSlotCena={nSlotCena}
                 reparto={reparto}
                 giornoIdx={giornoIdx} setGiornoIdx={setGiornoIdx}
-                onCellClick={apriCella}
+                onCellClick={apriCella} previsione={previsione}
                 onPrevSettimana={() => { setSettimana(shiftIsoWeek(settimana, -1)); setGiornoIdx(0); }}
                 onNextSettimana={() => { setSettimana(shiftIsoWeek(settimana, 1)); setGiornoIdx(0); }}
               />
@@ -672,7 +686,7 @@ export default function FoglioSettimana() {
                 <FoglioGrid
                   foglio={foglio} matrice={matrice} chiusi={chiusi} serviziChiusi={serviziChiusi}
                   nSlotPranzo={nSlotPranzo} nSlotCena={nSlotCena}
-                  onCellClick={apriCella}
+                  onCellClick={apriCella} previsione={previsione}
                   reparti={reparti} repartoId={repartoId} onRepartoChange={setRepartoId}
                 />
               </div>
@@ -759,7 +773,7 @@ export default function FoglioSettimana() {
 // ---- FOGLIO GRID ----------------------------------------------------------
 function FoglioGrid({
   foglio, matrice, chiusi, serviziChiusi = {}, nSlotPranzo, nSlotCena, onCellClick,
-  reparti = [], repartoId = null, onRepartoChange = null,
+  reparti = [], repartoId = null, onRepartoChange = null, previsione = null,
 }) {
   const giorni = foglio.giorni;
 
@@ -808,6 +822,12 @@ function FoglioGrid({
                   {repartoAttivo ? `${repartoAttivo.icona || ""} ${repartoAttivo.nome}` : "—"}
                 </div>
               )}
+              {previsione && previsione.totale_previsti > 0 && (
+                <div className="mt-1 text-[10px] text-neutral-500 leading-tight font-normal"
+                     title="Coperti previsti nella settimana (giorni da oggi in poi). Il numero per giorno è accanto alla data: passa sopra per la forbice e i prenotati.">
+                  👥 ~{previsione.totale_previsti} coperti previsti
+                </div>
+              )}
             </th>
             <th className="px-1 py-1 border-b border-r text-center text-[11px] font-semibold text-amber-700 bg-amber-50"
                 colSpan={nSlotPranzo}>☀️ PRANZO</th>
@@ -842,6 +862,7 @@ function FoglioGrid({
                   <div className="text-[10px] text-neutral-500 leading-tight">{NOMI_GIORNI_LUN[idx]}</div>
                   <div className="text-xs leading-tight">{formatDayLabel(g)}</div>
                   {chiuso && <div className="text-[9px] text-red-500 leading-tight">CHIUSO</div>}
+                  {!chiuso && <PrevisioneGiorno p={previsione?.giorni?.[g]} />}
                   {!chiuso && (pChiuso || cChiuso) && (
                     <div className="text-[9px] text-red-500 leading-tight" title={sc.PRANZO || sc.CENA || ""}>
                       {pChiuso ? "PRANZO CHIUSO" : "CENA CHIUSA"}{(sc.PRANZO || sc.CENA) ? ` · ${sc.PRANZO || sc.CENA}` : ""}
@@ -855,6 +876,45 @@ function FoglioGrid({
           })}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+
+// ---- COPERTI PREVISTI (accanto al giorno) ----------------------------------
+// p = {pranzo: {previsti, min, max, prenotati, solito, festivo} | {fatti} | {chiuso}, cena: …}
+function PrevisioneGiorno({ p, centrato = false }) {
+  if (!p) return null;
+  const pezzi = [];
+  const righe = [];
+  let prenotati = 0;
+  for (const [turno, ico, nome] of [["pranzo", "☀️", "Pranzo"], ["cena", "🌙", "Cena"]]) {
+    const x = p[turno];
+    if (!x || x.chiuso) continue;
+    if (x.fatti != null) {
+      pezzi.push(`${ico} ${x.fatti}`);
+      righe.push(`${nome}: ${x.fatti} coperti fatti`);
+    } else if (x.previsti != null) {
+      pezzi.push(`${ico} ~${x.previsti}`);
+      prenotati += x.prenotati || 0;
+      righe.push(
+        `${nome}: ~${x.previsti} previsti (tra ${x.min} e ${x.max})` +
+        ` · ${x.prenotati || 0} già prenotati` +
+        (x.festivo ? ` · ${x.festivo}: confronto con gli anni scorsi` : ` · di solito ${x.solito}`)
+      );
+    }
+  }
+  if (!pezzi.length) return null;
+  const passato = Object.values(p).some(x => x && x.fatti != null);
+  const titolo = righe.join("\n") + "\n\nPrevisione da prenotazioni e storico: stesso giorno delle ultime 8 settimane + prenotati e arrivi dell'ultimo momento. Margine tipico ±5–7 coperti.";
+  return (
+    <div className={`mt-0.5 leading-tight ${centrato ? "text-center" : ""}`} title={titolo}>
+      <div className={`text-[10px] whitespace-nowrap ${passato ? "text-neutral-400" : "text-neutral-600 font-semibold"}`}>
+        {pezzi.join(" · ")}{passato ? " fatti" : ""}
+      </div>
+      {!passato && prenotati > 0 && (
+        <div className="text-[9px] text-neutral-400 whitespace-nowrap">{prenotati} già prenotati</div>
+      )}
     </div>
   );
 }
@@ -1400,7 +1460,7 @@ function VistaImmagine({ foglio, matrice, chiusi, serviziChiusi = {}, nSlotPranz
 // Touch target 48pt, swipe left/right per cambiare giorno (con bordo settimana).
 function VistaGiornoMobile({
   foglio, matrice, chiusi, serviziChiusi = {}, nSlotPranzo, nSlotCena, reparto,
-  giornoIdx, setGiornoIdx, onCellClick,
+  giornoIdx, setGiornoIdx, onCellClick, previsione = null,
   onPrevSettimana, onNextSettimana,
 }) {
   const dataIso = foglio.giorni[giornoIdx];
@@ -1466,6 +1526,7 @@ function VistaGiornoMobile({
             {isOggi && <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-brand-blue text-white align-middle">OGGI</span>}
             {chiuso && <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-neutral-300 text-neutral-700 align-middle">CHIUSO</span>}
           </div>
+          {!chiuso && <PrevisioneGiorno p={previsione?.giorni?.[dataIso]} centrato />}
         </div>
         <button onClick={() => vai(1)}
           className="min-h-[48px] min-w-[48px] flex items-center justify-center bg-white border rounded-lg active:bg-neutral-100"

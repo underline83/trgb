@@ -446,6 +446,9 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   dipendenti: {
+    // 2.47 (2026-11-20): Turni — accanto a ogni giorno del foglio settimana i coperti previsti a pranzo e a cena
+    //   (☀️ ~12 · 🌙 ~19, forbice e prenotati passando sopra; giorni passati = coperti fatti), totale settimana sotto il
+    //   reparto. Solo chi scrive i turni. GET /turni/previsione-coperti, servizio platform previsione_coperti.py.
     // 2.46 (2026-11-19): Turni — i servizi chiusi da soli (solo pranzo / solo cena, Vendite › Chiusure)
     //   arrivano al foglio settimana, al telefono, alla vista mensile e al PDF: celle grigie, niente turni nuovi
     //   (bloccato anche dal backend), copia settimana e template li saltano. Prima vedeva solo i giorni interi.
@@ -494,7 +497,7 @@ const MODULE_VERSIONS = {
     // 2.43 (2026-11-05): calendario .ics — chi lavora in più reparti (Marco:
     //   cucina e sala) ha un abbonamento per reparto (?reparto=CUCINA/SALA), così
     //   sul telefono sono due calendari di due colori. Ferie/permessi nel principale.
-    version: "2.46",
+    version: "2.47",
     label: "Dipendenti",
     status: "stabile",
     color: "green",

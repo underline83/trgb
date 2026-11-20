@@ -17,6 +17,7 @@ Prefisso: /turni
 - GET  /turni/ore-nette?reparto_id=X&settimana=YYYY-Www
 - POST /turni/copia-settimana
 - GET  /turni/chiusure?settimana=YYYY-Www
+- GET  /turni/previsione-coperti?settimana=YYYY-Www   coperti previsti per giorno e turno (chi scrive i turni)
 - GET  /turni/miei-turni/calendario/          (self-service) link calendario personale
 - POST /turni/miei-turni/calendario/rigenera  (self-service) nuovo link
 - GET  /turni/calendario/{token}.ics          PUBBLICO (token) feed iCalendar (?reparto=CODICE)
@@ -206,6 +207,28 @@ def get_foglio_settimana(
     foglio["chiusure"] = turni_service.giorni_chiusi_nella_settimana(iso)
     foglio["turni_chiusi"] = turni_service.servizi_chiusi_nel_range(turni_service.giorni_settimana(iso))
     return JSONResponse(content=foglio)
+
+
+# ============================================================
+# GET /turni/previsione-coperti — quanti coperti faremo (2026-11-20)
+# ============================================================
+# Il numero viene da app/services/previsione_coperti.py (platform, sola lettura
+# sulle prenotazioni): il modulo dipendenti non importa il modulo prenotazioni.
+@router.get("/previsione-coperti")
+def get_previsione_coperti(
+    settimana: Optional[str] = Query(None, description="YYYY-Www, default = settimana corrente"),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    _require_turni_write(current_user)
+    iso = settimana or turni_service.settimana_corrente()
+    try:
+        giorni = turni_service.giorni_settimana(iso)
+    except Exception:
+        raise HTTPException(status_code=400, detail=f"Settimana non valida: {iso}")
+    from app.services import previsione_coperti
+    r = previsione_coperti.prevedi(giorni)
+    r["settimana"] = iso
+    return JSONResponse(content=r)
 
 
 # ============================================================
