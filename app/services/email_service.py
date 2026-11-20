@@ -1,4 +1,5 @@
-# @version: v1.2 (2026-11-20) — intestazione Date sulle mail in uscita (mancava: RFC 5322 la vuole, gli antispam la contano, i programmi di posta mostravano l'ora di arrivo)
+# @version: v1.3 (2026-11-20) — `account`: si può mandare (o solo costruire, per le bozze) da un'altra casella del locale con le sue credenziali
+# v1.2 (2026-11-20) — intestazione Date sulle mail in uscita (mancava: RFC 5322 la vuole, gli antispam la contano, i programmi di posta mostravano l'ora di arrivo)
 # @version: v1.1 — intestazioni extra (In-Reply-To/References per le risposte dalla Posta, 2026-11-16)
 # v1.0 — Mattone M.D (versione minima, sessione 2026-07-30)
 # -*- coding: utf-8 -*-
@@ -250,8 +251,9 @@ def _costruisci(
     cc: Optional[Sequence[str]] = None,
     reply_to: Optional[str] = None,
     intestazioni: Optional[dict] = None,
+    account: Optional[dict] = None,
 ) -> EmailMessage:
-    c = _cfg()
+    c = account or _cfg()
     msg = EmailMessage()
     msg["From"] = formataddr((c["from_name"], c["from_addr"])) if c["from_name"] else c["from_addr"]
     msg["To"] = ", ".join(to)
@@ -279,6 +281,14 @@ def _costruisci(
     return msg
 
 
+def costruisci_messaggio(to, subject: str, body: str = "", cc=None, intestazioni: Optional[dict] = None,
+                         account: Optional[dict] = None) -> EmailMessage:
+    """Il messaggio come partirebbe, senza mandarlo (per le bozze messe nella casella)."""
+    to = [to] if isinstance(to, str) else list(to)
+    cc = [cc] if isinstance(cc, str) else list(cc or [])
+    return _costruisci(to, subject, body, None, cc, None, intestazioni, account)
+
+
 def invia_email(
     to,
     subject: str,
@@ -287,6 +297,7 @@ def invia_email(
     cc=None,
     reply_to: Optional[str] = None,
     intestazioni: Optional[dict] = None,
+    account: Optional[dict] = None,
 ) -> EsitoInvio:
     """
     Invia una email. Non solleva: ritorna sempre un EsitoInvio (l'errore è un
@@ -294,6 +305,9 @@ def invia_email(
 
     `eml` contiene il messaggio completo come inviato: il chiamante che deve
     conservare una prova di trasmissione lo salva su disco.
+
+    `account` (2026-11-20) = un'altra casella del locale {host, port, user, password,
+    from_addr, from_name}: senza, parte dal canale email (la casella del gestionale).
     """
     to = [to] if isinstance(to, str) else list(to)
     cc = [cc] if isinstance(cc, str) else list(cc or [])
@@ -301,22 +315,28 @@ def invia_email(
     if not to:
         return EsitoInvio(ok=False, errore="Nessun destinatario")
 
-    miss = mancanti()
-    if miss:
-        return EsitoInvio(
-            ok=False,
-            destinatari=to,
-            errore=f"Canale email non configurato: manca {', '.join(miss)} "
-                   f"(Impostazioni Sistema → Email, oppure .env del server)",
-        )
+    if account is None:
+        miss = mancanti()
+        if miss:
+            return EsitoInvio(
+                ok=False,
+                destinatari=to,
+                errore=f"Canale email non configurato: manca {', '.join(miss)} "
+                       f"(Impostazioni Sistema → Email, oppure .env del server)",
+            )
+    else:
+        miss = [k for k in ("host", "port", "user", "password", "from_addr") if not str(account.get(k) or "").strip()]
+        if miss:
+            return EsitoInvio(ok=False, destinatari=to, errore=f"Casella non pronta per l'invio: manca {', '.join(miss)}")
 
-    c = _cfg()
+    c = dict(account) if account else _cfg()
+    c.setdefault("timeout", int(os.getenv("SMTP_TIMEOUT") or 20))
     try:
         port = int(c["port"])
     except ValueError:
         return EsitoInvio(ok=False, destinatari=to, errore=f"SMTP_PORT non numerica: {c['port']!r}")
 
-    msg = _costruisci(to, subject, body, allegati, cc, reply_to, intestazioni)
+    msg = _costruisci(to, subject, body, allegati, cc, reply_to, intestazioni, account)
     raw = msg.as_bytes()
 
     try:

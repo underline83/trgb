@@ -344,10 +344,26 @@ export default function DashboardVini() {
 
       if (target === "D" || target === "0") await mettiInBozza(vino);
       else await togliDaBozza(vino);
+      return true;
     } catch {
       toast("Errore aggiornamento stato riordino", { kind: "error" });
+      return false;
     } finally {
       setTogglingId(null);
+    }
+  };
+
+  // RD.2.1 (2026-11-20) — click sul chip «➡️ 2025 in cantina»: la vendemmia
+  // dopo è già in cantina, quindi questa riga è finita per fine annata.
+  // La si marca 'A' Annata esaurita e il widget smette di riproporla (prima il
+  // chip apriva solo la bottiglia nuova e la vecchia restava qui ogni giorno).
+  // Si ripristina da Ordini › «Messi da parte».
+  const archiviaAnnata = async (vino, annataSucc) => {
+    if (vino.STATO_RIORDINO === "A") return;
+    const ok = await setStatoRiordino(vino, "A");
+    if (ok) {
+      toast(`${vino.ANNATA || "Annata vecchia"} → annata esaurita (c'è la ${annataSucc.annata}). Ripristino da Ordini › Messi da parte.`,
+            { kind: "success", duration: 3500 });
     }
   };
 
@@ -909,9 +925,10 @@ export default function DashboardVini() {
                             Cliccando si apre la bottiglia nuova. */}
                         {annataSucc && annataSucc.qta > 0 && (
                           <button type="button"
-                            onClick={(e) => { e.stopPropagation(); navigate(`/vini/magazzino/${annataSucc.id}`); }}
-                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border bg-emerald-100 text-emerald-800 border-emerald-300 hover:bg-emerald-200 transition"
-                            title={`L'annata ${annataSucc.annata} è già in cantina con ${annataSucc.qta} bt${annataSucc.in_carta ? " e in carta" : ""}. Probabilmente questa riga va marcata «Annata esaurita» invece di riordinarla.`}>
+                            disabled={togglingId === v.id}
+                            onClick={(e) => { e.stopPropagation(); archiviaAnnata(v, annataSucc); }}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border bg-emerald-100 text-emerald-800 border-emerald-300 hover:bg-emerald-200 transition disabled:opacity-50"
+                            title={`L'annata ${annataSucc.annata} è già in cantina con ${annataSucc.qta} bt${annataSucc.in_carta ? " e in carta" : ""}. Click: segna questa ${v.ANNATA || ""} come «Annata esaurita» e non la ripropone più.`}>
                             ➡️ {annataSucc.annata} in cantina · {annataSucc.qta} bt
                           </button>
                         )}

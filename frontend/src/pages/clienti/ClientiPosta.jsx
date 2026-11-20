@@ -1,4 +1,6 @@
-// @version: v1.4 (2026-11-20) — mail «messe da parte» da Marco (cancellate/archiviate da Mail, o lette nel cestino): chip grigio, niente pallino, fuori da «Da rispondere»
+// @version: v1.5 (2026-11-20) — bozze preparate da Q: chip «📝 bozza di Q» nell'elenco; trgb@ → «Rispondi» già compilato;
+//   altre caselle → riquadro con la bozza (è nelle Bozze di Mail), «Invia da qui» con conferma, «Annulla bozza»
+// v1.4 (2026-11-20) — mail «messe da parte» da Marco (cancellate/archiviate da Mail, o lette nel cestino): chip grigio, niente pallino, fuori da «Da rispondere»
 // v1.3 (2026-11-20) — la mail aperta resta in vista: su schermo largo il riquadro di lettura scorre con la pagina
 //   (sticky, con scroll suo), su telefono aprendo una mail si torna in cima
 // v1.2 (2026-11-19) — tutte le caselle del locale insieme, selettore per casella (Tutte · trgb · info · …):
@@ -194,8 +196,15 @@ export default function ClientiPosta() {
       const r = await apiFetch(`${API_BASE}/email/in/${aperta.id}/bozza-risposta`);
       const b = await r.json();
       if (!r.ok) throw new Error(b.detail || `Errore ${r.status}`);
-      setRisp({ a: (b.a || []).join(", "), cc: (b.cc || []).join(", "), oggetto: b.oggetto || "", testo: "",
-        cita: true, gestita: true, citazione: b.citazione || "", configurata: b.email_configurata });
+      // bozza preparata da Q per questa mail? il «Rispondi» parte già compilato
+      let bz = null;
+      try {
+        const rb = await apiFetch(`${API_BASE}/email/bozze?rif_fonte=trgb&rif_id=${aperta.id}`);
+        if (rb.ok) bz = ((await rb.json()).bozze || [])[0] || null;
+      } catch { /* senza bozza si scrive da zero */ }
+      setRisp({ a: bz?.a || (b.a || []).join(", "), cc: bz ? (bz.cc || "") : (b.cc || []).join(", "),
+        oggetto: bz?.oggetto || b.oggetto || "", testo: bz?.testo || "", cita: bz ? !!bz.cita : true, gestita: true,
+        citazione: b.citazione || "", configurata: b.email_configurata, bozzaId: bz?.id || null, bozzaDa: bz?.creata_da || null });
     } catch (e) {
       showToast(e.message, true);
     }
@@ -214,6 +223,8 @@ export default function ClientiPosta() {
       if (!res.ok) throw new Error(d.detail || `Errore ${res.status}`);
       if (d.mail) setAperta(d.mail);
       if (d.ok) {
+        // la bozza di Q l'ha sostituita questa risposta: non resta in giro come «da mandare»
+        if (risp.bozzaId) apiFetch(`${API_BASE}/email/bozze/${risp.bozzaId}/annulla`, { method: "POST" }).catch(() => {});
         setRisp(null);
         showToast(`Risposta inviata a ${risp.a}`);
         carica();
@@ -414,6 +425,9 @@ export default function ClientiPosta() {
                               ) : (
                                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-neutral-100 text-neutral-500">non collegata</span>
                               )}
+                              {m.bozza && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-100 text-violet-800">📝 bozza di {m.bozza.creata_da || "Q"}</span>
+                              )}
                               {(m.cc_nuovi || []).length > 0 && (
                                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">👤 cc nuovi</span>
                               )}
@@ -463,7 +477,9 @@ export default function ClientiPosta() {
                   Scegli una mail dall'elenco
                 </div>
               ) : aperta._casella ? (
-                <MailCasella m={aperta} etichetta={etichetta} onChiudi={() => apri(null)} />
+                <MailCasella m={aperta} etichetta={etichetta} onChiudi={() => apri(null)}
+                  onAggiorna={() => { carica(); const id = pidAperta; setParams({}); setTimeout(() => setParams({ pid: id }), 0); }}
+                  toast={showToast} />
               ) : (
                 <div className="bg-white rounded-xl border border-neutral-200 shadow-sm p-5 space-y-4">
                   <button type="button" onClick={() => apri(null)}
@@ -570,6 +586,9 @@ export default function ClientiPosta() {
                   {risp && (
                     <div className="rounded-xl border border-teal-200 bg-teal-50/40 p-3 space-y-2">
                       <div className="text-xs font-semibold text-teal-800">↩️ Rispondi dalla casella del gestionale</div>
+                      {risp.bozzaId && (
+                        <p className="text-xs text-violet-800">📝 Testo preparato da {risp.bozzaDa || "Q"}: rileggilo, correggilo se serve e premi Invia.</p>
+                      )}
                       {risp.configurata === false && (
                         <p className="text-xs text-red-700">Il canale email non è configurato: Impostazioni Sistema › Email.</p>
                       )}
@@ -674,6 +693,7 @@ function RigaCasella({ m, sel, onClick, etichetta }) {
           {m.in_ritardo && <span className="text-[10px] px-1.5 py-0.5 rounded bg-neutral-100 text-neutral-600">arrivata in ritardo</span>}
           {m.risposto && <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">↩️ risposto</span>}
           {m.scartata && <span className="text-[10px] px-1.5 py-0.5 rounded bg-neutral-200 text-neutral-600">🗑 {m.scartata}</span>}
+          {m.bozza && <span className="text-[10px] px-1.5 py-0.5 rounded bg-violet-100 text-violet-800">📝 bozza di {m.bozza.creata_da || "Q"}</span>}
           {(m.anche_in || []).length > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded bg-neutral-100 text-neutral-500">anche in {m.anche_in.join(", ")}</span>}
         </div>
       </button>
@@ -682,7 +702,28 @@ function RigaCasella({ m, sel, onClick, etichetta }) {
 }
 
 // Una mail di un'altra casella, aperta: sola lettura. Si risponde dal proprio programma di posta.
-function MailCasella({ m, etichetta, onChiudi }) {
+function MailCasella({ m, etichetta, onChiudi, onAggiorna, toast }) {
+  const [conferma, setConferma] = useState(false);
+  const [lavoro, setLavoro] = useState(false);
+  useEffect(() => { setConferma(false); }, [m.id]);
+  const azione = async (cosa) => {
+    setLavoro(true);
+    try {
+      const r = await apiFetch(`${API_BASE}/email/bozze/${m.bozza.id}/${cosa}`, { method: "POST" });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || `Errore ${r.status}`);
+      if (cosa === "invia") {
+        if (d.ok) toast(`Mandata da ${d.da}${d.nota ? ` — ${d.nota}` : ""}`);
+        else toast(`Non partita: ${d.errore}`, true);
+      } else toast("Bozza annullata");
+      onAggiorna && onAggiorna();
+    } catch (e) {
+      toast(e.message, true);
+    } finally {
+      setLavoro(false);
+      setConferma(false);
+    }
+  };
   return (
     <div className="bg-white rounded-xl border border-neutral-200 shadow-sm p-5 space-y-4">
       <button type="button" onClick={onChiudi} className="lg:hidden text-sm text-teal-700 font-medium min-h-[44px]">← Elenco</button>
@@ -714,6 +755,37 @@ function MailCasella({ m, etichetta, onChiudi }) {
       )}
       {m.risposto_come && <p className="text-xs text-emerald-800">↩️ {m.risposto_come}</p>}
       {m.scartata && <p className="text-xs text-neutral-500">🗑 {m.scartata}: non è tra quelle da rispondere</p>}
+
+      {m.bozza && (
+        <div className="rounded-xl border border-violet-200 bg-violet-50/50 p-3 space-y-2">
+          <div className="text-xs font-semibold text-violet-900">
+            📝 Bozza di risposta preparata da {m.bozza.creata_da || "Q"} · {fmtDataLunga(m.bozza.creata_at)}
+          </div>
+          <div className="text-xs text-neutral-600">
+            A {m.bozza.a}{m.bozza.cc ? ` · Cc ${m.bozza.cc}` : ""} · {m.bozza.oggetto}
+          </div>
+          <pre className="whitespace-pre-wrap font-sans text-sm text-neutral-800 bg-white border border-violet-100 rounded-lg p-2">{m.bozza.testo}</pre>
+          <p className="text-[11px] text-neutral-500">
+            È nelle Bozze della casella{m.bozza.cartella_bozze ? ` (${m.bozza.cartella_bozze})` : ""}: puoi aprirla in Mail, correggerla e mandarla da lì.
+          </p>
+          {m.bozza.errore && <p className="text-[11px] text-red-700">Ultimo tentativo: {m.bozza.errore}</p>}
+          <div className="flex flex-wrap items-center gap-2">
+            {m.pec ? (
+              <span className="text-[11px] text-neutral-500">PEC: si manda solo dalla casella (valore legale).</span>
+            ) : !conferma ? (
+              <Btn variant="chip" tone="violet" size="md" onClick={() => setConferma(true)} disabled={lavoro}>Invia da qui</Btn>
+            ) : (
+              <>
+                <Btn variant="primary" size="md" onClick={() => azione("invia")} loading={lavoro} disabled={lavoro}>
+                  Conferma: manda a {m.bozza.a}
+                </Btn>
+                <Btn variant="ghost" size="md" onClick={() => setConferma(false)} disabled={lavoro}>No</Btn>
+              </>
+            )}
+            <Btn variant="ghost" size="md" onClick={() => azione("annulla")} disabled={lavoro} className="ml-auto">Annulla bozza</Btn>
+          </div>
+        </div>
+      )}
       {m.massiva && <p className="text-xs text-neutral-500">📰 Newsletter o notifica automatica ({m.massiva_perche})</p>}
 
       <pre className="whitespace-pre-wrap break-words font-sans text-sm text-neutral-800 bg-neutral-50 border border-neutral-100 rounded-lg p-3 max-h-[60vh] overflow-auto">
@@ -748,7 +820,8 @@ function MailCasella({ m, etichetta, onChiudi }) {
       )}
 
       <p className="text-[11px] text-neutral-400 pt-2 border-t border-neutral-100">
-        Il gestionale legge questa casella senza toccarla: per rispondere, spostare o cancellare usa il tuo programma di posta.
+        Il gestionale legge questa casella senza toccarla: per spostare o cancellare usa il tuo programma di posta. Le risposte le
+        prepara Q come bozza (le trovi in Mail, nelle Bozze).
       </p>
     </div>
   );

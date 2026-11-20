@@ -124,6 +124,17 @@ Anche `preventivo_leggi` porta ora `risposte_email` (in breve). Prove (2026-11-1
 
 Prove (2026-11-19): 16 test in `tests/test_email_caselle.py`, gli strumenti registrati e chiamati su un MCPServer di prova, le rotte con TestClient, e un giro contro un server IMAP vero (Dovecot di prova). Non provato: le caselle Aruba vere.
 
+**Scrivere le mail** (2026-11-20, server 1.19, platform M.D). Decisione di Marco: di norma bozza nelle Bozze della casella (la manda lui da Mail), invio da TRGB solo dopo un suo «manda» esplicito per quella bozza; PEC solo bozza.
+
+| Strumento | Cosa fa | Funzione | Ruoli | Tipo |
+|---|---|---|---|---|
+| `posta_bozza` | prepara risposta (`rispondi_a` + `fonte`) o mail nuova (`casella`, `a`, `oggetto`); caselle → cartella Bozze agganciata alla conversazione; trgb@ → pagina Posta | `email_scrittura_service.crea_bozza` | admin | scrive |
+| `posta_invia` | manda una bozza: SMTP della casella, copia nell'Inviata, bozza tolta; trgb@ via `email_in_service.rispondi`; PEC no | `email_scrittura_service.invia_bozza` | admin | manda (distruttivo) |
+| `posta_bozze` | bozze da mandare / inviate / annullate | `email_scrittura_service.bozze` | admin | sola lettura |
+| `posta_bozza_annulla` | annulla e toglie dalle Bozze (solo quella di TRGB) | `email_scrittura_service.annulla_bozza` | admin | scrive |
+
+Prove (2026-11-20): `tests/test_email_scrittura.py` (9) + giro completo con Dovecot e SMTP di prova. Non provato: Aruba vero.
+
 **Preventivi e lettore generale** (2026-11-12, server 1.11). Nati dalla chat del 12/11: Marco chiede a Q «confermo il menù di Ferraro che è il Quadri, aggiorna prenotazione e manda messaggi» e Q non trova il Quadri, perché `preventivi_inviati` dava solo il registro degli invii (`menu_nome` vuoto coi menù multipli) e la conferma non aveva strumento. Decisione di Marco dello stesso giorno: **«Q deve poter sapere tutto: se mancano dei connettori deve averli».**
 
 | Strumento | Cosa fa | Funzione | Ruoli | Tipo |

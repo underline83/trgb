@@ -958,12 +958,21 @@ function RigaDaOrdinare({ vino: v, canEdit, busy, onOrdina, onApri, onDuplica, o
 
           {/* RD.2 — la vendemmia dopo è già in cantina: prima di ordinare questa
               annata, tanto vale saperlo. */}
-          {v.annata_successiva?.qta > 0 && (
+          {/* RD.2.1 (2026-11-20) — come nella dashboard: il click marca questa
+              annata «Annata esaurita» e la toglie dalla lista. */}
+          {v.annata_successiva?.qta > 0 && (canEdit && onMettiDaParte ? (
+            <button type="button" disabled={busy}
+                  onClick={(e) => { e.stopPropagation(); onMettiDaParte("A"); }}
+                  className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-emerald-100 text-emerald-800 border-emerald-300 hover:bg-emerald-200 transition whitespace-nowrap disabled:opacity-50"
+                  title={`L'annata ${v.annata_successiva.annata} è già in cantina con ${v.annata_successiva.qta} bt${v.annata_successiva.in_carta ? " e in carta" : ""}. Click: segna questa ${v.ANNATA || ""} come «Annata esaurita» e la toglie dalla lista.`}>
+              ➡️ {v.annata_successiva.annata} in cantina · {v.annata_successiva.qta} bt
+            </button>
+          ) : (
             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-emerald-100 text-emerald-800 border-emerald-300 whitespace-nowrap"
                   title={`L'annata ${v.annata_successiva.annata} è già in cantina con ${v.annata_successiva.qta} bt${v.annata_successiva.in_carta ? " e in carta" : ""}: forse questa riga va marcata «Annata esaurita», non ordinata`}>
               ➡️ {v.annata_successiva.annata} in cantina · {v.annata_successiva.qta} bt
             </span>
-          )}
+          ))}
           {v.annata_successiva && v.annata_successiva.qta === 0 && (
             <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full border bg-neutral-100 text-neutral-500 border-neutral-300 whitespace-nowrap"
                   title={`In anagrafica esiste l'annata ${v.annata_successiva.annata}, ma anche quella è a zero`}>

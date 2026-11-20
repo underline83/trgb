@@ -3,6 +3,8 @@
 
 const MODULE_VERSIONS = {
   vini: {
+    // 4.18 (2026-11-20): riordino — click sul chip «➡️ 2025 in cantina» (dashboard e Ordini) segna
+    //   l'annata vecchia «Annata esaurita» e la toglie dalla lista (prima apriva solo la bottiglia nuova).
     // 4.17 (2026-11-13): iPratico Sync — «Genera Export» porta anche i menu template dei preventivi
     //   (SKU M0012 / M0012V «con vino», chip «Menu preventivi»; mig 231).
     // 4.16 (2026-11-08): Vendite — la ricerca vino mostra fino a 20 risultati (prima 8); vale anche per «Vendi o apri» in Home.
@@ -204,7 +206,7 @@ const MODULE_VERSIONS = {
     // 3.72 (2026-07-20): CartaStaff v2.0 "banco di servizio" (V.22) — vista
     //   sommelier operativa: Preparazione + Servizio, vendita one-tap con
     //   undo, toggle mescita. Endpoint carta-staff: locazioni con `slot`.
-    version: "4.17",
+    version: "4.18",
     label: "Cantina & Vini",
     status: "stabile",     // stabile | beta | alpha | dev
     color: "green",
@@ -572,6 +574,8 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   clienti: {
+    // 3.42 (2026-11-20): Posta — bozze preparate da Q: chip «📝 bozza di Q», trgb@ col «Rispondi» già compilato, altre caselle col riquadro
+    //   della bozza («Invia da qui» con conferma, «Annulla bozza»; la PEC no).
     // 3.41 (2026-11-20): Posta — la mail aperta resta in vista (riquadro che scorre con la pagina; su telefono si torna in cima);
     //   mail messe da parte da Marco (cancellate/archiviate da Mail, lette nel cestino) fuori da «Da rispondere»; spam di Aruba con le newsletter.
     // 3.40 (2026-11-19): Posta — tutte le caselle del locale insieme con un selettore per casella (Tutte · trgb@ · info@ · …): le altre caselle
@@ -676,7 +680,7 @@ const MODULE_VERSIONS = {
     //   annullo/riattiva con storico movimenti, PDF buono A5 con identita'
     //   del locale, alert M.F sulle card in scadenza. Nessun impatto su
     //   corrispettivi/chiusure: registro informativo separato dalla cassa.
-    version: "3.41",
+    version: "3.42",
     label: "Gestione Clienti",
     status: "beta",
     color: "blue",
@@ -844,6 +848,9 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 6.7 (2026-11-20): mig 241 — email_bozze: TRGB scrive le mail delle caselle del locale (email_scrittura_service): bozze
+    //   nelle Bozze della casella o nella pagina Posta per trgb@, invio solo dopo il «manda» di Marco (SMTP della casella,
+    //   copia nell'Inviata); PEC solo bozza. Connettore 1.19: posta_bozza, posta_invia, posta_bozze, posta_bozza_annulla.
     // 6.6 (2026-11-20): mig 240 — email_posta.data_origine: le mail senza intestazione Date prendono la data dal server
     //   (INTERNALDATE), quelle già lette si riparano al giro; le copie mandate da una nostra casella non sono «da rispondere».
     //   email_service 1.2: le mail in uscita da TRGB hanno ora l'intestazione Date (mancava).
@@ -1010,7 +1017,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "6.6",
+    version: "6.7",
     label: "Sistema",
     status: "stabile",
     color: "green",

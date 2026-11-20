@@ -1,4 +1,5 @@
-# @version: v1.2 (2026-11-20) — email_posta.data_origine (intestazione | server): da dove viene la data della mail
+# @version: v1.3 (2026-11-20) — email_bozze: bozze e invii preparati da Q o dalla pagina (mig 241)
+# v1.2 (2026-11-20) — email_posta.data_origine (intestazione | server): da dove viene la data della mail
 # v1.1 (2026-11-19) — le altre caselle del locale: email_posta, email_posta_cursore, email_posta_giri
 # v1.0 (2026-11-13) — posta in arrivo della casella del locale (mattone M.D, lettura)
 # Modulo: platform (M.D email) — [core]
@@ -53,6 +54,14 @@ email_posta — una mail di una casella in più (info@, prenotazioni@, la PEC…
                             Date, es. quelle mandate da TRGB prima del 2026-11-20) | NULL = letta
                             prima della v1.2 (la data può essere l'ora della lettura: il giro la ripara)
   Inviata: solo intestazioni (testo vuoto), servono a sapere a cosa si è risposto.
+email_bozze — una mail scritta da TRGB (di solito preparata da Q dal connettore):
+  casella      TEXT         id della casella da cui parte, o 'trgb' (quella del gestionale)
+  rif_fonte, rif_id         la mail a cui risponde: 'casella' → email_posta.id, 'trgb' → email_in.id
+  a, cc, oggetto, testo, cita (1 = la mail citata sotto), in_reply_to, riferimenti
+  message_id   TEXT         Message-ID della bozza messa nella cartella Bozze (per ritrovarla)
+  cartella_bozze, uid_bozza dove sta nella casella (NULL per trgb: la bozza si vede nella pagina Posta)
+  stato        TEXT         bozza | inviata | errore | annullata | sostituita
+  errore, creata_da, creata_at, inviata_da, inviata_at, message_id_inviata
 email_posta_cursore — per casella e cartella: UIDVALIDITY e ultimo UID letto
 email_posta_giri    — registro dei giri per casella (esito, nuove, errore). Niente contenuti.
 
@@ -224,6 +233,35 @@ def init_email_db(path=None) -> None:
                 cartelle    TEXT           -- JSON {ruolo: [nomi]} trovate in quel giro
             )
         """)
+        # 2026-11-20 (mig 241): bozze e invii preparati da TRGB
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS email_bozze (
+                id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+                casella            TEXT NOT NULL,
+                rif_fonte          TEXT,
+                rif_id             INTEGER,
+                a                  TEXT,
+                cc                 TEXT,
+                oggetto            TEXT,
+                testo              TEXT,
+                cita               INTEGER NOT NULL DEFAULT 1,
+                in_reply_to        TEXT,
+                riferimenti        TEXT,
+                message_id         TEXT,
+                cartella_bozze     TEXT,
+                uid_bozza          INTEGER,
+                stato              TEXT NOT NULL DEFAULT 'bozza'
+                                   CHECK (stato IN ('bozza','inviata','errore','annullata','sostituita')),
+                errore             TEXT,
+                creata_da          TEXT,
+                creata_at          TEXT,
+                inviata_da         TEXT,
+                inviata_at         TEXT,
+                message_id_inviata TEXT
+            )
+        """)
+        if "idx_email_bozze_rif" not in {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='index'")}:
+            conn.execute("CREATE INDEX idx_email_bozze_rif ON email_bozze(rif_fonte, rif_id, stato)")
         # 2026-11-20 (mig 240): da dove viene la data. Colonna libera (niente NOT NULL), solo se manca.
         if "data_origine" not in {r[1] for r in conn.execute("PRAGMA table_info(email_posta)")}:
             conn.execute("ALTER TABLE email_posta ADD COLUMN data_origine TEXT")

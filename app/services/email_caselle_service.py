@@ -1,4 +1,5 @@
-# @version: v1.4 (2026-11-20) — «scartata»: cancellata/archiviata/spostata da Marco (era in arrivo e non c'è più) o letta nel cestino/spam = vista, fuori da «da rispondere»
+# @version: v1.5 (2026-11-20) — invio per casella: smtp_host/smtp_port (dedotti dall'IMAP), puo_inviare (no per la PEC), nome_mittente; cartella Bozze trovata da sola
+# v1.4 (2026-11-20) — «scartata»: cancellata/archiviata/spostata da Marco (era in arrivo e non c'è più) o letta nel cestino/spam = vista, fuori da «da rispondere»
 # v1.3 (2026-11-20) — «arrivata in ritardo» solo se il SERVER l'ha ricevuta da poco (INTERNALDATE), non se l'ha letta tardi TRGB (primo import a rate); le mail marcate spam dal provider stanno con le massive
 # v1.2 (2026-11-20) — mail senza intestazione Date: data dal server (INTERNALDATE), anche per quelle già lette; mail mandate da una nostra casella = «da noi», non da rispondere
 # v1.1 (2026-11-19) — «da rispondere» salta anche le mail di trgb@ già gestite; caselle per la pagina Posta
@@ -169,6 +170,15 @@ def config() -> dict:
         except (TypeError, ValueError):
             c["imap_port"] = 993
         c["utente"] = (c.get("utente") or c["indirizzo"]).strip()
+        c["pec"] = "pec" in (c.get("imap_host") or "").lower() or c["indirizzo"].endswith(("@pec.it", "@legalmail.it"))
+        c["smtp_host"] = (c.get("smtp_host") or re.sub(r"^imap", "smtp", (c.get("imap_host") or "").strip())).strip()
+        try:
+            c["smtp_port"] = int(c.get("smtp_port") or 465)
+        except (TypeError, ValueError):
+            c["smtp_port"] = 465
+        # la PEC non parte da qui (valore legale): solo bozza, la manda Marco
+        c["puo_inviare"] = False if c["pec"] else _bool(c.get("puo_inviare", True))
+        c["nome_mittente"] = (c.get("nome_mittente") or "").strip()
         ruoli = [r for r in (c.get("ruoli") or RUOLI) if r in RUOLI]
         c["ruoli"] = ruoli or list(RUOLI)
         c["cartelle"] = {r: [x for x in v if x] for r, v in (c.get("cartelle") or {}).items()
@@ -261,9 +271,16 @@ def salva_casella(dati: dict) -> dict:
         caselle.append(trovata)
     elif indirizzo and indirizzo != trovata.get("indirizzo"):
         raise ValueError("L'indirizzo di una casella non si cambia: aggiungine una nuova e spegni questa")
-    for k in ("nome", "imap_host", "utente"):
+    for k in ("nome", "imap_host", "utente", "smtp_host", "nome_mittente"):
         if dati.get(k) is not None:
             trovata[k] = str(dati[k]).strip()
+    if dati.get("smtp_port") not in (None, ""):
+        p = str(dati["smtp_port"]).strip()
+        if not p.isdigit():
+            raise ValueError(f"Porta SMTP non numerica: {p!r}")
+        trovata["smtp_port"] = int(p)
+    if dati.get("puo_inviare") is not None:
+        trovata["puo_inviare"] = bool(dati["puo_inviare"])
     if dati.get("imap_port") not in (None, ""):
         p = str(dati["imap_port"]).strip()
         if not p.isdigit():
@@ -302,6 +319,18 @@ def salva_casella(dati: dict) -> dict:
 
 
 # ═════════════════════════════ cartelle ═════════════════════════════
+
+def trova_bozze(elenco: List[Dict[str, Any]]) -> Optional[str]:
+    """La cartella Bozze: flag SPECIAL-USE \\Drafts, altrimenti dal nome (Drafts, Bozze)."""
+    for c in elenco:
+        if "\\drafts" in set(c.get("flag") or []):
+            return c["nome"]
+    for c in elenco:
+        ultimo = re.split(r"[./]", c.get("leggibile") or c["nome"])[-1].strip().lower()
+        if ultimo in ("drafts", "draft", "bozze", "bozza"):
+            return c["nome"]
+    return None
+
 
 def trova_cartelle(elenco: List[Dict[str, Any]]) -> Dict[str, List[str]]:
     """Dalla risposta di LIST: {ruolo: [nomi]}. Valgono i flag SPECIAL-USE del server E i nomi
@@ -767,6 +796,8 @@ def casella_pubblica(c: dict) -> dict:
     return {"id": c["id"], "indirizzo": c["indirizzo"], "nome": c.get("nome") or "", "imap_host": c.get("imap_host") or "",
             "imap_port": c["imap_port"], "utente": c["utente"], "attiva": c["attiva"], "ruoli": c["ruoli"],
             "cartelle": c["cartelle"], "ha_password": bool(_password(c)),
+            "smtp_host": c["smtp_host"], "smtp_port": c["smtp_port"], "puo_inviare": c["puo_inviare"],
+            "pec": c["pec"], "nome_mittente": c["nome_mittente"],
             "password_da": "gestionale" if pw_file else ("env" if _env_password(c["id"]) else None),
             "mancanti": _mancanti(c)}
 
@@ -930,7 +961,18 @@ def elenco(dal: Optional[str] = None, giorni: Optional[int] = None, casella: Opt
             continue
         vere.append(m)
     vere.sort(key=lambda m: (m.get("data") or ""), reverse=True)
-    return {"quante": min(len(vere), limite), "mail": vere[:limite], "massive": massive[:limite * 2],
+    vere = vere[:limite]
+    try:                                    # bozza aperta preparata da TRGB/Q per la mail
+        from app.services import email_scrittura_service as scr
+        bz = {"casella": scr.bozze_per_mail("casella", [m["id"] for m in vere if m["fonte"] == "casella"]),
+              "trgb": scr.bozze_per_mail("trgb", [m["id"] for m in vere if m["fonte"] == "trgb"])}
+        for m in vere:
+            b = bz[m["fonte"]].get(m["id"])
+            if b:
+                m["bozza"] = {"id": b["id"], "creata_da": b["creata_da"], "creata_at": b["creata_at"]}
+    except Exception:                       # noqa: BLE001 — le bozze non bloccano la lettura
+        logger.exception("bozze per l'elenco della posta")
+    return {"quante": len(vere), "mail": vere, "massive": massive[:limite * 2],
             "n_massive": len(massive), "caselle": aggiornamento(cfg=cfg),
             "trgb_aggiornamento": base.aggiornamento() if trgb or anche_trgb else None}
 
@@ -1072,4 +1114,11 @@ def leggi(email_id: int) -> Optional[dict]:
         out["scartata"] = sc
     out["altre_copie"] = copie
     out["risposte_mandate"] = risposte
+    try:
+        from app.services import email_scrittura_service as scr
+        b = scr.bozze_per_mail("casella", [r["id"]]).get(r["id"])
+        if b:
+            out["bozza"] = b
+    except Exception:                       # noqa: BLE001
+        logger.exception("bozza della mail %s", r["id"])
     return out

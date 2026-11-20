@@ -109,6 +109,8 @@ Servizi/componenti riutilizzabili che piu' moduli richiedono. Costruirli PRIMA e
 
 **Lettura — le altre caselle del locale** (2026-11-19, mig 239, sistema 6.5): `app/services/email_caselle_service.py` (tabelle `email_posta`, `email_posta_cursore`, `email_posta_giri` in `email.sqlite3`). Stesso motore `CasellaImap` (che ora apre qualsiasi cartella, fa LIST e legge i FLAGS, sempre in sola lettura) su più caselle: config in `email_caselle.json` (caselle, password cifrata con `TRGB_SECRET_KEY` o `.env` `POSTA_PASSWORD_<ID>`), job ogni 10 minuti, primo import 30 giorni. Cartelle trovate da SPECIAL-USE e dal nome; posta in arrivo/spam/cestino interi, Inviata solo intestazioni; flag e presenza riletti per 14 giorni; PEC letta dentro `postacert.eml`; massive separate; «risposto» = flag `\Answered` o mail dell'Inviata che la cita. Rotte `/email/caselle/` e `/email/posta`, MCP `posta_elenco`/`posta_leggi`, UI Impostazioni › Email › «📬 Altre caselle del locale». La casella del gestionale resta in `email_in_service` (abbinamento ai preventivi); `posta_elenco` le unisce.
 
+**Scrittura — bozze e invii** (2026-11-20, mig 241, sistema 6.7): `app/services/email_scrittura_service.py` (tabella `email_bozze`). `email_service.invia_email(..., account=)` e `costruisci_messaggio(...)` mandano o costruiscono da un'altra casella del locale. `ScrittoreImap` (sottoclasse di `CasellaImap`) fa solo APPEND (Bozze, Inviata) e toglie le bozze messe da TRGB per Message-ID. Bozza di norma, invio solo su «manda» di Marco, PEC solo bozza. Rotte `/email/bozze`, MCP `posta_bozza`/`posta_invia`/`posta_bozze`/`posta_bozza_annulla`.
+
 **Chi lo usa:**
 | ID | Modulo | Email |
 |----|--------|-------|

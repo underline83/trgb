@@ -1,4 +1,5 @@
-# @version: v1.3 — le altre caselle del locale in sola lettura: /email/caselle/, /email/posta (2026-11-19)
+# @version: v1.4 — bozze e invii: /email/bozze (crea, elenco, invia, annulla) (2026-11-20)
+# v1.3 — le altre caselle del locale in sola lettura: /email/caselle/, /email/posta (2026-11-19)
 # v1.2 — «Rispondi» dalla Posta: /email/in/{id}/bozza-risposta e /rispondi (2026-11-16)
 # v1.1 — posta in arrivo in sola lettura: /email/in, /email/lettura (2026-11-13)
 # v1.0 — Config canale email dal gestionale (sessione 2026-08-03)
@@ -52,6 +53,14 @@ LE ALTRE CASELLE DEL LOCALE (v1.3, 2026-11-19) — email_caselle_service
   GET  /email/posta                     mail di tutte le caselle (+ quella del gestionale)
   GET  /email/posta/{id}                una mail per intero, altre copie, risposte mandate
 Solo admin, sola lettura sul server di posta: nessuna rotta cancella, sposta o manda.
+
+BOZZE E INVII (v1.4, 2026-11-20) — email_scrittura_service
+---------------------------------------------------------
+  GET  /email/bozze                 bozze (stato, rif_fonte, rif_id)
+  POST /email/bozze                 prepara una mail: risposta (rif_fonte + rif_id) o nuova (casella, a, oggetto);
+                                    caselle in Mail → cartella Bozze; trgb@ → resta in TRGB (pagina Posta)
+  POST /email/bozze/{id}/invia      la manda (SMTP della casella, copia nell'Inviata, via dalle Bozze); PEC no
+  POST /email/bozze/{id}/annulla    annulla (e la toglie dalle Bozze se c'è ancora)
 """
 
 from typing import Any, Dict, List, Optional
@@ -59,7 +68,7 @@ from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from pydantic import BaseModel
 
-from app.services import email_caselle_service, email_in_service, email_service
+from app.services import email_caselle_service, email_in_service, email_scrittura_service, email_service
 from app.services.auth_service import get_current_user, is_admin
 from app.services.permessi import richiede_ruoli
 
@@ -316,3 +325,55 @@ def posta_leggi_ep(email_id: int, user: Dict[str, Any] = Depends(_ADMIN_POSTA)):
     if not m:
         raise HTTPException(status_code=404, detail="Mail non trovata")
     return m
+
+
+# ─────────────────────────────────────────────
+# BOZZE E INVII — 2026-11-20
+# ─────────────────────────────────────────────
+
+class BozzaIn(BaseModel):
+    testo: str
+    rif_fonte: Optional[str] = None      # casella | trgb (vuoto = mail nuova)
+    rif_id: Optional[int] = None
+    casella: Optional[str] = None        # da quale casella (obbligatoria per una mail nuova)
+    a: Optional[str] = None              # vuoto = chi ha scritto
+    cc: Optional[str] = None             # None = gli altri del thread; "" = nessuno
+    oggetto: Optional[str] = None
+    cita: bool = True
+
+
+@router.get("/bozze")
+def bozze_ep(stato: Optional[str] = Query("bozza"), rif_fonte: Optional[str] = Query(None, pattern="^(casella|trgb)$"),
+             rif_id: Optional[int] = Query(None, ge=1), user: Dict[str, Any] = Depends(_ADMIN_POSTA)):
+    try:
+        return {"bozze": email_scrittura_service.bozze(stato=stato or None, rif_fonte=rif_fonte, rif_id=rif_id)}
+    except email_scrittura_service.ErroreScrittura as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/bozze")
+def bozza_crea_ep(payload: BozzaIn, user: Dict[str, Any] = Depends(_ADMIN_POSTA)):
+    try:
+        return email_scrittura_service.crea_bozza(
+            payload.testo, user["username"], rif_fonte=payload.rif_fonte, rif_id=payload.rif_id,
+            casella=payload.casella, a=payload.a if payload.a else None, cc=payload.cc, oggetto=payload.oggetto,
+            cita=payload.cita)
+    except email_scrittura_service.ErroreScrittura as e:
+        raise HTTPException(status_code=404 if "(404)" in str(e) else 400, detail=str(e))
+
+
+@router.post("/bozze/{bozza_id}/invia")
+def bozza_invia_ep(bozza_id: int, user: Dict[str, Any] = Depends(_ADMIN_POSTA)):
+    """Un errore SMTP non è un 500: torna ok=false e la bozza resta da mandare."""
+    try:
+        return email_scrittura_service.invia_bozza(bozza_id, user["username"])
+    except email_scrittura_service.ErroreScrittura as e:
+        raise HTTPException(status_code=404 if "(404)" in str(e) else 400, detail=str(e))
+
+
+@router.post("/bozze/{bozza_id}/annulla")
+def bozza_annulla_ep(bozza_id: int, user: Dict[str, Any] = Depends(_ADMIN_POSTA)):
+    try:
+        return email_scrittura_service.annulla_bozza(bozza_id, user["username"])
+    except email_scrittura_service.ErroreScrittura as e:
+        raise HTTPException(status_code=404 if "(404)" in str(e) else 400, detail=str(e))
