@@ -132,6 +132,10 @@ class ScrittoreFinto:
         self.risposte.append((cartella, mid))
         return True
 
+    def cestina(self, cartella, mid, cestino, uid=None, uidvalidity=None):
+        self.cestinate = getattr(self, "cestinate", []) + [(cartella, mid, cestino, uid)]
+        return True
+
     def togli_bozza(self, cartella, mid, cestino=None):
         for uid, (raw, _) in list(self.cartelle[cartella].items()):
             if message_from_bytes(raw, policy=policy.default)["Message-ID"] == mid:
@@ -422,12 +426,82 @@ class TestScrittoreVero(unittest.TestCase):
         self.assertIn(("STORE", "9", "+FLAGS", "(\\Deleted)"), chiamate)
         self.assertNotIn("EXPUNGE", [c[0] for c in chiamate])
 
+    def test_cestina_imap_move_per_uid(self):
+        chiamate = []
+        M = self._m(b"IMAP4rev1 MOVE UIDPLUS", chiamate)
+        M.response = lambda self, k: ("OK", [b"77"])
+        with W.ScrittoreImap("h", 993, "u", "p", fabbrica=lambda h, p: M()) as cas:
+            self.assertTrue(cas.cestina("INBOX", "<laura@gmail.com>", "INBOX.Trash", uid=9, uidvalidity=77))
+        self.assertIn(("SEARCH", None, "UID", "9"), chiamate)
+        self.assertIn(("STORE", "9", "+FLAGS", "(\\Seen)"), chiamate)
+        self.assertIn(("MOVE", "9", "INBOX.Trash"), chiamate)
+        self.assertNotIn("EXPUNGE", [c[0] for c in chiamate])
+
+    def test_cestina_imap_senza_move_copia_e_cancella_solo_lei(self):
+        chiamate = []
+        M = self._m(b"IMAP4rev1 UIDPLUS", chiamate)
+        M.response = lambda self, k: ("OK", [b"1"])           # UIDVALIDITY cambiato: si cerca per Message-ID
+        with W.ScrittoreImap("h", 993, "u", "p", fabbrica=lambda h, p: M()) as cas:
+            self.assertTrue(cas.cestina("INBOX", "<laura@gmail.com>", "INBOX.Trash", uid=9, uidvalidity=77))
+        self.assertIn(("SEARCH", None, "HEADER", "Message-ID", "laura@gmail.com"), chiamate)
+        self.assertIn(("COPY", "9", "INBOX.Trash"), chiamate)
+        self.assertIn(("STORE", "9", "+FLAGS", "(\\Deleted)"), chiamate)
+        self.assertIn(("EXPUNGE", "9"), chiamate)
+
     def test_segna_risposta(self):
         chiamate = []
         M = self._m(b"IMAP4rev1 UIDPLUS", chiamate)
         with W.ScrittoreImap("h", 993, "u", "p", fabbrica=lambda h, p: M()) as cas:
             self.assertTrue(cas.segna_risposta("INBOX", EXCH.lower()))
         self.assertIn(("STORE", "9", "+FLAGS", "(\\Answered)"), chiamate)
+
+
+class TestCestina(Base):
+    def test_cestina_dalla_posta_in_arrivo(self):
+        s = ScrittoreFinto()
+        r = W.cestina(10, "marco", apri=s)
+        self.assertTrue(r["ok"] and r["spostata"])
+        self.assertEqual(r["cestino"], "INBOX.Trash")
+        self.assertEqual(s.cestinate, [("INBOX", "<laura@gmail.com>", "INBOX.Trash", 1)])
+        self.assertEqual(s.login, ("info@tregobbi.it", "pw-info"))
+        conn = get_email_conn()
+        riga = conn.execute("SELECT presente, letta, sparita_at FROM email_posta WHERE id = 10").fetchone()
+        conn.close()
+        self.assertEqual((riga["presente"], riga["letta"]), (0, 1))
+        self.assertTrue(riga["sparita_at"])
+        self.assertEqual(C.leggi(10)["scartata"], "archiviata o cancellata da te")
+        with self.assertRaises(W.ErroreScrittura):                       # non c'è più: niente due volte
+            W.cestina(10, "marco", apri=s)
+
+    def test_pec_e_inviata_no(self):
+        s = ScrittoreFinto()
+        with self.assertRaises(W.ErroreScrittura) as e:
+            W.cestina(11, "marco", apri=s)
+        self.assertIn("PEC", str(e.exception))
+        conn = get_email_conn()
+        conn.execute("""INSERT INTO email_posta (id, casella, cartella, ruolo, uid, uidvalidity, message_id, presente)
+                        VALUES (12, 'info-tregobbi-it', 'INBOX.Sent', 'inviata', 3, 1, '<inv@tregobbi.it>', 1),
+                               (13, 'info-tregobbi-it', 'INBOX.Trash', 'cestino', 4, 1, '<tr@x.it>', 1)""")
+        conn.commit()
+        conn.close()
+        for i in (12, 13):
+            with self.assertRaises(W.ErroreScrittura):
+                W.cestina(i, "marco", apri=s)
+        with self.assertRaises(W.ErroreScrittura) as e:
+            W.cestina(999, "marco", apri=s)
+        self.assertIn("(404)", str(e.exception))
+        self.assertFalse(getattr(s, "cestinate", []))
+
+    def test_errore_server_resta_dov_era(self):
+        class Rotto(ScrittoreFinto):
+            def cestina(self, *a, **k):
+                raise RuntimeError("NO [ALERT] utente info@tregobbi.it pw-info")
+        with self.assertRaises(W.ErroreScrittura) as e:
+            W.cestina(10, "marco", apri=Rotto())
+        self.assertNotIn("pw-info", str(e.exception))
+        conn = get_email_conn()
+        self.assertEqual(conn.execute("SELECT presente FROM email_posta WHERE id = 10").fetchone()[0], 1)
+        conn.close()
 
 
 if __name__ == "__main__":

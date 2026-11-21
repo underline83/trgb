@@ -1,4 +1,6 @@
-// @version: v1.5 (2026-11-20) — bozze preparate da Q: chip «📝 bozza di Q» nell'elenco; trgb@ → «Rispondi» già compilato;
+// @version: v1.6 (2026-11-21) — «🗑 Cestina» sulle mail delle altre caselle (in arrivo/spam, non PEC): con conferma,
+//   la sposta nel Cestino della casella (anche in Mail: IMAP), POST /email/posta/{id}/cestina
+// v1.5 (2026-11-20) — bozze preparate da Q: chip «📝 bozza di Q» nell'elenco; trgb@ → «Rispondi» già compilato;
 //   altre caselle → riquadro con la bozza (è nelle Bozze di Mail), «Invia da qui» con conferma, «Annulla bozza»
 // v1.4 (2026-11-20) — mail «messe da parte» da Marco (cancellate/archiviate da Mail, o lette nel cestino): chip grigio, niente pallino, fuori da «Da rispondere»
 // v1.3 (2026-11-20) — la mail aperta resta in vista: su schermo largo il riquadro di lettura scorre con la pagina
@@ -478,6 +480,7 @@ export default function ClientiPosta() {
                 </div>
               ) : aperta._casella ? (
                 <MailCasella m={aperta} etichetta={etichetta} onChiudi={() => apri(null)}
+                  onCestinata={() => { apri(null); carica(); }}
                   onAggiorna={() => { carica(); const id = pidAperta; setParams({}); setTimeout(() => setParams({ pid: id }), 0); }}
                   toast={showToast} />
               ) : (
@@ -702,10 +705,28 @@ function RigaCasella({ m, sel, onClick, etichetta }) {
 }
 
 // Una mail di un'altra casella, aperta: sola lettura. Si risponde dal proprio programma di posta.
-function MailCasella({ m, etichetta, onChiudi, onAggiorna, toast }) {
+function MailCasella({ m, etichetta, onChiudi, onAggiorna, onCestinata, toast }) {
   const [conferma, setConferma] = useState(false);
   const [lavoro, setLavoro] = useState(false);
-  useEffect(() => { setConferma(false); }, [m.id]);
+  const [confCestino, setConfCestino] = useState(false);
+  useEffect(() => { setConferma(false); setConfCestino(false); }, [m.id]);
+  // solo dove c'è ancora (in arrivo o spam), mai la PEC né l'inviata
+  const cestinabile = !m.pec && (m.dove === "posta in arrivo" || m.dove === "spam");
+  const cestina = async () => {
+    setLavoro(true);
+    try {
+      const r = await apiFetch(`${API_BASE}/email/posta/${m.id}/cestina`, { method: "POST" });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || `Errore ${r.status}`);
+      toast(d.spostata ? `🗑 Nel cestino di ${etichetta(d.casella)}` : d.nota);
+      onCestinata && onCestinata();
+    } catch (e) {
+      toast(e.message, true);
+    } finally {
+      setLavoro(false);
+      setConfCestino(false);
+    }
+  };
   const azione = async (cosa) => {
     setLavoro(true);
     try {
@@ -819,9 +840,23 @@ function MailCasella({ m, etichetta, onChiudi, onAggiorna, toast }) {
         <p className="text-[11px] text-neutral-400">Stessa mail anche in: {m.altre_copie.map((c) => `${c.casella} (${c.dove})`).join(", ")}</p>
       )}
 
+      {cestinabile && (
+        <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-neutral-100">
+          {!confCestino ? (
+            <Btn variant="chip" tone="red" size="md" onClick={() => setConfCestino(true)} disabled={lavoro}>🗑 Cestina</Btn>
+          ) : (
+            <>
+              <span className="text-xs text-neutral-600">Nel cestino di {etichetta(m.casella)}, anche in Mail?</span>
+              <Btn variant="danger" size="md" onClick={cestina} loading={lavoro} disabled={lavoro}>Sì, cestina</Btn>
+              <Btn variant="ghost" size="md" onClick={() => setConfCestino(false)} disabled={lavoro}>No</Btn>
+            </>
+          )}
+        </div>
+      )}
+
       <p className="text-[11px] text-neutral-400 pt-2 border-t border-neutral-100">
-        Il gestionale legge questa casella senza toccarla: per spostare o cancellare usa il tuo programma di posta. Le risposte le
-        prepara Q come bozza (le trovi in Mail, nelle Bozze).
+        Il gestionale legge questa casella e la tocca solo quando glielo chiedi tu: «🗑 Cestina» la sposta nel Cestino della
+        casella (la vedi lì anche in Mail, da dove si recupera). Le risposte le prepara Q come bozza (le trovi in Mail, nelle Bozze).
       </p>
     </div>
   );

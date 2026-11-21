@@ -1,4 +1,5 @@
-# @version: v1.4 — bozze e invii: /email/bozze (crea, elenco, invia, annulla) (2026-11-20)
+# @version: v1.5 — POST /email/posta/{id}/cestina: «🗑 Cestina» dalla pagina Posta (2026-11-21)
+# v1.4 — bozze e invii: /email/bozze (crea, elenco, invia, annulla) (2026-11-20)
 # v1.3 — le altre caselle del locale in sola lettura: /email/caselle/, /email/posta (2026-11-19)
 # v1.2 — «Rispondi» dalla Posta: /email/in/{id}/bozza-risposta e /rispondi (2026-11-16)
 # v1.1 — posta in arrivo in sola lettura: /email/in, /email/lettura (2026-11-13)
@@ -52,7 +53,9 @@ LE ALTRE CASELLE DEL LOCALE (v1.3, 2026-11-19) — email_caselle_service
   POST /email/caselle/giro              un giro adesso (tutte, o ?casella=id)
   GET  /email/posta                     mail di tutte le caselle (+ quella del gestionale)
   GET  /email/posta/{id}                una mail per intero, altre copie, risposte mandate
-Solo admin, sola lettura sul server di posta: nessuna rotta cancella, sposta o manda.
+  POST /email/posta/{id}/cestina        nel Cestino della casella (v1.5, 2026-11-21: solo da in arrivo/spam,
+                                        mai la PEC; email_scrittura_service.cestina)
+Solo admin. Sul server di posta l'unica rotta che sposta è /cestina; nessuna manda.
 
 BOZZE E INVII (v1.4, 2026-11-20) — email_scrittura_service
 ---------------------------------------------------------
@@ -325,6 +328,15 @@ def posta_leggi_ep(email_id: int, user: Dict[str, Any] = Depends(_ADMIN_POSTA)):
     if not m:
         raise HTTPException(status_code=404, detail="Mail non trovata")
     return m
+
+
+@router.post("/posta/{email_id}/cestina")
+def posta_cestina_ep(email_id: int, user: Dict[str, Any] = Depends(_ADMIN_POSTA)):
+    """Sposta la mail nel Cestino della sua casella (anche in Mail sul Mac: le caselle sono IMAP)."""
+    try:
+        return email_scrittura_service.cestina(email_id, user["username"])
+    except email_scrittura_service.ErroreScrittura as e:
+        raise HTTPException(status_code=404 if "(404)" in str(e) else 400, detail=str(e))
 
 
 # ─────────────────────────────────────────────

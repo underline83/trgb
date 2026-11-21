@@ -1,4 +1,6 @@
-# @version: v1.1 (2026-11-20) — risposte che si agganciano e bozze che spariscono (caso Ritchie, info@, 20/11):
+# @version: v1.2 (2026-11-21) — «🗑 Cestina» dalla Posta: cestina() sposta UNA mail di una casella nel suo Cestino
+#   (MOVE; senza MOVE: COPY + \Deleted), segnata letta. Mai la PEC, mai l'Inviata, mai trgb@ (Marco, 21/11)
+# v1.1 (2026-11-20) — risposte che si agganciano e bozze che spariscono (caso Ritchie, info@, 20/11):
 #   · capacità IMAP rilette DOPO il login (Aruba annuncia UIDPLUS/MOVE solo lì): prima l'UID EXPUNGE non partiva
 #     mai e la bozza restava nelle Bozze segnata cancellata; senza UIDPLUS si sposta nel Cestino (MOVE)
 #   · In-Reply-To/References con gli ID come li ha scritti il mittente (maiuscole comprese), riletti dal server
@@ -31,6 +33,11 @@ SICUREZZA
 - Sulla casella TRGB scrive solo: APPEND nelle Bozze (\\Draft) e nell'Inviata (\\Seen), toglie
   SOLO le bozze che ha messo lui (ritrovate per Message-ID) e mette \\Answered sulla mail a cui
   ha risposto. Niente altro: la lettura resta in CasellaImap, sola lettura.
+- Dal 2026-11-21 (Marco: «aggiungiamo la possibilità di cestinare») sposta nel Cestino della
+  casella UNA mail che Marco ha scelto dalla pagina Posta (cestina): solo quella (UID controllato
+  con l'UIDVALIDITY, se no per Message-ID), solo da posta in arrivo o spam, mai la PEC. Le caselle
+  sono IMAP: la mail finisce nel Cestino anche in Mail sul Mac e sull'iPhone, e da lì si recupera.
+  Q dal connettore NON cestina: è un gesto di Marco.
 - Password come per la lettura (cifrate, mai nei log né nelle risposte).
 """
 
@@ -132,6 +139,44 @@ class ScrittoreImap(base.CasellaImap):
         if not uids:
             return False
         self.M.uid("STORE", ",".join(str(u) for u in uids), "+FLAGS", "(\\Answered)")
+        return True
+
+    def cestina(self, cartella: str, message_id: str, cestino: str, uid: Optional[int] = None,
+                uidvalidity: Optional[int] = None) -> bool:
+        """Sposta nel Cestino UNA mail (segnata letta: l'ha vista Marco e l'ha buttata). Prima per
+        UID, se l'UIDVALIDITY è ancora quello letto dal giro; se no per Message-ID. MOVE se il server
+        lo ha; se no COPY nel Cestino + \\Deleted (+ UID EXPUNGE dei soli suoi UID con UIDPLUS).
+        False se nella cartella non c'è più (spostata o cancellata nel frattempo)."""
+        typ, _ = self.M.select(base.quota_cartella(cartella), readonly=False)
+        if typ != "OK":
+            raise RuntimeError(f"Cartella {cartella} non apribile in scrittura")
+        uids: List[int] = []
+        if uid and uidvalidity:
+            _, val = self.M.response("UIDVALIDITY")
+            try:
+                uv = int((val or [b"0"])[0])
+            except (TypeError, ValueError):
+                uv = None
+            if uv == int(uidvalidity):
+                typ, data = self.M.uid("SEARCH", None, "UID", str(int(uid)))
+                if typ == "OK":
+                    uids = [int(x) for x in b" ".join(d for d in (data or []) if d).split() if int(x) == int(uid)]
+        if not uids and _ID_VALIDO.fullmatch((message_id or "").strip()):
+            uids = self._cerca(message_id)
+        if not uids:
+            return False
+        lista = ",".join(str(u) for u in uids)
+        self.M.uid("STORE", lista, "+FLAGS", "(\\Seen)")
+        if "MOVE" in self.capacita:
+            typ, _ = self.M.uid("MOVE", lista, base.quota_cartella(cestino))
+            if typ == "OK":
+                return True
+        typ, _ = self.M.uid("COPY", lista, base.quota_cartella(cestino))
+        if typ != "OK":
+            raise RuntimeError(f"Il server non ha copiato la mail in {cestino}")
+        self.M.uid("STORE", lista, "+FLAGS", "(\\Deleted)")
+        if "UIDPLUS" in self.capacita:
+            self.M.uid("EXPUNGE", lista)          # solo quegli UID
         return True
 
     def ids_originali(self, cartella: str, message_id: str) -> List[str]:
@@ -584,3 +629,66 @@ def ripulisci(apri=None, giorni: int = GIORNI_PULIZIA) -> Dict[str, int]:
             out["errori"] += 1
             logger.warning("Pulizia bozze di %s non riuscita: %s", cid, type(e).__name__)
     return out
+
+
+# ═════════════════════════════ cestinare (pagina Posta, 2026-11-21) ═════════════════════════════
+
+CESTINABILI = ("in_arrivo", "spam")
+
+
+def cestina(email_id: int, utente: str, apri=None, giro_dopo: bool = True) -> dict:
+    """Sposta nel Cestino della sua casella una mail di email_posta (gesto di Marco dalla pagina
+    Posta). In TRGB la riga diventa «non c'è più» subito; la copia nel Cestino entra col giro, che
+    parte da solo appena dopo (giro_dopo) e la mostra «cancellata da te» / «letta nel cestino»."""
+    init_email_db()
+    conn = get_email_conn()
+    try:
+        r = conn.execute("SELECT id, casella, cartella, ruolo, uid, uidvalidity, message_id, presente "
+                         "FROM email_posta WHERE id = ?", (int(email_id),)).fetchone()
+    finally:
+        conn.close()
+    if not r:
+        raise ErroreScrittura(f"Mail {email_id} non trovata (404)")
+    r = dict(r)
+    if r["ruolo"] == "cestino":
+        raise ErroreScrittura("È già nel cestino")
+    if r["ruolo"] not in CESTINABILI:
+        raise ErroreScrittura("Da qui si cestinano solo le mail in arrivo o nello spam")
+    if not r["presente"]:
+        raise ErroreScrittura("Non è più lì: spostata o cancellata nel frattempo (aggiorna la pagina)")
+    c = next((x for x in caselle.config()["caselle"] if x["id"] == r["casella"]), None)
+    if not c:
+        raise ErroreScrittura("La casella di questa mail non è più configurata")
+    if c.get("pec"):
+        raise ErroreScrittura("La PEC non si cestina da TRGB (valore legale): se serve, dalla webmail della PEC")
+    try:
+        pw = caselle._password(c)
+        with (apri or _apri_scrittore)(c, pw) as cas:
+            pw = None
+            cestino = ((c.get("cartelle") or {}).get("cestino")
+                       or caselle.trova_cartelle(cas.elenco_cartelle()).get("cestino") or [None])[0]
+            if not cestino:
+                raise ErroreScrittura(f"Nella casella {c['indirizzo']} non trovo il Cestino")
+            trovata = cas.cestina(r["cartella"], r["message_id"], cestino, uid=r["uid"], uidvalidity=r["uidvalidity"])
+    except ErroreScrittura:
+        raise
+    except Exception as e:                              # noqa: BLE001 — niente testo del server (può citare l'utente)
+        logger.warning("Cestina mail %s su %s: %s", email_id, c["indirizzo"], type(e).__name__)
+        raise ErroreScrittura(f"Il server di {c['indirizzo']} non ha risposto come doveva ({type(e).__name__}): "
+                              f"la mail è rimasta dov'era") from None
+    ora = caselle.adesso()
+    conn = get_email_conn()
+    try:
+        conn.execute("UPDATE email_posta SET presente = 0, sparita_at = ?, letta = 1 WHERE id = ?", (ora, r["id"]))
+        conn.commit()
+    finally:
+        conn.close()
+    logger.info("Mail %s di %s cestinata da %s (%s)", r["id"], c["indirizzo"], utente,
+                "spostata" if trovata else "già sparita dal server")
+    if giro_dopo and apri is None:
+        import threading
+        threading.Thread(target=caselle.esegui_giro, kwargs={"solo": c["id"]}, daemon=True,
+                         name=f"giro-dopo-cestina-{c['id']}").start()
+    return {"ok": True, "id": r["id"], "casella": c["indirizzo"], "cestino": cestino, "spostata": trovata,
+            "nota": (f"Nel cestino di {c['indirizzo']}: la trovi lì anche in Mail, da dove si recupera"
+                     if trovata else "Sul server non c'era più (spostata o cancellata da un'altra parte)")}

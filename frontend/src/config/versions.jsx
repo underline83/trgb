@@ -577,6 +577,9 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   clienti: {
+    // 3.44 (2026-11-21): Posta — «🗑 Cestina» sulle mail delle altre caselle (in arrivo/spam, mai PEC né inviata), con conferma:
+    //   la sposta nel Cestino della casella, quindi anche in Mail sul Mac/iPhone (IMAP); segnata letta, giro della casella subito dopo
+    //   (POST /email/posta/{id}/cestina, email_scrittura_service 1.2, email_router 1.5). Q dal connettore non cestina.
     // 3.43 (2026-11-20): Posta — le risposte mandate da TRGB si agganciano alla conversazione anche coi Message-ID lunghi di Exchange
     //   (email_service 1.4: In-Reply-To/References mai codificati, maiuscole originali); la bozza inviata sparisce dalle Bozze
     //   (capacità IMAP lette dopo il login, MOVE nel Cestino se manca UIDPLUS), \Answered sull'originale, «risposto» anche dalla
@@ -687,7 +690,7 @@ const MODULE_VERSIONS = {
     //   annullo/riattiva con storico movimenti, PDF buono A5 con identita'
     //   del locale, alert M.F sulle card in scadenza. Nessun impatto su
     //   corrispettivi/chiusure: registro informativo separato dalla cassa.
-    version: "3.43",
+    version: "3.44",
     label: "Gestione Clienti",
     status: "beta",
     color: "blue",

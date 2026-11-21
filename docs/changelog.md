@@ -3,6 +3,9 @@
 
 ---
 
+## 2026-11-21 — Clienti 3.44: «🗑 Cestina» nella Posta `[core]`
+Nella pagina Posta, aprendo una mail di info@, prenotazioni@ o delle altre caselle c'è «🗑 Cestina» (con conferma). La mail va nel Cestino della casella sul server: siccome le caselle sono IMAP, la trovi nel Cestino anche in Mail sul Mac e sull'iPhone, e da lì si recupera. In TRGB esce da «Da rispondere» e risulta «cancellata da te» appena gira la casella (parte da solo subito dopo). Si cestina solo da posta in arrivo o spam; la PEC no (valore legale, dalla webmail); trgb@ resta con «Segna gestita». È la prima cosa che TRGB sposta nelle caselle su richiesta: lo fa solo dalla pagina, Q dal connettore non cestina. (`email_scrittura_service` 1.2, `email_router` 1.5, `ClientiPosta` 1.6, nessuna migrazione.)
+
 ## 2026-11-20 — Dipendenti 2.47: coperti previsti accanto al giorno nel foglio turni `[core]`
 Nel Foglio settimana dei turni, sotto ogni data ci sono i coperti attesi: «☀️ ~12 · 🌙 ~19», con sotto quanti sono già prenotati; passando sopra si vede la forbice (es. tra 27 e 43), il «di solito» o il festivo. I giorni passati mostrano i coperti fatti, sotto il reparto c'è il totale della settimana. La stima unisce le prenotazioni già fatte (tolta la quota che di solito disdice, ~20%) con gli arrivi dell'ultimo momento e il solito dello stesso giorno nelle ultime 8 settimane; per Natale, Capodanno, Pasqua ecc. guarda gli stessi giorni degli anni scorsi; i turni chiusi nel calendario non si contano. Si regge sul fatto che in TheFork entrano anche i walk-in: da marzo coperti di cassa e prenotazioni coincidono. Prova all'indietro: errore medio ±6 coperti il giorno stesso, ±7 una settimana prima (con le sole prenotazioni ±16). Solo per chi scrive i turni, non va nell'immagine WhatsApp. Nuovo servizio `app/services/previsione_coperti.py` (sola lettura su clienti.sqlite3), rotta `GET /turni/previsione-coperti`, test `tests/test_previsione_coperti.py` (5). Nessuna migrazione.
 
