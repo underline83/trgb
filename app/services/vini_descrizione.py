@@ -12,6 +12,10 @@ REGOLA (concordata con Marco, 2026-11-23):
   la carta (caso Patrizio 2021: campo 16, carta 15). Il testo arrivava
   dall'import Excel o dalla descrizione automatica col grado tipico del madre.
 
+  Lo stesso vale per BIO (flag BIOLOGICO) e formato (campo FORMATO, nomi dalla
+  tabella Formati): `descrizione_carta()` li aggiunge dopo il grado,
+  «… 15,5% · BIO · Magnum 1,5 L» (vini 4.20, 2026-11-23).
+
   Descrizione composta (madre con descrizione_auto=1), 3 ingredienti:
 
     {denominazione} {nome_etichetta} ({vitigni con %})
@@ -83,6 +87,59 @@ def descrizione_con_grado(descrizione: Optional[str], grado) -> str:
     if not g:
         return desc
     return f"{desc} {g}".strip()
+
+
+def formatta_formato(codice: Optional[str], formati: Optional[dict] = None) -> str:
+    """
+    Formato come si stampa, dalla tabella Formati (Impostazioni vini):
+    "Magnum 1,5 L", "Mezza 0,375 L", "Jéroboam 3 L". Stringa vuota per la
+    Bottiglia (BT, è il caso normale), se il codice manca o non è in tabella.
+
+    `formati`: {codice: {"descrizione": ..., "litri": ...}} — la carica chi
+    stampa una volta sola (vini_repository.load_formati).
+    """
+    cod = (codice or "").strip().upper()
+    if not cod or cod == "BT" or not formati:
+        return ""
+    f = formati.get(cod)
+    if not f:
+        return ""
+    nome = (f.get("descrizione") or "").strip() or cod
+    litri = f.get("litri")
+    try:
+        litri = float(litri) if litri not in (None, "") else None
+    except (TypeError, ValueError):
+        litri = None
+    if litri:
+        return f"{nome} {litri:g} L".replace(".", ",")
+    return nome
+
+
+def descrizione_carta(
+    descrizione: Optional[str],
+    grado=None,
+    biologico=None,
+    formato: str = "",
+) -> str:
+    """
+    Riga da stampare (Marco, 2026-11-23): descrizione + grado dell'annata,
+    poi «BIO» se il flag è acceso e il formato se non è una bottiglia.
+    Grado, BIO e formato vivono nei loro campi, non nel testo.
+
+        descrizione_carta("Corne (65% Merlot, 35% Cabernet Sauvignon)", 15.5, 1, "Magnum 1,5 L")
+        → "Corne (65% Merlot, 35% Cabernet Sauvignon) 15,5% · BIO · Magnum 1,5 L"
+
+    `formato` è già l'etichetta (formatta_formato); vuoto = non si scrive.
+    """
+    testo = descrizione_con_grado(descrizione, grado)
+    extra = []
+    if biologico:
+        extra.append("BIO")
+    if formato:
+        extra.append(formato)
+    if extra:
+        testo = " · ".join([testo] + extra) if testo else " · ".join(extra)
+    return testo
 
 
 # Grado scritto a mano nel testo (eredità import Excel): "13,5%", "14.5 %",

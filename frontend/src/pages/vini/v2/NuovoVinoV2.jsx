@@ -888,6 +888,32 @@ function Step3Annata({ annata, setAnnata, produttore, madre, setMadre }) {
     })();
   }, []);
 
+  // Vini 4.20 (2026-11-23): annata nuova di un vino già in cantina → formato e BIO
+  // proposti uguali all'ultima annata. Prima si partiva sempre da «Bottiglia» e BIO
+  // spento: da lì venivano Magnum segnati Bottiglia e bio senza flag. Si propone
+  // una volta sola per madre (_propostoDa) e non si toccano scelte già fatte.
+  useEffect(() => {
+    if (!madre || madre._new || !madre.id || annata._propostoDa === madre.id) return;
+    (async () => {
+      try {
+        const r = await apiFetch(`${API_BASE}/vini/anagrafiche/madre/${madre.id}/bottiglie`);
+        if (!r.ok) return;
+        const lista = await r.json();
+        const ultima = (Array.isArray(lista) ? lista : []).slice().sort((a, b) =>
+          String(b.ANNATA || "").localeCompare(String(a.ANNATA || "")) || (b.id - a.id))[0];
+        setAnnata(prev => {
+          if (prev._propostoDa === madre.id) return prev;
+          const next = { ...prev, _propostoDa: madre.id };
+          if (ultima) {
+            if ((!prev.FORMATO || prev.FORMATO === "BT") && ultima.FORMATO) next.FORMATO = ultima.FORMATO;
+            if (!prev.BIOLOGICO && ultima.BIOLOGICO) next.BIOLOGICO = 1;
+          }
+          return next;
+        });
+      } catch {}
+    })();
+  }, [madre?.id]);
+
   const upd = (k, v) => setAnnata(prev => ({ ...prev, [k]: v }));
 
   // Callback dopo promozione riuscita: aggiorna lo state del madre nel parent.

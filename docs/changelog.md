@@ -3,6 +3,22 @@
 
 ---
 
+## 2026-11-23 — Vini 4.20: formato e BIO dai loro campi (mig 243) `[core]`
+Dopo il grado, anche formato e biologico erano scritti a mano nella descrizione («MAGNUM», «(0,375ml)», «BIOLOGICO»), mentre i campi Formato e Biologico c'erano ma la carta non li leggeva ed erano spesso sbagliati: 133 vini bio col flag spento, Magnum segnati Bottiglia, Doppio Magnum segnati Magnum.
+
+**Cambiato**
+- Carta, calici, pagina cliente e carta bevande: dopo descrizione e grado scrivono «BIO» (flag) e il formato se non è una bottiglia, col nome della tabella Formati: «… 15,5% · BIO · Magnum 1,5 L».
+- Nome iPratico, etichette (anche il collo) e inventari PDF: con BIO.
+- Wizard «+ Nuovo vino»: per un'annata nuova di un vino già in cantina, formato e BIO sono proposti uguali all'ultima annata.
+
+**Aggiunto**
+- `vini_descrizione.formatta_formato`, `descrizione_carta`; `vini_repository.load_formati`; JS `descrizioneCarta`.
+- Mig 243: toglie formato, BIO e il grado rimasto senza % dalle descrizioni di annate e madri, solo dove il campo dice la stessa cosa; backup `.pre-mig243`.
+
+**Note**
+- Il 23/11 i campi sono stati controllati e corretti prima della migrazione: formato in 46 vini (dubbi decisi da Marco), BIO acceso su 133 (movimenti MODIFICA di «Q»).
+- Il Doppio Magnum esce come «Jéroboam 3 L»: è il nome nella tabella Formati, modificabile da Impostazioni vini.
+
 ## 2026-11-23 — Vini 4.19: il grado alcolico solo nel campo dell'annata (mig 242) `[core]`
 Il grado di un vino cambia da annata ad annata, ma la carta lo prendeva dal testo della descrizione, dove era scritto a mano (import Excel) o messo dalla descrizione automatica col grado tipico del madre: correggere il campo non cambiava niente (Patrizio 2021: campo 16, carta 15). Ora il grado vive solo nel campo «Grado alcolico» dell'annata e chi stampa lo aggiunge in fondo.
 

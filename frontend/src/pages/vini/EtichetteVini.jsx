@@ -1,6 +1,7 @@
 // frontend/src/pages/vini/EtichetteVini.jsx
 // Modulo: vini
-// @version: v1.5 — etichette con QR: grado dell'annata (GRADO_ALCOLICO) in fondo alla descrizione;
+// @version: v1.6 — «BIO» dal flag BIOLOGICO anche sulle etichette (collo compreso): non sta più nel testo (2026-11-23)
+// v1.5 — etichette con QR: grado dell'annata (GRADO_ALCOLICO) in fondo alla descrizione;
 //   il collo resta senza grado né vitigni (2026-11-23)
 // v1.4 — collo bottiglia: descrizione fino a 3 righe in 11 pt (2026-11-07)
 //           v1.3 — «Etichetta collo bottiglia» 29×47 senza QR, predefinita (2026-11-07)
@@ -39,7 +40,7 @@ import { Btn, PageLayout, EmptyState } from "../../components/ui";
 import ViniNav from "./ViniNav";
 import QrSvg from "../../components/QrSvg";
 import { pdfEtichetteQr, mostraPdf, apriFinestraVuota, larghezzaTesto } from "../../utils/pdfEtichetta";
-import { descrizioneConGrado } from "../../utils/vini/componiDescrizione";
+import { descrizioneCarta } from "../../utils/vini/componiDescrizione";
 
 // carta = cosa scegliere nel dialogo di stampa; ruota = pagina in piedi (verso del rotolo)
 const FORMATI = {
@@ -112,7 +113,7 @@ function opzioniPdf(v, formato) {
     // Blocco più alto possibile: ~22 mm, centrato nei 29 mm (la Brother stampa ~25,9 mm).
     if (den(v)) righe.push({ testo: taglia(den(v).toUpperCase(), maxC, 7, true), sizePt: 7, bold: true, spaziatura: 0.3 });
     // 11 pt; se in 3 righe non ci sta, scende a 10 e poi a 9 prima di tagliare con «...»
-    const desc = descrizioneCorta(v.DESCRIZIONE) || v.DESCRIZIONE;
+    const desc = descrizioneCarta(descrizioneCorta(v.DESCRIZIONE) || v.DESCRIZIONE, null, v.BIOLOGICO);
     let szNome = 11, righeNome = aCapo(desc, maxC, 11, true, 3);
     for (const sz of [10, 9]) {
       if (!righeNome[righeNome.length - 1]?.endsWith("...")) break;
@@ -131,7 +132,7 @@ function opzioniPdf(v, formato) {
   if (f.compatta) {
     // ~29 mm di testo: denominazione, nome su 2 righe grande, produttore, annata grande con #id a destra
     if (den(v)) righe.push({ testo: taglia(den(v).toUpperCase(), maxPt, 6, true), sizePt: 6, bold: true, spaziatura: 0.3 });
-    aCapo(descrizioneConGrado(v.DESCRIZIONE, v.GRADO_ALCOLICO), maxPt, 10, true, 2).forEach((t, i) =>
+    aCapo(descrizioneCarta(v.DESCRIZIONE, v.GRADO_ALCOLICO, v.BIOLOGICO), maxPt, 10, true, 2).forEach((t, i) =>
       righe.push({ testo: t, sizePt: 10, bold: true, spazioPrimaMm: i ? 1.1 : (righe.length ? 1.4 : 0) }));
     if (prod(v)) righe.push({ testo: taglia(prod(v), maxPt, 7.5, false), sizePt: 7.5, spazioPrimaMm: 1.5 });
     righe.push({
@@ -141,7 +142,7 @@ function opzioniPdf(v, formato) {
     return { wMm: f.w, hMm: f.h, ruota: f.ruota, ecc: f.ecc || "M", qrText: urlScheda(v.id), qrMm: f.qr, margineMm: margine, gapMm: gap, righe };
   }
   if (den(v)) righe.push({ testo: taglia(den(v).toUpperCase(), maxPt, 6.5, true), sizePt: 6.5, bold: true, spaziatura: 0.2 });
-  aCapo(descrizioneConGrado(v.DESCRIZIONE, v.GRADO_ALCOLICO), maxPt, big ? 10 : 9, true, big ? 3 : 2).forEach((t, i) =>
+  aCapo(descrizioneCarta(v.DESCRIZIONE, v.GRADO_ALCOLICO, v.BIOLOGICO), maxPt, big ? 10 : 9, true, big ? 3 : 2).forEach((t, i) =>
     righe.push({ testo: t, sizePt: big ? 10 : 9, bold: true, spazioPrimaMm: i ? 0.9 : (righe.length ? 1.3 : 0) }));
   if (prod(v)) righe.push({ testo: taglia(prod(v), maxPt, 7, false), sizePt: 7, spazioPrimaMm: 1.3 });
   if (big && v.FORMATO) righe.push({ testo: taglia(v.FORMATO, maxPt, 7, false), sizePt: 7, spazioPrimaMm: 1 });
@@ -161,7 +162,7 @@ export function Etichetta({ v, formato }) {
       <div className="etv-lbl etv-collo" style={{ width: `${f.w}mm`, height: `${f.h}mm` }}>
         <div className="etv-txt">
           {den(v) && <div className="etv-den">{den(v)}</div>}
-          <div className="etv-nome" style={{ WebkitLineClamp: 3 }}>{descrizioneCorta(v.DESCRIZIONE) || v.DESCRIZIONE}</div>
+          <div className="etv-nome" style={{ WebkitLineClamp: 3 }}>{descrizioneCarta(descrizioneCorta(v.DESCRIZIONE) || v.DESCRIZIONE, null, v.BIOLOGICO)}</div>
           {prod(v) && <div className="etv-prod">{prod(v)}</div>}
           <div className="etv-foot">
             <span className="etv-ann">{v.ANNATA || "s.a."}</span>
@@ -177,7 +178,7 @@ export function Etichetta({ v, formato }) {
         <QrSvg text={urlScheda(v.id)} sizeMm={f.qr} />
         <div className="etv-txt">
           {den(v) && <div className="etv-den">{den(v)}</div>}
-          <div className="etv-nome" style={{ WebkitLineClamp: 2 }}>{descrizioneConGrado(v.DESCRIZIONE, v.GRADO_ALCOLICO)}</div>
+          <div className="etv-nome" style={{ WebkitLineClamp: 2 }}>{descrizioneCarta(v.DESCRIZIONE, v.GRADO_ALCOLICO, v.BIOLOGICO)}</div>
           {prod(v) && <div className="etv-prod">{prod(v)}</div>}
           <div className="etv-foot">
             <span className="etv-ann">{v.ANNATA || "s.a."}</span>
@@ -192,7 +193,7 @@ export function Etichetta({ v, formato }) {
       <QrSvg text={urlScheda(v.id)} sizeMm={f.qr} />
       <div className="etv-txt">
         {den(v) && <div className="etv-den">{den(v)}</div>}
-        <div className="etv-nome" style={{ WebkitLineClamp: big ? 3 : 2 }}>{descrizioneConGrado(v.DESCRIZIONE, v.GRADO_ALCOLICO)}</div>
+        <div className="etv-nome" style={{ WebkitLineClamp: big ? 3 : 2 }}>{descrizioneCarta(v.DESCRIZIONE, v.GRADO_ALCOLICO, v.BIOLOGICO)}</div>
         {prod(v) && <div className="etv-prod">{prod(v)}</div>}
         {big && v.FORMATO && <div className="etv-prod">{v.FORMATO}</div>}
         <div className="etv-foot">

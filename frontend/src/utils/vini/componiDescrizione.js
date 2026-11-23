@@ -11,7 +11,8 @@
 //   descrizione = "{denominazione} {nome_etichetta} ({vitigni})"  — SENZA grado.
 //   Il grado cambia da annata ad annata e vive solo in GRADO_ALCOLICO della
 //   bottiglia: chi stampa (carta, iPratico, etichette, inventari) lo aggiunge
-//   in fondo con descrizioneConGrado(). Salto gli ingredienti mancanti.
+//   in fondo con descrizioneConGrado(); con BIO e formato, descrizioneCarta().
+//   Salto gli ingredienti mancanti.
 //
 // DOVE VIVE OGNI INGREDIENTE:
 //   - denominazione    → madre.denominazione_id → display completo
@@ -41,6 +42,20 @@ export function descrizioneConGrado(descrizione, grado) {
   const desc = (descrizione || "").toString().trim();
   const g = formattaGrado(grado);
   return g ? `${desc} ${g}`.trim() : desc;
+}
+
+/**
+ * Riga da stampare (vini 4.20, 2026-11-23): descrizione + grado, poi «BIO» se il
+ * flag è acceso e il formato (etichetta già pronta, es. "Magnum 1,5 L") se c'è.
+ * Gemello di vini_descrizione.descrizione_carta.
+ *   descrizioneCarta("Corne (65% Merlot)", 15.5, 1, "Magnum 1,5 L") → "Corne (65% Merlot) 15,5% · BIO · Magnum 1,5 L"
+ */
+export function descrizioneCarta(descrizione, grado, biologico, formato = "") {
+  const testo = descrizioneConGrado(descrizione, grado);
+  const extra = [];
+  if (biologico) extra.push("BIO");
+  if (formato) extra.push(formato);
+  return extra.length ? [testo, ...extra].filter(Boolean).join(" · ") : testo;
 }
 
 /**

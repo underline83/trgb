@@ -1,4 +1,4 @@
-# @version: v1.4 (2026-11-23: carta e calici con il grado dell'annata in fondo alla descrizione)
+# @version: v1.5 (2026-11-23: carta e calici con grado, BIO e formato dai campi in fondo alla descrizione)
 # -*- coding: utf-8 -*-
 """
 Tre Gobbi — Repository Vini
@@ -43,7 +43,7 @@ from app.models.vini_magazzino_db import get_magazzino_connection
 from app.models.settings_db import get_settings_conn, init_settings_db
 from app.models.vini_settings import ensure_settings_defaults, _TIPOLOGIA_MAP
 from app.services.wine_pricing import _round_to_half
-from app.services.vini_descrizione import descrizione_con_grado
+from app.services.vini_descrizione import descrizione_carta, formatta_formato
 
 
 # ---------------------------------------------------------
@@ -62,6 +62,23 @@ def _load_ordinamenti() -> Tuple[Dict[str, int], Dict[str, int], Dict[str, int]]
 
     conn.close()
     return tip_map, naz_map, reg_map
+
+
+def load_formati() -> Dict[str, Dict[str, Any]]:
+    """
+    Tabella Formati (Impostazioni vini) come {codice: {descrizione, litri}}:
+    serve a stampare «Magnum 1,5 L» dal campo FORMATO (vini 4.20, 2026-11-23).
+    """
+    init_settings_db()
+    ensure_settings_defaults()
+    conn = get_settings_conn()
+    try:
+        return {
+            (r["formato"] or "").upper(): {"descrizione": r["descrizione"], "litri": r["litri"]}
+            for r in conn.execute("SELECT formato, descrizione, litri FROM formati_order;")
+        }
+    finally:
+        conn.close()
 
 
 def load_tipologia_order() -> List[str]:
@@ -157,6 +174,8 @@ def load_vini_ordinati() -> List[Dict[str, Any]]:
             PRODUTTORE,
             DESCRIZIONE,
             GRADO_ALCOLICO,
+            BIOLOGICO,
+            FORMATO,
             ANNATA,
             PREZZO_CARTA,
             PREZZO_CALICE,
@@ -217,6 +236,7 @@ def load_vini_ordinati() -> List[Dict[str, Any]]:
     # ---------------------------------------------------------
     # CONVERSIONE (nomi campo uniformi per carta_vini_service)
     # ---------------------------------------------------------
+    formati = load_formati()
     out: List[Dict[str, Any]] = []
     for r in ordered:
         # Calcolo prezzo calice "effettivo": se PREZZO_CALICE non c'e'
@@ -236,10 +256,15 @@ def load_vini_ordinati() -> List[Dict[str, Any]]:
             "NAZIONE": r["NAZIONE"],
             "REGIONE": r["REGIONE"],
             "PRODUTTORE": r["PRODUTTORE"],
-            # Grado dell'annata in fondo alla descrizione (2026-11-23): il grado
-            # vive solo in GRADO_ALCOLICO, non nel testo (vini_descrizione.py).
-            "DESCRIZIONE": descrizione_con_grado(r["DESCRIZIONE"], r["GRADO_ALCOLICO"]),
+            # Grado, BIO e formato dai loro campi in fondo alla descrizione
+            # (2026-11-23): non stanno più nel testo (vini_descrizione.py).
+            "DESCRIZIONE": descrizione_carta(
+                r["DESCRIZIONE"], r["GRADO_ALCOLICO"], r["BIOLOGICO"],
+                formatta_formato(r["FORMATO"], formati),
+            ),
             "GRADO_ALCOLICO": r["GRADO_ALCOLICO"],
+            "BIOLOGICO": r["BIOLOGICO"],
+            "FORMATO": r["FORMATO"],
             "ANNATA": r["ANNATA"],
             "PREZZO": r["PREZZO_CARTA"],
             "PREZZO_CALICE": prezzo_calice if is_calice else None,
@@ -283,6 +308,8 @@ def load_vini_calici() -> List[Dict[str, Any]]:
             PRODUTTORE,
             DESCRIZIONE,
             GRADO_ALCOLICO,
+            BIOLOGICO,
+            FORMATO,
             ANNATA,
             PREZZO_CALICE,
             PREZZO_CARTA,
@@ -345,6 +372,7 @@ def load_vini_calici() -> List[Dict[str, Any]]:
 
     ordered = sorted(filtered, key=sort_key)
 
+    formati = load_formati()
     out: List[Dict[str, Any]] = []
     for r in ordered:
         out.append({
@@ -353,8 +381,13 @@ def load_vini_calici() -> List[Dict[str, Any]]:
             "NAZIONE": r["NAZIONE"],
             "REGIONE": r["REGIONE"],
             "PRODUTTORE": r["PRODUTTORE"],
-            "DESCRIZIONE": descrizione_con_grado(r["DESCRIZIONE"], r["GRADO_ALCOLICO"]),
+            "DESCRIZIONE": descrizione_carta(
+                r["DESCRIZIONE"], r["GRADO_ALCOLICO"], r["BIOLOGICO"],
+                formatta_formato(r["FORMATO"], formati),
+            ),
             "GRADO_ALCOLICO": r["GRADO_ALCOLICO"],
+            "BIOLOGICO": r["BIOLOGICO"],
+            "FORMATO": r["FORMATO"],
             "ANNATA": r["ANNATA"],
             "PREZZO": r["_PREZZO_CALICE_FINAL"],
             "PREZZO_CALICE": r["_PREZZO_CALICE_FINAL"],  # alias esplicito per consumer

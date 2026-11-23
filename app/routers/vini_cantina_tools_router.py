@@ -1,4 +1,4 @@
-# @version: v3.2-grado (2026-11-23: inventari PDF col grado dell'annata in fondo alla descrizione)
+# @version: v3.3-bio (2026-11-23: inventari PDF con grado e BIO dai campi in fondo alla descrizione)
 # -*- coding: utf-8 -*-
 """
 Tre Gobbi — Router Cantina Tools
@@ -57,7 +57,7 @@ from app.services.carta_vini_service import (
     resolve_regione,
 )
 from app.repositories.vini_repository import load_vini_ordinati, load_vini_calici, _load_ordinamenti
-from app.services.vini_descrizione import descrizione_con_grado
+from app.services.vini_descrizione import descrizione_carta
 from app.models.vini_settings import _TIPOLOGIA_MAP
 
 
@@ -599,7 +599,7 @@ def _load_all_vini_inventario(
         SELECT
             id, TIPOLOGIA, NAZIONE, REGIONE,
             id,
-            DESCRIZIONE, GRADO_ALCOLICO, DENOMINAZIONE, PRODUTTORE,
+            DESCRIZIONE, GRADO_ALCOLICO, BIOLOGICO, DENOMINAZIONE, PRODUTTORE,
             ANNATA, FORMATO,
             PREZZO_CARTA, EURO_LISTINO,
             FRIGORIFERO, QTA_FRIGO,
@@ -618,9 +618,9 @@ def _load_all_vini_inventario(
     # Normalizza tipologie vecchie → nuove
     for r in vini:
         r["TIPOLOGIA"] = _TIPOLOGIA_MAP.get(r["TIPOLOGIA"], r["TIPOLOGIA"])
-        # Descrizione da stampare col grado dell'annata in fondo (2026-11-23):
-        # il grado non sta più nel testo (vini_descrizione.descrizione_con_grado).
-        r["DESCRIZIONE_STAMPA"] = descrizione_con_grado(r.get("DESCRIZIONE"), r.get("GRADO_ALCOLICO"))
+        # Descrizione da stampare con grado e «BIO» dai campi (2026-11-23): non
+        # stanno più nel testo; il formato ha già la sua colonna.
+        r["DESCRIZIONE_STAMPA"] = descrizione_carta(r.get("DESCRIZIONE"), r.get("GRADO_ALCOLICO"), r.get("BIOLOGICO"))
 
     # Ordinamento carta vini: usa le tabelle di impostazioni
     tip_map, naz_map, reg_map = _load_ordinamenti()

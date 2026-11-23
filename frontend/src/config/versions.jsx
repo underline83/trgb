@@ -3,6 +3,10 @@
 
 const MODULE_VERSIONS = {
   vini: {
+    // 4.20 (2026-11-23): anche formato e BIO escono dalla descrizione: carta, calici, pagina cliente e
+    //   carta bevande scrivono «… 15,5% · BIO · Magnum 1,5 L» (nome del formato dalla tabella Formati, niente
+    //   per la Bottiglia); iPratico, etichette (collo compreso) e inventari con BIO. Wizard: annata nuova di un
+    //   vino già in cantina → formato e BIO proposti come l'ultima annata. Mig 243 pulisce i testi.
     // 4.19 (2026-11-23): il grado alcolico esce dalla descrizione e vive solo nel campo dell'annata
     //   (GRADO_ALCOLICO): carta, calici, pagina cliente, carta bevande, nomi iPratico, etichette con QR e
     //   inventari PDF lo aggiungono in fondo («14,5%»). Descrizione automatica senza grado (py + js);
@@ -210,7 +214,7 @@ const MODULE_VERSIONS = {
     // 3.72 (2026-07-20): CartaStaff v2.0 "banco di servizio" (V.22) — vista
     //   sommelier operativa: Preparazione + Servizio, vendita one-tap con
     //   undo, toggle mescita. Endpoint carta-staff: locazioni con `slot`.
-    version: "4.19",
+    version: "4.20",
     label: "Cantina & Vini",
     status: "stabile",     // stabile | beta | alpha | dev
     color: "green",
