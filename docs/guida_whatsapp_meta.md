@@ -5,6 +5,25 @@
 
 Il numero dell'osteria resta sull'app **WhatsApp Business** del telefono e si continua a scrivere da lì. TRGB riceve una copia dei messaggi e **non manda niente**.
 
+> **Strada in uso dal 2026-11-23: YCloud** (sezione Y qui sotto). La strada diretta delle sezioni 1–4 non è passata: Meta vuole che l'app sia di un Tech Provider approvato. Le sezioni 1–4 restano come riferimento.
+
+## Y. Collegamento tramite YCloud (in uso)
+
+Il numero è già collegato a YCloud (23/11/2026, account YCloud «Tre Gobbi S.R.L.», WhatsApp Manager › account «Osteria Tre Gobbi»). Per far arrivare i messaggi a TRGB:
+
+1. **Prima il push** del codice che contiene `POST /clienti/whatsapp/ycloud` (clienti 3.45).
+2. YCloud › **Developers › Webhooks › Add Endpoints**:
+   - Endpoint URL: `https://trgb.tregobbi.it/clienti/whatsapp/ycloud` (è anche nella pagina Clienti › Impostazioni › WhatsApp, col tasto Copia);
+   - Description: «TRGB»;
+   - Events: `whatsapp.inbound_message.received`, `whatsapp.smb.message.echoes`, `whatsapp.smb.history`, `whatsapp.smb.app.state.sync`, `whatsapp.message.updated`, `whatsapp.business_account.updated`, `whatsapp.business_account.deleted`, `whatsapp.phone_number.deleted`, `whatsapp.phone_number.quality_updated` → Confirm.
+3. Copia il **segreto** dell'endpoint (inizia con `whsec_`) e mettilo nel `.env` del VPS: `YCLOUD_WEBHOOK_SECRET=…` — non incollarlo in chat. Poi `sudo systemctl restart trgb-backend`.
+   Finché il segreto non c'è TRGB risponde 503 e YCloud ritenta da solo (10 s, 30 s, 5 min, 30 min, 1 h…): i messaggi di quei minuti arrivano dopo.
+4. Manda un WhatsApp di prova all'osteria e rispondi dal telefono: in Clienti › Impostazioni › WhatsApp devono comparire «Collegato» e le due righe nelle chat recenti.
+
+**Se il collegamento cade** (TRGB manda una notifica): apri l'app WhatsApp Business sul telefono (va aperta almeno ogni ~2 settimane). Se non basta, YCloud › WhatsApp Manager › Create Channel › WhatsApp Business App, ed entra con il **tuo profilo Facebook vero** e il **portfolio dove sta la Pagina dell'osteria**: da altri profili o portfolio Meta rifiuta, perché il WhatsApp è legato a quella Pagina.
+
+**Da non fare:** rispondere dalla casella (Inbox) di YCloud (i messaggi da lì si pagano; per TRGB contano comunque come risposta); nel popup di Meta scegliere «Aggiungi numero» con verifica via SMS/chiamata: è la registrazione standard e staccherebbe il numero dall'app.
+
 ## 0. Prima di tutto
 
 - Sul telefono: app **WhatsApp Business** (icona con la «B») versione **2.24.17 o più nuova**, col numero dell'osteria. Se oggi è WhatsApp normale, prima si passa a Business (e si verifica che le chat restino).

@@ -1,8 +1,9 @@
-# @version: v1.0 (2026-11-02) — check WhatsApp in sola lettura
+# @version: v1.1 (2026-11-23) — ingresso YCloud + impostazioni chat «chiuse dal cliente»
+# v1.0 (2026-11-02) — check WhatsApp in sola lettura
 # Modulo: clienti — [core]
 # -*- coding: utf-8 -*-
 """
-Router WhatsApp in SOLA LETTURA del numero del locale (coexistence Meta).
+Router WhatsApp in SOLA LETTURA del numero del locale (coexistence; dal 23/11/2026 via YCloud).
 
 Manifesto (per module.json a R8):
   modulo: clienti · tabelle: clienti_wa_messaggi, clienti_wa_contatti, clienti_wa_eventi
@@ -10,11 +11,13 @@ Manifesto (per module.json a R8):
   endpoint:
     GET  /clienti/whatsapp/webhook   PUBBLICO (Meta): verifica con WA_VERIFY_TOKEN
     POST /clienti/whatsapp/webhook   PUBBLICO (Meta): firma X-Hub-Signature-256 con WA_APP_SECRET
+    POST /clienti/whatsapp/ycloud    PUBBLICO (YCloud): firma YCloud-Signature con YCLOUD_WEBHOOK_SECRET
     GET  /clienti/whatsapp/stato              admin
     POST /clienti/whatsapp/collega            admin (Embedded Signup: codice → iscrizione + sync)
     GET  /clienti/whatsapp/conversazioni      admin
     GET  /clienti/whatsapp/cerca              admin
     PUT  /clienti/whatsapp/conservazione      admin
+    PUT  /clienti/whatsapp/chiusura           admin (parole e lunghezza delle chat «chiuse dal cliente»)
   Nessun endpoint manda messaggi ai clienti.
   Va montato PRIMA di clienti_router (che ha rotte /clienti/{id}).
 """
@@ -26,8 +29,9 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import JSONResponse, PlainTextResponse
+from fastapi.responses import JSONResponse, PlainTextResponse, Response
 from pydantic import BaseModel, Field
+from typing import List
 
 from app.services import clienti_whatsapp_service as wa
 from app.services.permessi import solo_admin
@@ -66,6 +70,27 @@ async def webhook_ricevi(request: Request):
     return JSONResponse({})
 
 
+@public_router.post("/ycloud")
+async def webhook_ycloud(request: Request):
+    """Eventi di YCloud (provider del numero in coexistence). Risposta subito, 204."""
+    if not wa.ycloud_configurato():
+        # YCloud ritenta (10 s, 30 s, 5 min, 30 min, 1 h…): basta mettere il segreto nel .env
+        raise HTTPException(503, "webhook YCloud non configurato")
+    corpo = await request.body()
+    if not wa.verifica_firma_ycloud(corpo, request.headers.get("YCloud-Signature")):
+        logger.warning("Webhook YCloud: firma non valida da %s", request.client.host if request.client else "?")
+        raise HTTPException(401, "firma non valida")
+    try:
+        import json
+        payload = json.loads(corpo.decode("utf-8"))
+    except Exception:
+        raise HTTPException(400, "JSON non valido")
+    if not isinstance(payload, dict):
+        raise HTTPException(400, "evento non valido")
+    await run_in_threadpool(wa.elabora_evento_ycloud, payload)
+    return Response(status_code=204)
+
+
 # ── Pagina Impostazioni › WhatsApp (admin) ───────────────────
 router = APIRouter(
     prefix="/clienti/whatsapp",
@@ -82,6 +107,11 @@ class CollegaIn(BaseModel):
 
 class ConservazioneIn(BaseModel):
     giorni: int = Field(..., ge=7, le=730)
+
+
+class ChiusuraIn(BaseModel):
+    parole: List[str] = Field(..., min_length=1, max_length=100)
+    max_caratteri: int = Field(..., ge=5, le=200)
 
 
 @router.get("/stato")
@@ -115,3 +145,11 @@ def cerca(chi: Optional[str] = None, testo: Optional[str] = None, giorni: int = 
 @router.put("/conservazione")
 def conservazione(body: ConservazioneIn):
     return {"giorni": wa.imposta_conservazione(body.giorni)}
+
+
+@router.put("/chiusura")
+def chiusura(body: ChiusuraIn):
+    try:
+        return wa.imposta_chiusura(body.parole, body.max_caratteri)
+    except ValueError as e:
+        raise HTTPException(400, str(e))

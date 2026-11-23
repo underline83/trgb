@@ -3,6 +3,19 @@
 
 ---
 
+## 2026-11-23 — Clienti 3.45: WhatsApp tramite YCloud + chat «chiuse dal cliente» `[core]`
+Il collegamento diretto a Meta non passa senza essere Tech Provider; il numero dell'osteria è stato collegato in coexistence a YCloud (provato: messaggi in arrivo, risposte dall'app e storico visibili in YCloud). TRGB ora riceve da YCloud.
+
+**Aggiunto**
+- `POST /clienti/whatsapp/ycloud` (pubblico, firma `YCloud-Signature` con `YCLOUD_WEBHOOK_SECRET`): messaggi dei clienti, risposte scritte dall'app sul telefono, storico, risposte dalla casella YCloud (contano come risposta), rubrica dell'app, avvisi su account e numero (scollegato → notifica agli admin). Stesse tabelle di prima: conversazioni, ricerca e giro non cambiano.
+- Chat «chiuse dal cliente»: se dopo la nostra risposta il cliente scrive solo grazie/ok/emoji, la chat non è «da rispondere» ma in un gruppo a parte. Parole e lunghezza massima modificabili (`PUT /clienti/whatsapp/chiusura`, pagina WhatsApp).
+- Pagina Clienti › Impostazioni › WhatsApp: indirizzo da mettere in YCloud (con Copia), eventi da spuntare, segreto presente/mancante, ultimo evento; il «Collega WhatsApp» di Meta compare solo se YCloud non è configurato.
+
+**Note**
+- Si parte da zero: lo storico che YCloud ha mandato al collegamento (prima che TRGB ascoltasse) non si recupera, è sul telefono (decisione di Marco).
+- Dopo il push: endpoint in YCloud › Developers › Webhooks e segreto nel `.env` (guida `guida_whatsapp_meta.md` § Y).
+- Connettore 1.20: `whatsapp_conversazioni` con lo stato `chiusa_dal_cliente`.
+
 ## 2026-11-23 — Vini 4.20: formato e BIO dai loro campi (mig 243) `[core]`
 Dopo il grado, anche formato e biologico erano scritti a mano nella descrizione («MAGNUM», «(0,375ml)», «BIOLOGICO»), mentre i campi Formato e Biologico c'erano ma la carta non li leggeva ed erano spesso sbagliati: 133 vini bio col flag spento, Magnum segnati Bottiglia, Doppio Magnum segnati Magnum.
 

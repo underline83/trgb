@@ -636,7 +636,17 @@ Il foglio storico (`gift-card-lista.xlsx`, 174 righe dal dic 2021) era compilato
 
 **Chi è chi.** Il nome viene dal cliente TRGB col telefono uguale (`normalize_phone` su telefono/telefono2), poi dalla rubrica dell'app, poi dal nome WhatsApp. «Da rispondere» = l'ultimo messaggio (reazioni escluse) è del cliente.
 
-**Collegamento.** Impostazioni › WhatsApp › «Collega WhatsApp»: Embedded Signup di Meta con `featureType: whatsapp_business_app_onboarding`; il codice (vale 30 s) va a `POST /clienti/whatsapp/collega`, che scambia il token, iscrive l'app al WABA (`subscribed_apps`), legge il numero (`is_on_biz_app`) e chiede rubrica e storico (`smb_app_data`). Guida passo-passo per il pannello Meta: [guida_whatsapp_meta.md](guida_whatsapp_meta.md). **Il webhook deve essere già in produzione prima di collegare**, altrimenti lo storico si perde.
+**Provider: YCloud (v3.45, 2026-11-23).** La strada diretta non è passata: Meta risponde «Tre Gobbi SRL non può registrare clienti al momento», per collegare un numero all'app propria bisogna essere Tech Provider (verifica dell'azienda, App Review, Access Verification). Il numero è quindi collegato in coexistence a **YCloud** (BSP Meta, piano Free), Q #295/#373. Il collegamento è passato solo entrando col **profilo Facebook vero di Marco** e col **portfolio vecchio che possiede la Pagina** dell'osteria: il WhatsApp Business è legato a quella Pagina, e da altri portfolio Meta rifiuta («Account collegato alla Pagina su un altro Facebook Business»; dal login WhatsApp errore #2655099). Il pulsante WhatsApp della Pagina non si è toccato.
+- YCloud manda gli eventi a `POST /clienti/whatsapp/ycloud`, firmati con `YCloud-Signature: t=<unix>,s=<hex>` (HMAC-SHA256 di «t.corpo grezzo» col segreto dell'endpoint, `YCLOUD_WEBHOOK_SECRET` nel `.env`; il segreto si prova com'è e senza `whsec_`). L'ora della firma non si controlla: YCloud ritenta per ore e un evento ripetuto non fa danni (messaggi unici per wamid). Risposta 204 subito.
+- Traduzione nelle stesse tabelle (`clienti_whatsapp_service.elabora_evento_ycloud`): `whatsapp.inbound_message.received` → in/`webhook` (+ nome profilo); `whatsapp.smb.message.echoes` → out/`eco` (scritti dall'app sul telefono); `whatsapp.smb.history` → `storico` (+ avanzamento); `whatsapp.message.updated` → out/`ycloud` (scritti dalla casella di YCloud: **contano come risposta**, decisione di Marco 23/11; `failed` scartati); `whatsapp.smb.app.state.sync` → rubrica (forma non documentata da YCloud: si cercano oggetti `contact`; se non torna, il primo evento resta nel registro come `da_capire` col payload, per adattare); `whatsapp.business_account.deleted` (es. `PRIMARY_INACTIVITY`), `whatsapp.phone_number.deleted`, `whatsapp.business_account.updated` con `banState DISABLE` → scollegato + notifica M.A agli admin; `REINSTATE` o un messaggio nuovo → di nuovo collegato; `whatsapp.phone_number.quality_updated` → solo annotato.
+- Il primo evento fissa l'account (`wa_waba_id`) e il numero del locale (`wa_numero`); eventi di un altro account si scartano. `wa_provider = ycloud`.
+- **Storico:** YCloud l'ha mandato alle 22:19 del 23/11, prima che TRGB ascoltasse. Decisione di Marco: **si parte da zero**, lo storico c'è sul telefono se serve.
+- Dalla casella di YCloud non si scrive: i messaggi API si pagano e fuori dalle 24 ore servono modelli approvati.
+- Privacy: i messaggi passano anche da YCloud (Singapore, fuori UE) → nell'informativa del sito va nominato YCloud oltre a Meta (da fare lato Marco).
+
+**Chat «chiuse dal cliente» (v3.45, decisione di Marco 2026-11-23).** Molte chat finiscono col cliente che scrive «Grazie!», «ok» o un'emoji: non sono da rispondere. Stato `chiusa_dal_cliente` quando **tutti** i messaggi del cliente dopo la nostra ultima risposta sono chiusure: senza «?», entro `wa_chiusura_max_caratteri` (40), fatti solo di parole/emoji dell'elenco `wa_chiusura_parole` (grazie, ok, perfetto, a presto, 👍, 🙏…; con «sticker» contano anche gli sticker). Le parole delle frasi dell'elenco valgono anche da sole («a presto» → «a», «presto»). Elenco e lunghezza si cambiano dalla pagina (`PUT /clienti/whatsapp/chiusura`). Nelle conversazioni vengono dopo le «da rispondere», con il conteggio `chiuse_dal_cliente`; `solo_da_rispondere` le esclude. Una chiusura seguita da una domanda torna «da rispondere».
+
+**Collegamento diretto Meta (alternativa, non usata).** Impostazioni › WhatsApp › «Collega WhatsApp» (compare solo se YCloud non è configurato): Embedded Signup di Meta con `featureType: whatsapp_business_app_onboarding`; il codice (vale 30 s) va a `POST /clienti/whatsapp/collega`, che scambia il token, iscrive l'app al WABA (`subscribed_apps`), legge il numero (`is_on_biz_app`) e chiede rubrica e storico (`smb_app_data`). Guida passo-passo per il pannello Meta: [guida_whatsapp_meta.md](guida_whatsapp_meta.md). **Il webhook deve essere già in produzione prima di collegare**, altrimenti lo storico si perde.
 
 ## 17.1 Capability
 
@@ -648,11 +658,14 @@ Il foglio storico (`gift-card-lista.xlsx`, 174 righe dal dic 2021) era compilato
 | C-CL-W04 | Chat recenti con «da rispondere» | `GET /clienti/whatsapp/conversazioni`, MCP `whatsapp_conversazioni` | admin, giro | 🆕 |
 | C-CL-W05 | Ricerca per persona/numero/parole | `GET /clienti/whatsapp/cerca`, MCP `whatsapp_cerca` | admin, giro | 🆕 |
 | C-CL-W06 | Preventivi recenti col registro invii | `preventivi_service.preventivi_con_invii`, MCP `preventivi_inviati` | admin, giro | 🆕 |
+| C-CL-W07 | Webhook YCloud: firma `YCloud-Signature`, eventi messaggi/eco/storico/casella/rubrica/account nelle tabelle WhatsApp | `clienti_whatsapp_router.py:webhook_ycloud` (`POST /clienti/whatsapp/ycloud`), `clienti_whatsapp_service.elabora_evento_ycloud` | YCloud (pubblico) | 🆕 |
+| C-CL-W08 | Chat «chiuse dal cliente» (grazie/ok/emoji) con parole e lunghezza modificabili | `clienti_whatsapp_service.regola_chiusura/e_chiusura`, `PUT /clienti/whatsapp/chiusura`, `ClientiWhatsApp.jsx` | admin, giro | 🆕 |
 
 ## 17.2 Punti aperti
 
-1. **Da provare:** se Meta lascia collegare il proprio numero in coexistence a un'app propria senza essere Tech Provider approvato. Se no: Tech Provider (revisione app con due video) o provider (YCloud gratis da verificare, 360dialog 49 €/mese) — il codice TRGB resta lo stesso, cambia solo da dove arrivano i webhook.
-2. Webhook con l'app Meta in modalità sviluppo: da verificare alla prova se Meta li manda o serve l'app «Live».
+1. ~~Collegare il numero senza essere Tech Provider~~ → no (23/11): collegato tramite YCloud, vedi sopra. L'app Meta «TRGB Tre Gobbi» e il portfolio «Tre Gobbi SRL» del profilo fittizio restano ma non servono.
+2. **Da verificare dopo il push:** creato l'endpoint in YCloud › Developers › Webhooks, che i messaggi arrivino in TRGB (pagina Impostazioni › WhatsApp, «Ultimo evento») e che la rubrica `whatsapp.smb.app.state.sync` abbia una forma che TRGB legge (se nel registro c'è `da_capire`, va adattata).
+3. Informativa privacy del sito: aggiungere YCloud (fornitore extra UE) accanto a Meta.
 
 ---
 

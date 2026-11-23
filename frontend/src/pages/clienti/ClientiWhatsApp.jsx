@@ -1,7 +1,9 @@
-// @version: v1.0 (2026-11-02) — WhatsApp del locale in sola lettura (coexistence Meta)
+// @version: v1.1 (2026-11-23) — collegamento via YCloud (indirizzo webhook, segreto, eventi) e
+//   chat «chiuse dal cliente» con parole/lunghezza modificabili; il «Collega» Meta resta solo se YCloud non c'è
+// v1.0 (2026-11-02) — WhatsApp del locale in sola lettura (coexistence Meta)
 // Modulo: clienti
-// Impostazioni CRM › WhatsApp: stato del collegamento, «Collega WhatsApp» (Embedded Signup
-// di Meta con l'app WhatsApp Business già in uso), archivio e chat recenti.
+// Impostazioni CRM › WhatsApp: stato del collegamento (YCloud, o in alternativa «Collega WhatsApp»
+// con l'Embedded Signup di Meta), archivio, chat «chiuse dal cliente» e chat recenti.
 // TRGB LEGGE soltanto: da qui non parte nessun messaggio ai clienti.
 import React, { useEffect, useRef, useState } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
@@ -31,12 +33,17 @@ export default function ClientiWhatsApp() {
   const [esito, setEsito] = useState(null);
   const [errore, setErrore] = useState(null);
   const [conservazione, setConservazione] = useState("");
+  const [chiusuraParole, setChiusuraParole] = useState("");
+  const [chiusuraMax, setChiusuraMax] = useState("");
+  const [copiato, setCopiato] = useState(false);
   const sessione = useRef({});
 
   const carica = () => {
     apiFetch(`${API_BASE}/clienti/whatsapp/stato`).then((r) => r.json()).then((s) => {
       setStato(s);
       setConservazione(String(s?.archivio?.conservazione_giorni ?? ""));
+      setChiusuraParole((s?.chiusura?.parole || []).join(", "));
+      setChiusuraMax(String(s?.chiusura?.max_caratteri ?? ""));
     }).catch(() => setErrore("Stato non disponibile"));
     apiFetch(`${API_BASE}/clienti/whatsapp/conversazioni?giorni=${giorni}`)
       .then((r) => r.json()).then(setConv).catch(() => setConv(null));
@@ -102,9 +109,29 @@ export default function ClientiWhatsApp() {
     if (r.ok) carica(); else setErrore("Conservazione: da 7 a 730 giorni");
   };
 
+  const salvaChiusura = async () => {
+    const parole = chiusuraParole.split(",").map((p) => p.trim()).filter(Boolean);
+    const r = await apiFetch(`${API_BASE}/clienti/whatsapp/chiusura`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ parole, max_caratteri: parseInt(chiusuraMax, 10) }),
+    });
+    if (r.ok) { setErrore(null); carica(); }
+    else {
+      const d = await r.json().catch(() => ({}));
+      setErrore(typeof d.detail === "string" ? d.detail : "Chiusura: almeno una parola, lunghezza da 5 a 200");
+    }
+  };
+
   if (!stato) return <p className="text-sm text-neutral-400">{errore || "Carico…"}</p>;
   const a = stato.aggiornamento, c = stato.collegamento, cfg = stato.config, arch = stato.archivio;
   const pronto = cfg.app_id && cfg.config_id && cfg.app_secret_presente && cfg.verify_token_presente;
+  const yc = cfg.ycloud || {};
+  const viaYcloud = cfg.provider === "ycloud" || a.provider === "ycloud";
+  const urlYcloud = `${API_BASE}${yc.webhook_path || "/clienti/whatsapp/ycloud"}`;
+  const copia = async () => {
+    try { await navigator.clipboard.writeText(urlYcloud); setCopiato(true); setTimeout(() => setCopiato(false), 2000); }
+    catch { setErrore("Copia non riuscita: seleziona l'indirizzo a mano"); }
+  };
 
   return (
     <div className="space-y-6">
@@ -118,7 +145,43 @@ export default function ClientiWhatsApp() {
 
       <div className="bg-white rounded-xl border border-neutral-200 p-5 shadow-sm space-y-3">
         <div className="flex items-center gap-2 flex-wrap">
-          <h2 className="text-sm font-semibold text-neutral-700 mr-2">Collegamento</h2>
+          <h2 className="text-sm font-semibold text-neutral-700 mr-2">Collegamento tramite YCloud</h2>
+          {a.collegato && a.provider === "ycloud" ? <StatusBadge tone="success" dot>Collegato {a.numero || ""}</StatusBadge>
+            : a.scollegato ? <StatusBadge tone="danger" dot>Scollegato ({a.scollegato})</StatusBadge>
+            : yc.segreto_presente ? <StatusBadge tone="warning">In attesa del primo messaggio</StatusBadge>
+            : <StatusBadge tone="neutral">Da configurare</StatusBadge>}
+        </div>
+        <p className="text-xs text-neutral-500">
+          Il numero dell'osteria è collegato a YCloud con l'app WhatsApp Business che resta sul telefono.
+          YCloud manda a TRGB ogni messaggio ricevuto e ogni risposta scritta dal telefono.
+        </p>
+        <ul className="text-xs text-neutral-500 space-y-1">
+          <li className="flex items-center gap-2 flex-wrap">
+            <span>Indirizzo da mettere in YCloud › Developers › Webhooks:</span>
+            <code className="bg-neutral-100 rounded px-1.5 py-0.5 text-neutral-700 break-all">{urlYcloud}</code>
+            <Btn size="sm" variant="secondary" onClick={copia}>{copiato ? "Copiato" : "Copia"}</Btn>
+          </li>
+          <li>Eventi da spuntare: {(yc.eventi || []).join(", ")}</li>
+          <li>Segreto (YCLOUD_WEBHOOK_SECRET nel .env del VPS): {yc.segreto_presente ? "presente" : "manca"}</li>
+          {c.collegato_at && <li>Primo messaggio arrivato il {c.collegato_at}</li>}
+          <li>Ultimo evento: {a.ultimo_webhook || "mai"}{a.storico ? ` · storico ${a.storico}` : ""}</li>
+          {c.ultimo_account_update && <li>Ultimo avviso sull'account: {c.ultimo_account_update}</li>}
+          {stato.eventi?.some((e) => e.esito === "da_capire") && (
+            <li className="text-amber-700">La rubrica dell'app è arrivata in una forma che TRGB non conosce ancora: va adattata.</li>
+          )}
+        </ul>
+        <p className="text-xs text-neutral-400">
+          Se il collegamento cade: apri l'app WhatsApp Business sul telefono (va aperta almeno ogni 2 settimane).
+          Se non basta, ricollega il numero da YCloud entrando con il profilo che gestisce la Pagina Facebook dell'osteria.
+          Dalla casella di YCloud non si scrive: i messaggi da lì si pagano.
+        </p>
+        {errore && viaYcloud && <p className="text-sm text-red-600">{errore}</p>}
+      </div>
+
+      {!viaYcloud && (
+      <div className="bg-white rounded-xl border border-neutral-200 p-5 shadow-sm space-y-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <h2 className="text-sm font-semibold text-neutral-700 mr-2">Collegamento diretto Meta (alternativa)</h2>
           {a.collegato ? <StatusBadge tone="success" dot>Collegato {a.numero}</StatusBadge>
             : a.scollegato ? <StatusBadge tone="danger" dot>Scollegato ({a.scollegato})</StatusBadge>
             : <StatusBadge tone="neutral">Non collegato</StatusBadge>}
@@ -151,6 +214,7 @@ export default function ClientiWhatsApp() {
           </div>
         )}
       </div>
+      )}
 
       <div className="bg-white rounded-xl border border-neutral-200 p-5 shadow-sm">
         <h2 className="text-sm font-semibold text-neutral-700 mb-2">Archivio</h2>
@@ -167,10 +231,28 @@ export default function ClientiWhatsApp() {
         )}
       </div>
 
+      <div className="bg-white rounded-xl border border-neutral-200 p-5 shadow-sm space-y-3">
+        <h2 className="text-sm font-semibold text-neutral-700">Chat chiuse dal cliente</h2>
+        <p className="text-xs text-neutral-500">
+          Se dopo la nostra risposta il cliente scrive solo un saluto (es. «Grazie mille! 🙏», «ok perfetto»),
+          la chat non è «da rispondere»: va in un gruppo a parte. Conta se il messaggio è fatto solo di queste
+          parole o emoji, è senza «?» ed è entro la lunghezza massima. Con «sticker» nell'elenco contano anche gli sticker.
+        </p>
+        <textarea value={chiusuraParole} onChange={(e) => setChiusuraParole(e.target.value)} rows={3}
+          className="w-full border border-neutral-300 rounded-lg px-2 py-1.5 text-sm" placeholder="grazie, ok, perfetto, 👍" />
+        <div className="flex items-center gap-2 flex-wrap">
+          <label className="text-sm text-neutral-600">Lunghezza massima</label>
+          <input type="number" min={5} max={200} value={chiusuraMax} onChange={(e) => setChiusuraMax(e.target.value)}
+            className="w-20 border border-neutral-300 rounded-lg px-2 py-1 text-sm" />
+          <span className="text-sm text-neutral-600">caratteri · parole separate da virgola</span>
+          <Btn size="sm" variant="secondary" onClick={salvaChiusura}>Salva</Btn>
+        </div>
+      </div>
+
       <div className="bg-white rounded-xl border border-neutral-200 p-5 shadow-sm">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold text-neutral-700">
-            Chat recenti {conv ? `· ${conv.da_rispondere} da rispondere` : ""}
+            Chat recenti {conv ? `· ${conv.da_rispondere} da rispondere${conv.chiuse_dal_cliente ? ` · ${conv.chiuse_dal_cliente} chiuse dal cliente` : ""}` : ""}
           </h2>
           <select value={giorni} onChange={(e) => setGiorni(Number(e.target.value))}
             className="border border-neutral-300 rounded-lg px-2 py-1 text-sm">
@@ -196,6 +278,7 @@ export default function ClientiWhatsApp() {
                 <div className="flex-shrink-0">
                   {v.stato === "da_rispondere"
                     ? <StatusBadge tone="danger" dot>Da rispondere · {v.attesa_ore} h</StatusBadge>
+                    : v.stato === "chiusa_dal_cliente" ? <StatusBadge tone="neutral">Chiusa dal cliente</StatusBadge>
                     : v.stato === "risposto" ? <StatusBadge tone="success">Risposto</StatusBadge>
                     : <StatusBadge tone="info">Aspetto loro</StatusBadge>}
                 </div>

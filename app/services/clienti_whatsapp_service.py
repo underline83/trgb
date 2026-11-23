@@ -1,4 +1,5 @@
-# @version: v1.0 (2026-11-02) — check WhatsApp in sola lettura (coexistence Meta)
+# @version: v1.1 (2026-11-23) — ingresso YCloud (provider scelto) + chat «chiuse dal cliente»
+# v1.0 (2026-11-02) — check WhatsApp in sola lettura (coexistence Meta)
 # Modulo: clienti — [core]
 # -*- coding: utf-8 -*-
 """
@@ -25,6 +26,14 @@ Configurazione (.env sul VPS, mai nel codice, nel DB o in chat):
 
 Il token del business che nasce dal collegamento si usa SUBITO (iscrizione ai
 webhook, sincronizzazione) e non si salva: per leggere non serve più.
+
+Provider YCloud (dal 2026-11-23, Q #295): il numero è collegato in coexistence a YCloud
+(BSP Meta) e YCloud rimanda a TRGB gli stessi fatti con i suoi eventi
+(whatsapp.inbound_message.received, whatsapp.smb.message.echoes, whatsapp.smb.history,
+whatsapp.message.updated, ...) su POST /clienti/whatsapp/ycloud, firmati con
+YCloud-Signature. Finiscono nelle stesse tabelle: il resto (conversazioni, cerca, giro)
+non sa da dove arrivano.
+  YCLOUD_WEBHOOK_SECRET  segreto dell'endpoint creato in YCloud › Developers › Webhooks
 """
 
 from __future__ import annotations
@@ -63,6 +72,39 @@ TIPI_SENZA_RISPOSTA = ("reaction", "unsupported", "system", "errors")
 EVENTI_SCOLLEGATO = ("PARTNER_REMOVED", "ACCOUNT_OFFBOARDED", "PRIMARY_INACTIVITY",
                      "DISCONNECTED", "ACCOUNT_DELETED")
 
+# ── YCloud ──
+YCLOUD_PATH = "/clienti/whatsapp/ycloud"
+# Eventi da spuntare in YCloud › Developers › Webhooks (nomi come nel pannello YCloud)
+EVENTI_YCLOUD = (
+    "whatsapp.inbound_message.received",   # messaggi dei clienti
+    "whatsapp.smb.message.echoes",         # scritti dall'app sul telefono
+    "whatsapp.smb.history",                # storico (una volta, se YCloud lo rimanda)
+    "whatsapp.smb.app.state.sync",         # rubrica dell'app
+    "whatsapp.message.updated",            # scritti dalla casella di YCloud (contano come risposta)
+    "whatsapp.business_account.updated",   # account sospeso / riattivato
+    "whatsapp.business_account.deleted",   # collegamento tolto (es. app non aperta da ~14 giorni)
+    "whatsapp.phone_number.deleted",
+    "whatsapp.phone_number.quality_updated",
+)
+EVENTI_YCLOUD_MESSAGGIO = {
+    "whatsapp.inbound_message.received": "webhook",
+    "whatsapp.smb.message.echoes": "eco",
+    "whatsapp.smb.message.created": "eco",
+    "whatsapp.smb.history": "storico",
+    "whatsapp.message.updated": "ycloud",
+}
+
+# ── Chat «chiuse dal cliente» (decisione di Marco 2026-11-23): l'ultimo messaggio del
+# cliente è solo un saluto/grazie/emoji → gruppo a parte, non «da rispondere».
+# Parole e lunghezza massima sono impostazioni (clienti_impostazioni), questi solo i
+# valori di partenza.
+CHIUSURA_PAROLE_DEFAULT = (
+    "grazie, grazie mille, mille grazie, ok, okay, perfetto, perfetta, ottimo, benissimo, "
+    "va bene, d'accordo, a presto, a dopo, a domani, buona serata, buona giornata, "
+    "buonanotte, ciao, gentilissimi, gentilissimo, gentilissima, 👍, 🙏, ❤️, 😊, 🙂"
+)
+CHIUSURA_MAX_DEFAULT = 40
+
 _lock = threading.Lock()
 _ultima_pulizia = {"t": 0.0}
 
@@ -99,6 +141,12 @@ def configurazione() -> Dict[str, Any]:
         "verify_token_presente": bool(_env("WA_VERIFY_TOKEN")),
         "webhook_path": WEBHOOK_PATH,
         "campi_webhook": list(CAMPI_WEBHOOK),
+        "provider": "ycloud" if ycloud_configurato() else "meta",
+        "ycloud": {
+            "segreto_presente": ycloud_configurato(),
+            "webhook_path": YCLOUD_PATH,
+            "eventi": list(EVENTI_YCLOUD),
+        },
     }
 
 
@@ -121,6 +169,35 @@ def verifica_firma(corpo: bytes, firma: Optional[str]) -> bool:
         return False
     atteso = hmac.new(segreto.encode("utf-8"), corpo, hashlib.sha256).hexdigest()
     return hmac.compare_digest(firma[7:].strip().lower(), atteso)
+
+
+def ycloud_configurato() -> bool:
+    return bool(_env("YCLOUD_WEBHOOK_SECRET"))
+
+
+def verifica_firma_ycloud(corpo: bytes, intestazione: Optional[str]) -> bool:
+    """YCloud-Signature: «t=<unix>,s=<hex>», s = HMAC-SHA256 di «t.corpo grezzo» col
+    segreto dell'endpoint. Il segreto si prova com'è e senza il prefisso «whsec_».
+    L'ora non si controlla: YCloud ritenta fino a ore dopo e un evento ripetuto non fa
+    danni (i messaggi sono unici per wamid)."""
+    segreto = _env("YCLOUD_WEBHOOK_SECRET")
+    if not segreto or not intestazione:
+        return False
+    parti: Dict[str, str] = {}
+    for pezzo in intestazione.split(","):
+        k, _, v = pezzo.strip().partition("=")
+        if k and v:
+            parti[k.strip()] = v.strip()
+    t, s = parti.get("t"), (parti.get("s") or "").lower()
+    if not t or not s:
+        return False
+    messaggio = t.encode("utf-8") + b"." + corpo
+    chiavi = [segreto] + ([segreto[len("whsec_"):]] if segreto.startswith("whsec_") else [])
+    for chiave in chiavi:
+        atteso = hmac.new(chiave.encode("utf-8"), messaggio, hashlib.sha256).hexdigest()
+        if hmac.compare_digest(s, atteso):
+            return True
+    return False
 
 
 # ============================================================
@@ -227,15 +304,21 @@ def _salva_contatto(conn, numero: str, nome_profilo: Optional[str] = None,
                         WHERE numero = ?""", (numero,))
 
 
-def _avvisa_scollegato(evento: str) -> None:
+def _avvisa_scollegato(evento: str, provider: str = "meta") -> None:
+    if provider == "ycloud":
+        rimedio = ("Apri l'app WhatsApp Business sul telefono; se non basta, ricollega il numero "
+                   "da YCloud (WhatsApp Manager › Create Channel › WhatsApp Business App), entrando "
+                   "con il profilo che gestisce la Pagina dell'osteria.")
+    else:
+        rimedio = ("Apri l'app WhatsApp Business sul telefono; se non basta, ricollega da "
+                   "Clienti › Impostazioni › WhatsApp.")
     try:
         from app.services.notifiche_service import crea_notifica
         crea_notifica(
             tipo="clienti",
             titolo="WhatsApp: collegamento caduto",
-            messaggio=(f"Meta segnala «{evento}». Il giro non vede più i messaggi WhatsApp. "
-                       "Apri l'app WhatsApp Business sul telefono; se non basta, ricollega da "
-                       "Clienti › Impostazioni › WhatsApp."),
+            messaggio=(f"{'YCloud' if provider == 'ycloud' else 'Meta'} segnala «{evento}». "
+                       f"Il giro non vede più i messaggi WhatsApp. {rimedio}"),
             link="/clienti/impostazioni/whatsapp",
             icona="⚠️",
             urgenza="alta",
@@ -329,6 +412,196 @@ def elabora_webhook(payload: Dict[str, Any]) -> Dict[str, Any]:
     return {"campi": sorted(set(campi)), "messaggi_nuovi": nuovi}
 
 
+# ============================================================
+# WEBHOOK YCLOUD → DB (stesse tabelle del webhook Meta)
+# ============================================================
+
+def _ts_iso(*valori: Any) -> int:
+    """Ora ISO di YCloud («2026-11-23T21:25:00.000Z») → secondi Unix."""
+    for v in valori:
+        if not v:
+            continue
+        try:
+            return int(datetime.fromisoformat(str(v).replace("Z", "+00:00")).timestamp())
+        except ValueError:
+            continue
+    return int(time.time())
+
+
+def _da_ycloud(m: Dict[str, Any]) -> Dict[str, Any]:
+    """Messaggio YCloud → la forma Meta che capiscono _tipo_testo e _salva_messaggio."""
+    tipo = m.get("type") or "unknown"
+    out: Dict[str, Any] = {"id": m.get("wamid"), "type": tipo,
+                           "timestamp": _ts_iso(m.get("sendTime"), m.get("createTime"))}
+    if isinstance(m.get(tipo), dict):
+        out[tipo] = m[tipo]
+    return out
+
+
+def _waba_giusto(conn, waba_id: Any, ricorda: bool = True) -> bool:
+    """Gli eventi devono essere del nostro account WhatsApp: il primo che arriva lo fissa."""
+    if not waba_id:
+        return True
+    atteso = _imp_get(conn, "wa_waba_id")
+    if not atteso:
+        if ricorda:
+            _imp_set(conn, "wa_waba_id", str(waba_id))
+        return True
+    if str(waba_id) != atteso:
+        logger.warning("WhatsApp/YCloud: evento per un altro account (%s), ignorato", waba_id)
+        return False
+    return True
+
+
+def _ricorda_numero(conn, numero: Any) -> None:
+    cifre = _cifre(numero)
+    if cifre and not _imp_get(conn, "wa_numero"):
+        _imp_set(conn, "wa_numero", "+" + cifre)
+
+
+def _stato_sync_contatti(evento: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Le voci di rubrica di whatsapp.smb.app.state.sync. YCloud non documenta la forma:
+    si cercano liste di oggetti con dentro «contact» (come nel campo Meta)."""
+    trovate: List[Dict[str, Any]] = []
+
+    def giro(x: Any) -> None:
+        if isinstance(x, dict):
+            if isinstance(x.get("contact"), dict):
+                trovate.append(x)
+                return
+            for v in x.values():
+                giro(v)
+        elif isinstance(x, list):
+            for v in x:
+                giro(v)
+
+    giro({k: v for k, v in evento.items() if k not in ("id", "type", "apiVersion", "createTime")})
+    return trovate
+
+
+def _elabora_evento_ycloud(conn, evento: Dict[str, Any]) -> tuple[int, Optional[str]]:
+    """Un evento YCloud. Ritorna (messaggi nuovi, nota per il registro)."""
+    tipo = str(evento.get("type") or "")
+
+    if tipo in EVENTI_YCLOUD_MESSAGGIO:
+        if tipo == "whatsapp.smb.history" and evento.get("progress") is not None:
+            _imp_set(conn, "wa_storico_progresso", f"fase {evento.get('phase')} · {evento.get('progress')}%")
+        entrata = evento.get("whatsappInboundMessage")
+        uscita = evento.get("whatsappMessage")
+        m = entrata if isinstance(entrata, dict) else uscita if isinstance(uscita, dict) else None
+        if m is None:
+            return 0, None  # solo avanzamento dello storico
+        if not _waba_giusto(conn, m.get("wabaId")):
+            return 0, "altro account"
+        fonte = EVENTI_YCLOUD_MESSAGGIO[tipo]
+        if m is entrata:
+            numero = entrata.get("from")
+            nome = (entrata.get("customerProfile") or {}).get("name")
+            if nome:
+                _salva_contatto(conn, numero, nome_profilo=nome)
+            n = _salva_messaggio(conn, _da_ycloud(entrata), numero, "in", fonte)
+            _ricorda_numero(conn, entrata.get("to"))
+        else:
+            if str(uscita.get("status") or "").lower() == "failed":
+                return 0, "non partito"
+            if not uscita.get("to"):
+                return 0, "senza destinatario"
+            n = _salva_messaggio(conn, _da_ycloud(uscita), uscita.get("to"), "out", fonte)
+            _ricorda_numero(conn, uscita.get("from"))
+        if tipo != "whatsapp.smb.history" and _imp_get(conn, "wa_scollegato"):
+            _imp_set(conn, "wa_scollegato", "")  # arrivano messaggi: il collegamento è vivo
+        return n, None
+
+    if tipo == "whatsapp.smb.app.state.sync":
+        voci = _stato_sync_contatti(evento)
+        for v in voci:
+            c = v.get("contact") or {}
+            numero = c.get("phone_number") or c.get("phoneNumber")
+            if str(v.get("action") or "").lower() == "remove":
+                _salva_contatto(conn, numero, togli_rubrica=True)
+            else:
+                _salva_contatto(conn, numero, nome_rubrica=c.get("full_name") or c.get("fullName")
+                                or c.get("first_name") or c.get("firstName"))
+        return 0, (f"rubrica: {len(voci)} contatti" if voci else "rubrica: forma sconosciuta")
+
+    acc = evento.get("whatsappBusinessAccount") or {}
+    num = evento.get("whatsappPhoneNumber") or {}
+    ora = f"{datetime.now():%Y-%m-%d %H:%M}"
+    if tipo == "whatsapp.business_account.deleted":
+        if not _waba_giusto(conn, acc.get("id"), ricorda=False):
+            return 0, "altro account"
+        motivo = str(acc.get("removedReason") or "ACCOUNT_REMOVED")
+        _imp_set(conn, "wa_ultimo_account_update", f"{ora} account tolto: {motivo}")
+        _imp_set(conn, "wa_scollegato", motivo)
+        _avvisa_scollegato(motivo, "ycloud")
+        return 0, motivo
+    if tipo == "whatsapp.phone_number.deleted":
+        if not _waba_giusto(conn, num.get("wabaId"), ricorda=False):
+            return 0, "altro account"
+        _imp_set(conn, "wa_ultimo_account_update", f"{ora} numero tolto")
+        _imp_set(conn, "wa_scollegato", "PHONE_NUMBER_DELETED")
+        _avvisa_scollegato("PHONE_NUMBER_DELETED", "ycloud")
+        return 0, "numero tolto"
+    if tipo == "whatsapp.business_account.updated":
+        if not _waba_giusto(conn, acc.get("id"), ricorda=False):
+            return 0, "altro account"
+        ev = str(acc.get("updateEvent") or "")
+        dettaglio = ev
+        if ev == "DISABLED_UPDATE":
+            dettaglio = f"{ev} {acc.get('banState') or ''}".strip()
+            if acc.get("banState") == "DISABLE":
+                _imp_set(conn, "wa_scollegato", "ACCOUNT_DISABLED")
+                _avvisa_scollegato("ACCOUNT_DISABLED", "ycloud")
+            elif acc.get("banState") == "REINSTATE":
+                _imp_set(conn, "wa_scollegato", "")
+        elif ev == "ACCOUNT_VIOLATION":
+            dettaglio = f"{ev} {acc.get('violationType') or ''}".strip()
+        _imp_set(conn, "wa_ultimo_account_update", f"{ora} {dettaglio}")
+        return 0, dettaglio
+    if tipo == "whatsapp.phone_number.quality_updated":
+        if not _waba_giusto(conn, num.get("wabaId"), ricorda=False):
+            return 0, "altro account"
+        dettaglio = f"qualità {num.get('qualityRating') or '?'}"
+        _imp_set(conn, "wa_ultimo_account_update", f"{ora} {dettaglio}")
+        return 0, dettaglio
+    return 0, "non usato"
+
+
+def elabora_evento_ycloud(evento: Dict[str, Any]) -> Dict[str, Any]:
+    """Salva un evento arrivato da YCloud. Ritorna {tipo, messaggi_nuovi}."""
+    tipo = str(evento.get("type") or "?")
+    nuovi = 0
+    with _lock:
+        conn = get_clienti_conn()
+        try:
+            try:
+                _imp_set(conn, "wa_provider", "ycloud")
+                nuovi, nota = _elabora_evento_ycloud(conn, evento)
+                if not _imp_get(conn, "wa_collegato_at") and tipo in EVENTI_YCLOUD_MESSAGGIO:
+                    _imp_set(conn, "wa_collegato_at", f"{datetime.now():%Y-%m-%d %H:%M:%S}")
+                _imp_set(conn, "wa_ultimo_webhook_at", f"{datetime.now():%Y-%m-%d %H:%M:%S}")
+                sconosciuta = nota == "rubrica: forma sconosciuta"
+                conn.execute(
+                    "INSERT INTO clienti_wa_eventi (campo, messaggi, esito, errore, payload) VALUES (?, ?, ?, ?, ?)",
+                    (tipo[:200], nuovi, "da_capire" if sconosciuta else "ok", (nota or None) and nota[:500],
+                     # la forma della rubrica non è documentata: si tiene il primo esempio per adattarsi
+                     json.dumps(evento, ensure_ascii=False)[:50000] if sconosciuta else None),
+                )
+                conn.commit()
+            except Exception as e:
+                conn.rollback()
+                logger.exception("WhatsApp/YCloud: evento non elaborato")
+                conn.execute(
+                    "INSERT INTO clienti_wa_eventi (campo, messaggi, esito, errore, payload) VALUES (?, 0, 'errore', ?, ?)",
+                    (tipo[:200], str(e)[:500], json.dumps(evento, ensure_ascii=False)[:50000]),
+                )
+                conn.commit()
+            _pulizia(conn)
+        finally:
+            conn.close()
+    return {"tipo": tipo, "messaggi_nuovi": nuovi}
+
+
 def _pulizia(conn, forza: bool = False) -> Dict[str, int]:
     """Cancella i messaggi oltre la conservazione e i registri vecchi. Al massimo una volta l'ora."""
     if not forza and time.time() - _ultima_pulizia["t"] < 3600:
@@ -390,8 +663,11 @@ def _contatti(conn) -> Dict[str, Dict[str, Any]]:
 
 
 def _aggiornamento(conn) -> Dict[str, Any]:
+    provider = _imp_get(conn, "wa_provider") or ("meta" if _imp_get(conn, "wa_phone_number_id") else None)
+    agganciato = bool(_imp_get(conn, "wa_phone_number_id")) or (provider == "ycloud" and bool(_imp_get(conn, "wa_waba_id")))
     return {
-        "collegato": bool(_imp_get(conn, "wa_phone_number_id")) and not _imp_get(conn, "wa_scollegato"),
+        "collegato": agganciato and not _imp_get(conn, "wa_scollegato"),
+        "provider": provider,
         "numero": _imp_get(conn, "wa_numero"),
         "ultimo_webhook": _imp_get(conn, "wa_ultimo_webhook_at"),
         "scollegato": _imp_get(conn, "wa_scollegato") or None,
@@ -400,9 +676,74 @@ def _aggiornamento(conn) -> Dict[str, Any]:
     }
 
 
+def _parole(testo: Optional[str]) -> List[str]:
+    """Parole (senza accenti, minuscole) ed emoji di un testo, in ordine."""
+    piano = _piano(testo)
+    out = re.findall(r"\w+", piano)
+    out += [ch for ch in (testo or "") if unicodedata.category(ch) == "So"]
+    return out
+
+
+def regola_chiusura(conn=None) -> Dict[str, Any]:
+    """Impostazioni delle chat «chiuse dal cliente»: parole ammesse e lunghezza massima."""
+    chiudi = conn is None
+    conn = conn or get_clienti_conn()
+    try:
+        testo = _imp_get(conn, "wa_chiusura_parole", CHIUSURA_PAROLE_DEFAULT)
+        try:
+            massimo = int(_imp_get(conn, "wa_chiusura_max_caratteri", str(CHIUSURA_MAX_DEFAULT)))
+        except (TypeError, ValueError):
+            massimo = CHIUSURA_MAX_DEFAULT
+        parole = [p.strip() for p in (testo or "").split(",") if p.strip()]
+        vocabolario = set()
+        for p in parole:
+            vocabolario.update(_parole(p))
+        return {"parole": parole, "max_caratteri": massimo, "_vocabolario": vocabolario}
+    finally:
+        if chiudi:
+            conn.close()
+
+
+def e_chiusura(testo: Optional[str], regola: Dict[str, Any]) -> bool:
+    """Un messaggio del cliente che chiude la chat: corto, senza domande, fatto solo di
+    parole/emoji dell'elenco (es. «Grazie mille! 🙏», «ok perfetto»)."""
+    t = (testo or "").strip()
+    if not t or "?" in t or len(t) > regola["max_caratteri"]:
+        return False
+    parole = _parole(t)
+    return bool(parole) and all(p in regola["_vocabolario"] for p in parole)
+
+
+def imposta_chiusura(parole: List[str], max_caratteri: int) -> Dict[str, Any]:
+    pulite = []
+    for p in parole:
+        p = " ".join((p or "").replace(",", " ").split())
+        if p and p not in pulite:
+            pulite.append(p[:40])
+    if not pulite:
+        raise ValueError("Serve almeno una parola")
+    if len(pulite) > 100:
+        raise ValueError("Al massimo 100 parole")
+    if not 5 <= max_caratteri <= 200:
+        raise ValueError("La lunghezza massima va da 5 a 200 caratteri")
+    conn = get_clienti_conn()
+    try:
+        _imp_set(conn, "wa_chiusura_parole", ", ".join(pulite),
+                 "WhatsApp: parole ed emoji che chiudono una chat (grazie, ok…): la chat va fra le «chiuse dal cliente»")
+        _imp_set(conn, "wa_chiusura_max_caratteri", max_caratteri,
+                 "WhatsApp: oltre questa lunghezza un messaggio non è mai una chiusura")
+        conn.commit()
+        r = regola_chiusura(conn)
+        return {"parole": r["parole"], "max_caratteri": r["max_caratteri"]}
+    finally:
+        conn.close()
+
+
 def conversazioni(giorni: int = 7, solo_da_rispondere: bool = False, limite: int = 100) -> Dict[str, Any]:
     """Le chat con almeno un messaggio negli ultimi `giorni`: ultimo messaggio del cliente,
-    ultimo del locale e se tocca a noi rispondere. Prima quelle da rispondere."""
+    ultimo del locale e se tocca a noi rispondere. Prima quelle da rispondere, poi quelle
+    «chiuse dal cliente» (dopo la nostra ultima risposta ha scritto solo grazie/ok/emoji,
+    vedi regola_chiusura), poi le altre."""
     dal = int(time.time()) - giorni * 86400
     segnaposto = ",".join("?" * len(TIPI_SENZA_RISPOSTA))
     conn = get_clienti_conn()
@@ -413,6 +754,7 @@ def conversazioni(giorni: int = 7, solo_da_rispondere: bool = False, limite: int
             (dal,),
         )]
         contatti, clienti = _contatti(conn), _mappa_clienti(conn)
+        regola = regola_chiusura(conn)
         ora = int(time.time())
         out = []
         for numero in numeri:
@@ -428,21 +770,34 @@ def conversazioni(giorni: int = 7, solo_da_rispondere: bool = False, limite: int
             if not suo and not mio:
                 continue  # solo reazioni
             da_rispondere = bool(suo and (not mio or suo["ts"] > mio["ts"]))
+            chiusa = False
+            if da_rispondere:
+                # tutti i messaggi del cliente dopo il nostro ultimo sono saluti/grazie → chiusa da lui
+                dopo = conn.execute(
+                    f"""SELECT testo FROM clienti_wa_messaggi
+                        WHERE numero = ? AND direzione = 'in' AND ts > ? AND tipo NOT IN ({segnaposto})""",
+                    (numero, mio["ts"] if mio else -1, *TIPI_SENZA_RISPOSTA),
+                ).fetchall()
+                chiusa = bool(dopo) and all(e_chiusura(r["testo"], regola) for r in dopo)
+                da_rispondere = not chiusa
             if solo_da_rispondere and not da_rispondere:
                 continue
             voce = _info_numero(numero, contatti, clienti)
             voce.update({
-                "stato": "da_rispondere" if da_rispondere else ("risposto" if suo else "scritto_solo_io"),
+                "stato": ("da_rispondere" if da_rispondere else "chiusa_dal_cliente" if chiusa
+                          else "risposto" if suo else "scritto_solo_io"),
                 "ultimo_suo": {"quando": _quando(suo["ts"]), "testo": suo["testo"]} if suo else None,
                 "ultimo_mio": {"quando": _quando(mio["ts"]), "testo": mio["testo"]} if mio else None,
                 "attesa_ore": round((ora - suo["ts"]) / 3600, 1) if da_rispondere else None,
             })
             out.append(voce)
-        out.sort(key=lambda v: (v["stato"] != "da_rispondere", -(v["attesa_ore"] or 0)))
+        ordine = {"da_rispondere": 0, "chiusa_dal_cliente": 1}
+        out.sort(key=lambda v: (ordine.get(v["stato"], 2), -(v["attesa_ore"] or 0)))
         return {
             "periodo_giorni": giorni,
             "aggiornamento": _aggiornamento(conn),
             "da_rispondere": sum(1 for v in out if v["stato"] == "da_rispondere"),
+            "chiuse_dal_cliente": sum(1 for v in out if v["stato"] == "chiusa_dal_cliente"),
             "conversazioni": out[:limite],
         }
     finally:
@@ -521,6 +876,7 @@ def stato() -> Dict[str, Any]:
             },
             "archivio": {"messaggi": r["n"], "chat": r["chat"], "dal": _quando(r["dal"]),
                          "conservazione_giorni": conservazione_giorni(conn)},
+            "chiusura": {k: v for k, v in regola_chiusura(conn).items() if not k.startswith("_")},
             "eventi": eventi,
         }
     finally:

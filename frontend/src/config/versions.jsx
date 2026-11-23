@@ -590,6 +590,11 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   clienti: {
+    // 3.45 (2026-11-23): WhatsApp tramite YCloud — POST /clienti/whatsapp/ycloud firmato (YCloud-Signature, YCLOUD_WEBHOOK_SECRET):
+    //   messaggi, eco dall'app, storico, risposte dalla casella YCloud (contano come risposta), rubrica, avvisi account
+    //   nelle tabelle di sempre; chat «chiuse dal cliente» (solo grazie/ok/emoji dopo la nostra risposta, parole e lunghezza
+    //   in impostazione, PUT /clienti/whatsapp/chiusura); pagina WhatsApp con indirizzo/eventi/segreto per YCloud
+    //   (clienti_whatsapp_service 1.1, router 1.1, ClientiWhatsApp 1.1, connettore 1.20).
     // 3.44 (2026-11-21): Posta — «🗑 Cestina» sulle mail delle altre caselle (in arrivo/spam, mai PEC né inviata), con conferma:
     //   la sposta nel Cestino della casella, quindi anche in Mail sul Mac/iPhone (IMAP); segnata letta, giro della casella subito dopo
     //   (POST /email/posta/{id}/cestina, email_scrittura_service 1.2, email_router 1.5). Q dal connettore non cestina.
@@ -703,7 +708,7 @@ const MODULE_VERSIONS = {
     //   annullo/riattiva con storico movimenti, PDF buono A5 con identita'
     //   del locale, alert M.F sulle card in scadenza. Nessun impatto su
     //   corrispettivi/chiusure: registro informativo separato dalla cassa.
-    version: "3.44",
+    version: "3.45",
     label: "Gestione Clienti",
     status: "beta",
     color: "blue",
