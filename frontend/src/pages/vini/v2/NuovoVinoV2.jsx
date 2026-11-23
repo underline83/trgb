@@ -18,7 +18,8 @@ import {
   Btn, Card, Modal, Stepper, TextInput, Select, Textarea,
   FieldLabel, SectionTitle,
 } from "../../../components/ui";
-// M2.9: composizione automatica descrizione (denom + nome + vitigni + grado).
+// M2.9: composizione automatica descrizione (denom + nome + vitigni). Dal 2026-11-23 il grado
+// non entra nella descrizione: sta in GRADO_ALCOLICO dell'annata e lo aggiunge chi stampa.
 import componiDescrizione, { vitigniToString } from "../../../utils/vini/componiDescrizione";
 // M2.9-ter (2026-05-18): riuso del componente matrice esistente in modalità "draft"
 // (vinoId=null + pendingCells controllato) — l'utente può preselezionare le celle
@@ -851,8 +852,8 @@ function Step2Madre({ produttore, madre, onSelect }) {
               {descrizioneComposta || <span className="text-neutral-400 italic">— scegli denominazione e nome per vedere l'anteprima —</span>}
             </div>
             <div className="text-[10px] text-neutral-500 mt-1.5 italic">
-              Si compone come: <code className="font-mono">denominazione + nome + (vitigni) + grado%</code>.
-              Si aggiorna automaticamente nelle annate quando cambi vitigni o grado.
+              Si compone come: <code className="font-mono">denominazione + nome + (vitigni)</code>.
+              Il grado non va nel nome: lo aggiunge la carta, preso dal grado di ogni annata.
             </div>
           </div>
 
@@ -903,7 +904,7 @@ function Step3Annata({ annata, setAnnata, produttore, madre, setMadre }) {
   //  - Madre "legacy" (descrizione_auto=0 OR campi mancanti, tipicamente i 1287
   //    importati da Excel): la descrizione è un TESTO UNICO già pronto sul madre
   //    (es. "Langhe DOC Rossj-Bass (100% chardonnay)") — uso quella così com'è
-  //    e ci appendo solo il grado se l'utente lo cambia per l'annata.
+  //    (senza grado: dal 2026-11-23 lo aggiunge chi stampa, da GRADO_ALCOLICO).
   const isMadreComposto = madre?._new || madre?.descrizione_auto === 1;
   const descrizioneBottiglia = useMemo(() => {
     if (isMadreComposto) {
@@ -1009,7 +1010,7 @@ function Step3Annata({ annata, setAnnata, produttore, madre, setMadre }) {
       )}
 
       {/* Anteprima descrizione composta (live, banner principale) */}
-      <DescrizioneAnteprima testo={descrizioneBottiglia} sub="Nome di questa bottiglia. Si aggiorna se modifichi i vitigni o il grado." />
+      <DescrizioneAnteprima testo={descrizioneBottiglia} sub="Nome di questa bottiglia. Si aggiorna se modifichi i vitigni; il grado lo aggiunge la carta." />
 
       {/* Box "Vino madre" — campi ereditati, read-only (conferma visiva). */}
       <MadreReadOnlyBox produttore={produttore} madre={madre} />
@@ -1369,20 +1370,20 @@ function FlagToggle({ label, value, onChange }) {
 }
 
 // Anteprima descrizione — banner visibile in Step 3 e Step 4. Distingue 2 casi:
-//  - composta=true   → "📜 Descrizione composta (auto)" — si aggiorna con vitigni/grado
+//  - composta=true   → "📜 Descrizione composta (auto)" — si aggiorna con i vitigni (il grado no: lo aggiunge la carta)
 //  - composta=false  → "📜 Descrizione (testo ereditato dal madre)" — testo storico immutato
 function DescrizioneAnteprima({ testo, composta = true, sub }) {
   const titolo = composta
     ? "📜 Descrizione composta (auto)"
     : "📜 Descrizione (ereditata dal madre)";
   const subTesto = sub || (composta
-    ? "Nome di questa bottiglia. Si aggiorna se modifichi i vitigni o il grado."
+    ? "Nome di questa bottiglia. Si aggiorna se modifichi i vitigni; il grado lo aggiunge la carta."
     : "Testo storico del madre, non si ricompone. Per cambiarlo modifica il vino madre.");
   return (
     <div className="p-3 md:p-4 rounded-2xl border-2 border-amber-300 bg-gradient-to-r from-amber-50 to-white shadow-sm">
       <div className="text-[10px] font-bold uppercase tracking-wider text-amber-700 mb-1">{titolo}</div>
       <div className="text-base md:text-lg font-bold text-neutral-900">
-        {testo || <span className="text-neutral-400 italic">— manca {composta ? "denominazione/vitigni/grado" : "descrizione sul madre"} —</span>}
+        {testo || <span className="text-neutral-400 italic">— manca {composta ? "denominazione/vitigni" : "descrizione sul madre"} —</span>}
       </div>
       <div className="text-[11px] text-neutral-600 mt-1">{subTesto}</div>
     </div>

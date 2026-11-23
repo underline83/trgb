@@ -1,39 +1,135 @@
 # Modulo: vini
 """
-Composizione automatica della descrizione di un vino (M2.9, 2026-05-16).
+Descrizione di un vino e grado alcolico (M2.9 2026-05-16, rivisto 2026-11-23).
 
-REGOLA (concordata con Marco):
-  La "descrizione" di un vino è la composizione strutturata di 4 ingredienti
-  presenti nel modello v2:
+REGOLA (concordata con Marco, 2026-11-23):
+  La "descrizione" di un vino NON contiene il grado alcolico. Il grado cambia
+  da annata ad annata e vive SOLO nel campo GRADO_ALCOLICO della bottiglia:
+  chi stampa il vino (carta, calici, pagina cliente, iPratico, etichette,
+  inventari) lo aggiunge in fondo con `descrizione_con_grado()`.
 
-    {denominazione} {nome_etichetta} ({vitigni con %}) {grado}%
+  Perché: con il grado scritto nel testo, correggere il campo non cambiava
+  la carta (caso Patrizio 2021: campo 16, carta 15). Il testo arrivava
+  dall'import Excel o dalla descrizione automatica col grado tipico del madre.
+
+  Descrizione composta (madre con descrizione_auto=1), 3 ingredienti:
+
+    {denominazione} {nome_etichetta} ({vitigni con %})
 
   Esempi:
-    "Barolo DOCG Castiglione (Nebbiolo 100%) 14.5%"
-    "Langhe Rosso DOC Sorì Tildin (Nebbiolo 95%, Barbera 5%) 14%"
-    "Chianti Classico DOCG (Sangiovese 100%) 13.5%"       (senza nome etichetta)
-    "Barbera d'Asti DOCG Vigna Vecchia"                   (senza vitigni e grado)
+    "Barolo DOCG Castiglione (Nebbiolo 100%)"
+    "Langhe Rosso DOC Sorì Tildin (Nebbiolo 95%, Barbera 5%)"
+    "Barbera d'Asti DOCG Vigna Vecchia"                   (senza vitigni)
+
+  In stampa, con GRADO_ALCOLICO = 14.5 sulla bottiglia:
+    "Barolo DOCG Castiglione (Nebbiolo 100%) 14,5%"
 
 REGOLA "salti gli elementi mancanti":
-  Se uno dei 4 pezzi manca, lo si salta. Niente "(?)" o placeholder. Quando
-  in futuro l'utente compila il pezzo mancante, la descrizione si aggiorna
-  automaticamente (se descrizione_auto=1 sul madre).
+  Se un pezzo manca, lo si salta. Niente "(?)" o placeholder. Senza grado
+  sulla bottiglia, in stampa non compare nessun grado.
 
 DOVE VIVE OGNI INGREDIENTE:
-  - denominazione      → madre.denominazione_id → denominazioni_v2.nome + tipo
-  - nome_etichetta     → madre.nome_etichetta (NEW colonna mig 130)
+  - denominazione      → madre.denominazione_id → denominazioni.nome + tipo
+  - nome_etichetta     → madre.nome_etichetta (colonna mig 130)
   - vitigni            → bottiglia.vitigno_1_id..vitigno_5_id + pct
-                         (sono per annata; per il madre prendiamo dalla prima
-                         bottiglia in cantina, oppure dalla stringa input wizard)
-  - grado              → bottiglia.GRADO_ALCOLICO (per annata)
+                         (per annata; per il madre gli slot "tipici", mig 131)
+  - grado              → bottiglia.GRADO_ALCOLICO (per annata) — NON nella
+                         descrizione. madre.grado_alcolico_tipico resta solo
+                         come proposta per le annate nuove nel wizard.
 
-NB: l'helper Python qui è autoritativo (backend). Il frontend ha un helper
-gemello in `frontend/src/utils/vini/componiDescrizione.js` per la preview
-live mentre l'utente compila il wizard. Sono 10 righe identiche in 2 lingue —
-acceptable per il valore "vedo l'anteprima mentre digito".
+NB: l'helper Python qui è autoritativo (backend). Il frontend ha i gemelli in
+`frontend/src/utils/vini/componiDescrizione.js` (componiDescrizione,
+formattaGrado, descrizioneConGrado): devono restare allineati.
 """
 
-from typing import Optional
+import re
+from typing import Optional, Tuple
+
+
+def formatta_grado(grado) -> str:
+    """
+    Grado alcolico come si stampa: "14,5%" (virgola italiana), "14%" se intero.
+    Stringa vuota se il grado manca, non è un numero o è negativo.
+    Lo 0 si stampa ("0%"): è il caso dei vini analcolici.
+
+        formatta_grado(14.5)  → "14,5%"
+        formatta_grado("13")  → "13%"
+        formatta_grado(0)     → "0%"
+        formatta_grado(None)  → ""
+    """
+    if grado is None:
+        return ""
+    try:
+        s = str(grado).strip().replace(",", ".")
+        num = float(s) if s else None
+    except (TypeError, ValueError):
+        return ""
+    if num is None or num < 0:
+        return ""
+    if num == int(num):
+        return f"{int(num)}%"
+    return f"{num:g}".replace(".", ",") + "%"
+
+
+def descrizione_con_grado(descrizione: Optional[str], grado) -> str:
+    """
+    Descrizione da stampare: la descrizione + il grado dell'annata in fondo.
+
+        descrizione_con_grado("Bergamasca Rosso IGT Patrizio (Cabernet 40%, Merlot 60%)", 16)
+        → "Bergamasca Rosso IGT Patrizio (Cabernet 40%, Merlot 60%) 16%"
+    """
+    desc = (descrizione or "").strip()
+    g = formatta_grado(grado)
+    if not g:
+        return desc
+    return f"{desc} {g}".strip()
+
+
+# Grado scritto a mano nel testo (eredità import Excel): "13,5%", "14.5 %",
+# "13,5°", "12% vol". Si cerca solo FUORI dalle parentesi (dentro ci sono le
+# percentuali dei vitigni) e non attaccato ad altre cifre ("100%").
+_RE_GRADO_TESTO = re.compile(
+    r"(?<![\d.,])(\d{1,2}(?:[.,]\d{1,2})?)\s*(?:%|°)(?:\s*vol\.?)?", re.IGNORECASE
+)
+
+
+def togli_grado(descrizione: Optional[str]) -> Tuple[str, Optional[float]]:
+    """
+    Toglie il grado scritto a mano da una descrizione.
+
+    Ritorna (descrizione_pulita, grado_trovato). Se non c'è un grado sicuro
+    ritorna (descrizione invariata, None). Prudente: tocca il testo solo se
+    fuori dalle parentesi c'è UNA sola percentuale tra 0 e 25 (due o più =
+    probabilmente vitigni scritti senza parentesi, si lascia stare).
+
+        togli_grado("Barolo DOCG Vigna Francia 14,5% (MAGNUM)")
+        → ("Barolo DOCG Vigna Francia (MAGNUM)", 14.5)
+    """
+    testo = descrizione or ""
+    pezzi = re.split(r"(\([^)]*\))", testo)
+    trovati = []
+    for i, p in enumerate(pezzi):
+        if p.startswith("("):
+            continue
+        for m in _RE_GRADO_TESTO.finditer(p):
+            trovati.append((i, m))
+    if len(trovati) != 1:
+        return testo, None
+    i, m = trovati[0]
+    try:
+        grado = float(m.group(1).replace(",", "."))
+    except ValueError:
+        return testo, None
+    if not (0 <= grado <= 25):
+        return testo, None
+    p = pezzi[i]
+    pezzi[i] = p[: m.start()] + " " + p[m.end():]
+    nuovo = "".join(pezzi)
+    nuovo = re.sub(r"\s+,", ",", nuovo)
+    nuovo = re.sub(r"\(\s+", "(", nuovo)
+    nuovo = re.sub(r"\s{2,}", " ", nuovo).strip()
+    nuovo = re.sub(r"[\s,\-–]+$", "", nuovo)
+    return nuovo, grado
 
 
 def componi_descrizione(
@@ -43,17 +139,11 @@ def componi_descrizione(
     grado: Optional[str] = None,
 ) -> str:
     """
-    Compone la descrizione di un vino dai 4 ingredienti.
+    Compone la descrizione di un vino: denominazione + nome etichetta + (vitigni).
 
-    Args:
-        denominazione: display completo della denominazione (es. "Barolo DOCG"),
-                       NON il codice eAmbrosia. Tipicamente `{nome} {tipo}`.
-        nome_etichetta: nome aggiuntivo del vino (cru/fantasia, es. "Castiglione").
-                        Può essere None o stringa vuota.
-        vitigni:       stringa già formattata dei vitigni (es. "Nebbiolo 100%" o
-                       "Nebbiolo 95%, Barbera 5%"). Può essere None.
-        grado:         grado alcolico come stringa o numero (es. "14.5" o 14.5).
-                       Aggiunge "%" alla fine. Può essere None.
+    Il parametro `grado` resta per compatibilità con i chiamanti ma è IGNORATO
+    dal 2026-11-23: il grado non entra più nella descrizione, lo aggiunge chi
+    stampa (vedi `descrizione_con_grado`).
 
     Returns:
         La descrizione composta. Mai None: se tutti i campi sono vuoti
@@ -61,10 +151,7 @@ def componi_descrizione(
 
     Esempi:
         componi_descrizione("Barolo DOCG", "Castiglione", "Nebbiolo 100%", "14.5")
-        → "Barolo DOCG Castiglione (Nebbiolo 100%) 14.5%"
-
-        componi_descrizione("Chianti Classico DOCG", None, "Sangiovese 100%", 13.5)
-        → "Chianti Classico DOCG (Sangiovese 100%) 13.5%"
+        → "Barolo DOCG Castiglione (Nebbiolo 100%)"
 
         componi_descrizione("Barbera d'Asti DOCG", "Vigna Vecchia", None, None)
         → "Barbera d'Asti DOCG Vigna Vecchia"
@@ -80,23 +167,6 @@ def componi_descrizione(
     vit_str = (str(vitigni).strip() if vitigni is not None else "")
     if vit_str:
         parts.append(f"({vit_str})")
-
-    if grado is not None:
-        try:
-            grado_str = str(grado).strip().replace(",", ".")
-            grado_num = float(grado_str) if grado_str else None
-            if grado_num is not None and grado_num > 0:
-                # Format: "14.5%" senza decimali inutili, ma mantieni .5 se serve
-                if grado_num == int(grado_num):
-                    parts.append(f"{int(grado_num)}%")
-                else:
-                    # Una sola cifra decimale è sufficiente per gradi alcolici
-                    parts.append(f"{grado_num:.1f}%".rstrip("0").rstrip(".") + "%"
-                                 if False
-                                 else f"{grado_num:g}%")  # %g rimuove zero finali
-        except (TypeError, ValueError):
-            # grado non parsabile → skip
-            pass
 
     return " ".join(parts)
 

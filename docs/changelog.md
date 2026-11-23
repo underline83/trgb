@@ -3,6 +3,22 @@
 
 ---
 
+## 2026-11-23 — Vini 4.19: il grado alcolico solo nel campo dell'annata (mig 242) `[core]`
+Il grado di un vino cambia da annata ad annata, ma la carta lo prendeva dal testo della descrizione, dove era scritto a mano (import Excel) o messo dalla descrizione automatica col grado tipico del madre: correggere il campo non cambiava niente (Patrizio 2021: campo 16, carta 15). Ora il grado vive solo nel campo «Grado alcolico» dell'annata e chi stampa lo aggiunge in fondo.
+
+**Cambiato**
+- Carta vini (anteprima, PDF, Word), pagina cliente/QR, calici, carta bevande e carta-cantina: descrizione + grado dell'annata («14,5%», «14%», «0%» per gli analcolici; senza grado nel campo non compare).
+- Nome dei vini nell'export iPratico, etichette con QR e inventari PDF: col grado in fondo. L'etichetta collo resta senza grado né vitigni.
+- Descrizione automatica dei madri (backend `componi_descrizione`, frontend `componiDescrizione`): denominazione + nome etichetta + (vitigni), senza grado. Il grado tipico del madre resta come proposta per le annate nuove.
+
+**Aggiunto**
+- `vini_descrizione.formatta_grado`, `descrizione_con_grado`, `togli_grado` e i gemelli JS `formattaGrado`, `descrizioneConGrado`.
+- Mig 242: toglie il grado scritto a mano dalle descrizioni di annate e madri (una sola % fuori dalle parentesi, tra 0 e 25; i casi dubbi restano), riempie i campi vuoti, backup `.pre-mig242`.
+
+**Note**
+- Il 23/11, prima del codice, i 464 campi «Grado alcolico» vuoti sono stati riempiti col grado del testo (movimenti MODIFICA di «Q»); nei 6 vini col campo diverso dal testo vale il campo (decisione di Marco).
+- Codice e mig 242 vanno nello stesso push.
+
 ## 2026-11-23 — Scorte & Frigoriferi 1.24: tag NFC sulle porte, un ripiano al tocco `[core]`
 Sulla porta di frigo e congelatori va un tag NFC per ripiano, sotto un'etichetta della Brother. Toccandolo col telefono si apre solo quel ripiano («Congelatore 1 · Ripiano 4»), con tutto quello che si fa già dal frigo: pallino, correzione, ＋ Aggiungi, scheda dell'articolo; «Vedi tutto il frigo» torna al frigo intero. Se il ripiano non esiste più, la pagina lo dice e mostra il frigo intero. Nel frigo, il nuovo «🏷️ Tag» (admin, chef, sous chef) dà per ogni ripiano «Copia link», da incollare in NFC Tools sull'iPhone per scrivere il tag, e l'etichetta 90×29: QR dello stesso link, nome del ripiano e un cerchio tratteggiato da 25 mm che segna dove sta il tag (pdfEtichetta 1.7, opzione `bersaglio`); in alto un PDF unico con le etichette di tutti i ripiani. Su iPhone il tag apre Safari: la prima volta si rifà l'accesso. Solo frontend (CucinaMobile 1.14), nessuna migrazione. `modulo_scorte_cucina.md` § Tag NFC sulle porte.
 

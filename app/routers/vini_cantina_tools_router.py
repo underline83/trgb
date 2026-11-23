@@ -1,4 +1,4 @@
-# @version: v3.1-unified-loader
+# @version: v3.2-grado (2026-11-23: inventari PDF col grado dell'annata in fondo alla descrizione)
 # -*- coding: utf-8 -*-
 """
 Tre Gobbi — Router Cantina Tools
@@ -57,6 +57,7 @@ from app.services.carta_vini_service import (
     resolve_regione,
 )
 from app.repositories.vini_repository import load_vini_ordinati, load_vini_calici, _load_ordinamenti
+from app.services.vini_descrizione import descrizione_con_grado
 from app.models.vini_settings import _TIPOLOGIA_MAP
 
 
@@ -598,7 +599,7 @@ def _load_all_vini_inventario(
         SELECT
             id, TIPOLOGIA, NAZIONE, REGIONE,
             id,
-            DESCRIZIONE, DENOMINAZIONE, PRODUTTORE,
+            DESCRIZIONE, GRADO_ALCOLICO, DENOMINAZIONE, PRODUTTORE,
             ANNATA, FORMATO,
             PREZZO_CARTA, EURO_LISTINO,
             FRIGORIFERO, QTA_FRIGO,
@@ -617,6 +618,9 @@ def _load_all_vini_inventario(
     # Normalizza tipologie vecchie → nuove
     for r in vini:
         r["TIPOLOGIA"] = _TIPOLOGIA_MAP.get(r["TIPOLOGIA"], r["TIPOLOGIA"])
+        # Descrizione da stampare col grado dell'annata in fondo (2026-11-23):
+        # il grado non sta più nel testo (vini_descrizione.descrizione_con_grado).
+        r["DESCRIZIONE_STAMPA"] = descrizione_con_grado(r.get("DESCRIZIONE"), r.get("GRADO_ALCOLICO"))
 
     # Ordinamento carta vini: usa le tabelle di impostazioni
     tip_map, naz_map, reg_map = _load_ordinamenti()
@@ -788,7 +792,7 @@ def _build_inventario_table(vini: List[Dict], show_locations: bool = True) -> st
             <td>{v.get('NAZIONE') or ''}</td>
             <td>{v.get('REGIONE') or ''}</td>
             <td>{v.get('PRODUTTORE') or ''}</td>
-            <td>{v.get('DESCRIZIONE') or ''}</td>
+            <td>{v.get('DESCRIZIONE_STAMPA') or v.get('DESCRIZIONE') or ''}</td>
             <td>{v.get('ANNATA') or ''}</td>
             <td>{v.get('FORMATO') or ''}</td>
             <td class="num">{prezzo_str}</td>
@@ -994,7 +998,7 @@ def inventario_locazioni_pdf(
                 <td class="num">{v.get('id') or ''}</td>
                 <td>{v.get('TIPOLOGIA') or ''}</td>
                 <td>{v.get('PRODUTTORE') or ''}</td>
-                <td>{v.get('DESCRIZIONE') or ''}</td>
+                <td>{v.get('DESCRIZIONE_STAMPA') or v.get('DESCRIZIONE') or ''}</td>
                 <td>{v.get('ANNATA') or ''}</td>
                 <td>{v.get('FORMATO') or ''}</td>
                 <td class="num">{prezzo_str}</td>

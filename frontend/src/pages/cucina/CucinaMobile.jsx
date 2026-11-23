@@ -2275,7 +2275,7 @@ async function copiaTesto(testo) {
 
 // Etichetta 90×29 orizzontale, PDF in piedi 29×90 (`ruota`): stesso formato
 // delle gift card (EtichettaGiftCard.jsx), rotolo montato sulla Brother.
-const TAG_MM = 25;   // diametro dei tag NFC comprati (MENUY, tondi 25 mm, NTAG213)
+const TAG_MM = 25;   // diametro dei tag NFC comprati (Timeskey anti-metallo, tondi 25 mm, NTAG215)
 function opzioniEtichettaRipiano(u, r) {
   let nome = nomeRipiano(r);
   let size = 19;

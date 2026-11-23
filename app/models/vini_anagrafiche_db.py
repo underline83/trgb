@@ -1155,7 +1155,8 @@ def promote_madre_a_composto(
       2. Se passata `vitigni` (lista strutturata), aggiorna i 5 slot
          vitigno_X_id/pct sul madre (mig 131).
       3. Ricompone la descrizione testuale come:
-         "{denominazione_display} {nome_etichetta} ({vitigni}) {grado}%"
+         "{denominazione_display} {nome_etichetta} ({vitigni})" — senza grado dal 2026-11-23:
+         il grado sta in GRADO_ALCOLICO della bottiglia e lo aggiunge chi stampa
       4. Setta descrizione_auto = 1 (segnale: questo madre è "pulito").
 
     Parametri vitigni — accetta DUE forme (compatibilità FE):
@@ -1235,7 +1236,7 @@ def promote_madre_a_composto(
     # Update atomico — solo se descrizione composta non è vuota (sennò sarebbe un downgrade)
     if not nuova_descr.strip():
         conn.close()
-        raise ValueError("Promozione fallita: la descrizione composta sarebbe vuota. Compila almeno denominazione + nome_etichetta o grado.")
+        raise ValueError("Promozione fallita: la descrizione composta sarebbe vuota. Compila almeno la denominazione, il nome etichetta o i vitigni.")
 
     updates = ["descrizione = ?", "descrizione_auto = 1", "updated_at = datetime('now')"]
     values: list = [nuova_descr]

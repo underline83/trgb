@@ -1,4 +1,6 @@
-# @version: v2.3-menu-template — anche i menu template dei preventivi (SKU M0012 / M0012V con vino,
+# @version: v2.4-grado — nel nome iPratico dei vini il grado dell'annata (GRADO_ALCOLICO) in fondo alla
+#   descrizione: dal 2026-11-23 non sta più scritto nel testo (vini_descrizione.descrizione_con_grado).
+# v2.3-menu-template — anche i menu template dei preventivi (SKU M0012 / M0012V con vino,
 #   categoria da clienti_impostazioni) nello stesso export: app/services/ipratico_menu_service.py (mig 231).
 # v2.2-sku-vini — anche i vini hanno il codice nello SKU (0123), oltre che in
 #   testa al nome (lo leggono i ragazzi): il riconoscimento prova prima lo SKU, poi il nome.
@@ -40,6 +42,7 @@ from typing import List as TList
 from app.services.auth_service import get_current_user
 from app.services import ipratico_bevande_service as bev_ipr
 from app.services import ipratico_menu_service as menu_ipr
+from app.services.vini_descrizione import descrizione_con_grado
 
 # Audit 2026-06-12 [A1 CRIT]: auth a livello router — endpoint (incluso upload) erano pubblici.
 from app.services.permessi import richiede_ruoli
@@ -130,11 +133,13 @@ def _extract_wine_id(name: str) -> Optional[int]:
 
 def _build_ipratico_name(wine: dict) -> str:
     """Costruisce il campo Name iPratico dai dati TRGB.
-    Formato: {ID:04d} {DESCRIZIONE} ({FORMATO}) {ANNATA} {PRODUTTORE}
+    Formato: {ID:04d} {DESCRIZIONE + grado} ({FORMATO}) {ANNATA} {PRODUTTORE}
+    Il grado dell'annata (GRADO_ALCOLICO) va in fondo alla descrizione
+    (2026-11-23: non sta più scritto nel testo, vedi vini_descrizione.py).
     """
     parts = [str(wine["id"]).zfill(4)]
 
-    desc = (wine.get("DESCRIZIONE") or "").strip()
+    desc = descrizione_con_grado(wine.get("DESCRIZIONE"), wine.get("GRADO_ALCOLICO"))
     if desc:
         parts.append(desc)
 
@@ -410,7 +415,7 @@ async def export_ipratico(file: UploadFile = File(...)):
     try:
         mconn = _mag_conn()
         for r in mconn.execute(
-            "SELECT id, DESCRIZIONE, DENOMINAZIONE, ANNATA, PRODUTTORE, FORMATO, "
+            "SELECT id, DESCRIZIONE, GRADO_ALCOLICO, DENOMINAZIONE, ANNATA, PRODUTTORE, FORMATO, "
             "QTA_TOTALE, PREZZO_CARTA FROM vini_bottiglie"
         ).fetchall():
             mag_data[r["id"]] = dict(r)

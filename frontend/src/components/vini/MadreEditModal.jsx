@@ -224,7 +224,7 @@ export function MadreEditModal({ madre, onClose, onSaved }) {
           Vino madre #{madre.id}
           {(form.descrizione_auto === 0) && (
             <span
-              title="Vino madre in formato legacy. Compila denominazione + nome etichetta o grado per promuoverlo a descrizione composta."
+              title="Vino madre in formato legacy. Compila denominazione + nome etichetta (o i vitigni) per promuoverlo a descrizione composta."
               className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border bg-orange-100 text-orange-800 border-orange-300"
             >
               📜 OLD
@@ -232,7 +232,7 @@ export function MadreEditModal({ madre, onClose, onSaved }) {
           )}
           {(form.descrizione_auto === 1) && (
             <span
-              title="Descrizione composta automaticamente dai 4 ingredienti"
+              title="Descrizione composta automaticamente da denominazione, nome etichetta e vitigni (il grado lo aggiunge la carta dall'annata)"
               className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border bg-emerald-100 text-emerald-800 border-emerald-300"
             >
               ✓ COMPOSTA

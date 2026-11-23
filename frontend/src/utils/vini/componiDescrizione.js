@@ -1,55 +1,70 @@
 // src/utils/vini/componiDescrizione.js
 // Modulo: vini
 //
-// Composizione automatica della descrizione di un vino (M2.9, 2026-05-16).
+// Descrizione di un vino e grado alcolico (M2.9 2026-05-16, rivisto 2026-11-23).
 //
-// Gemello frontend dell'helper backend `app/services/vini_descrizione.py`.
-// Stessa regola di composizione, replicata per avere preview live nel wizard
-// senza chiamate API.
+// Gemello frontend dell'helper backend `app/services/vini_descrizione.py`
+// (componi_descrizione, formatta_grado, descrizione_con_grado): stessa regola,
+// replicata per avere la preview live nel wizard senza chiamate API.
 //
-// REGOLA:
-//   descrizione = "{denominazione} {nome_etichetta} ({vitigni}) {grado}%"
-//   Salto gli ingredienti mancanti (no placeholder).
+// REGOLA (Marco, 2026-11-23):
+//   descrizione = "{denominazione} {nome_etichetta} ({vitigni})"  — SENZA grado.
+//   Il grado cambia da annata ad annata e vive solo in GRADO_ALCOLICO della
+//   bottiglia: chi stampa (carta, iPratico, etichette, inventari) lo aggiunge
+//   in fondo con descrizioneConGrado(). Salto gli ingredienti mancanti.
 //
-// DOVE VIVE OGNI INGREDIENTE (decisione Marco 2026-05-16):
+// DOVE VIVE OGNI INGREDIENTE:
 //   - denominazione    → madre.denominazione_id → display completo
-//   - nome_etichetta   → madre.nome_etichetta (NEW col mig 130, può essere null)
+//   - nome_etichetta   → madre.nome_etichetta (col mig 130, può essere null)
 //   - vitigni          → bottiglia (per annata, può cambiare tra annate)
-//   - grado            → bottiglia (per annata)
-//
-// La descrizione del MADRE usa: madre.denominazione + madre.nome_etichetta
-// + madre.grado_alcolico_tipico + stringa vitigni "tipica" (dalla creazione).
-//
-// La descrizione della BOTTIGLIA usa: madre.denominazione + madre.nome_etichetta
-// + bottiglia.vitigni + bottiglia.grado. Quindi due annate dello stesso madre
-// possono avere descrizioni leggermente diverse se grado/blend variano.
+//   - grado            → bottiglia.GRADO_ALCOLICO (per annata) — fuori dalla
+//                        descrizione; madre.grado_alcolico_tipico è solo la
+//                        proposta per le annate nuove.
 
 /**
- * Compone la descrizione di un vino dai 4 ingredienti.
+ * Grado come si stampa: "14,5%" (virgola), "14%" se intero, "0%" per gli
+ * analcolici. Stringa vuota se manca o non è un numero.
+ */
+export function formattaGrado(grado) {
+  if (grado == null || grado === "") return "";
+  const num = parseFloat(String(grado).replace(",", "."));
+  if (!Number.isFinite(num) || num < 0) return "";
+  if (num % 1 === 0) return `${num}%`;
+  return `${String(num).replace(".", ",")}%`;
+}
+
+/**
+ * Descrizione da stampare: la descrizione + il grado dell'annata in fondo.
+ *   descrizioneConGrado("Barolo DOCG (Nebbiolo 100%)", 14.5) → "Barolo DOCG (Nebbiolo 100%) 14,5%"
+ */
+export function descrizioneConGrado(descrizione, grado) {
+  const desc = (descrizione || "").toString().trim();
+  const g = formattaGrado(grado);
+  return g ? `${desc} ${g}`.trim() : desc;
+}
+
+/**
+ * Compone la descrizione di un vino: denominazione + nome etichetta + (vitigni).
  *
  * @param {Object} opts
  * @param {string=} opts.denominazione  Display completo (es. "Barolo DOCG")
  * @param {string=} opts.nome_etichetta  Cru/fantasia (es. "Castiglione"). Può essere vuoto.
  * @param {string=} opts.vitigni  Stringa già formattata ("Nebbiolo 100%" o
  *                                "Nebbiolo 95%, Barbera 5%"). Può essere vuota.
- * @param {string|number=} opts.grado  Grado alcolico (es. "14.5" o 14.5).
+ * @param {string|number=} opts.grado  IGNORATO dal 2026-11-23 (resta per compatibilità
+ *                                coi chiamanti): il grado non entra nella descrizione.
  *
  * @returns {string}  La descrizione composta. Mai null. Stringa vuota se nessun input.
  *
  * Esempi:
  *   componiDescrizione({ denominazione: "Barolo DOCG", nome_etichetta: "Castiglione",
  *                        vitigni: "Nebbiolo 100%", grado: "14.5" })
- *   → "Barolo DOCG Castiglione (Nebbiolo 100%) 14.5%"
- *
- *   componiDescrizione({ denominazione: "Chianti Classico DOCG",
- *                        vitigni: "Sangiovese 100%", grado: 13.5 })
- *   → "Chianti Classico DOCG (Sangiovese 100%) 13.5%"
+ *   → "Barolo DOCG Castiglione (Nebbiolo 100%)"
  */
 export default function componiDescrizione({
   denominazione,
   nome_etichetta,
   vitigni,
-  grado,
 } = {}) {
   const parts = [];
 
@@ -61,15 +76,6 @@ export default function componiDescrizione({
 
   const vit = (vitigni || "").toString().trim();
   if (vit) parts.push(`(${vit})`);
-
-  if (grado != null && grado !== "") {
-    const num = parseFloat(String(grado).replace(",", "."));
-    if (Number.isFinite(num) && num > 0) {
-      // Format "14%" se intero, "14.5%" se decimale; rimuove zero finali (.0)
-      const formatted = num % 1 === 0 ? `${num}%` : `${num.toString().replace(/\.?0+$/, "")}%`;
-      parts.push(formatted);
-    }
-  }
 
   return parts.join(" ");
 }

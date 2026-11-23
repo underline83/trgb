@@ -1,4 +1,4 @@
-# @version: v1.3-dev
+# @version: v1.4 (2026-11-23: carta e calici con il grado dell'annata in fondo alla descrizione)
 # -*- coding: utf-8 -*-
 """
 Tre Gobbi — Repository Vini
@@ -43,6 +43,7 @@ from app.models.vini_magazzino_db import get_magazzino_connection
 from app.models.settings_db import get_settings_conn, init_settings_db
 from app.models.vini_settings import ensure_settings_defaults, _TIPOLOGIA_MAP
 from app.services.wine_pricing import _round_to_half
+from app.services.vini_descrizione import descrizione_con_grado
 
 
 # ---------------------------------------------------------
@@ -155,6 +156,7 @@ def load_vini_ordinati() -> List[Dict[str, Any]]:
             REGIONE,
             PRODUTTORE,
             DESCRIZIONE,
+            GRADO_ALCOLICO,
             ANNATA,
             PREZZO_CARTA,
             PREZZO_CALICE,
@@ -234,7 +236,10 @@ def load_vini_ordinati() -> List[Dict[str, Any]]:
             "NAZIONE": r["NAZIONE"],
             "REGIONE": r["REGIONE"],
             "PRODUTTORE": r["PRODUTTORE"],
-            "DESCRIZIONE": r["DESCRIZIONE"],
+            # Grado dell'annata in fondo alla descrizione (2026-11-23): il grado
+            # vive solo in GRADO_ALCOLICO, non nel testo (vini_descrizione.py).
+            "DESCRIZIONE": descrizione_con_grado(r["DESCRIZIONE"], r["GRADO_ALCOLICO"]),
+            "GRADO_ALCOLICO": r["GRADO_ALCOLICO"],
             "ANNATA": r["ANNATA"],
             "PREZZO": r["PREZZO_CARTA"],
             "PREZZO_CALICE": prezzo_calice if is_calice else None,
@@ -277,6 +282,7 @@ def load_vini_calici() -> List[Dict[str, Any]]:
             REGIONE,
             PRODUTTORE,
             DESCRIZIONE,
+            GRADO_ALCOLICO,
             ANNATA,
             PREZZO_CALICE,
             PREZZO_CARTA,
@@ -347,7 +353,8 @@ def load_vini_calici() -> List[Dict[str, Any]]:
             "NAZIONE": r["NAZIONE"],
             "REGIONE": r["REGIONE"],
             "PRODUTTORE": r["PRODUTTORE"],
-            "DESCRIZIONE": r["DESCRIZIONE"],
+            "DESCRIZIONE": descrizione_con_grado(r["DESCRIZIONE"], r["GRADO_ALCOLICO"]),
+            "GRADO_ALCOLICO": r["GRADO_ALCOLICO"],
             "ANNATA": r["ANNATA"],
             "PREZZO": r["_PREZZO_CALICE_FINAL"],
             "PREZZO_CALICE": r["_PREZZO_CALICE_FINAL"],  # alias esplicito per consumer

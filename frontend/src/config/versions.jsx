@@ -3,6 +3,10 @@
 
 const MODULE_VERSIONS = {
   vini: {
+    // 4.19 (2026-11-23): il grado alcolico esce dalla descrizione e vive solo nel campo dell'annata
+    //   (GRADO_ALCOLICO): carta, calici, pagina cliente, carta bevande, nomi iPratico, etichette con QR e
+    //   inventari PDF lo aggiungono in fondo («14,5%»). Descrizione automatica senza grado (py + js);
+    //   mig 242 toglie il grado scritto a mano da annate e madri (backup .pre-mig242).
     // 4.18 (2026-11-20): riordino — click sul chip «➡️ 2025 in cantina» (dashboard e Ordini) segna
     //   l'annata vecchia «Annata esaurita» e la toglie dalla lista (prima apriva solo la bottiglia nuova).
     // 4.17 (2026-11-13): iPratico Sync — «Genera Export» porta anche i menu template dei preventivi
@@ -206,7 +210,7 @@ const MODULE_VERSIONS = {
     // 3.72 (2026-07-20): CartaStaff v2.0 "banco di servizio" (V.22) — vista
     //   sommelier operativa: Preparazione + Servizio, vendita one-tap con
     //   undo, toggle mescita. Endpoint carta-staff: locazioni con `slot`.
-    version: "4.18",
+    version: "4.19",
     label: "Cantina & Vini",
     status: "stabile",     // stabile | beta | alpha | dev
     color: "green",
