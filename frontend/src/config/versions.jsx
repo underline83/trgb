@@ -245,6 +245,11 @@ const MODULE_VERSIONS = {
     color: "orange",
   },
   cucinaScorte: {
+    // 1.24 (2026-11-23): tag NFC sulle porte di frigo e congelatori — /cucina/mobile/frigo/{posto}?r={ripiano}
+    //   apre solo quel ripiano (correggi, ＋ Aggiungi, scheda, «Vedi tutto il frigo»; ripiano tolto → avviso e frigo
+    //   intero); nel frigo il modo «🏷️ Tag» (admin, chef, sous chef) con «Copia link» per NFC Tools ed etichette
+    //   Brother 90×29 (variante A: QR, nome, cerchio tratteggiato da 25 mm col posto del tag — pdfEtichetta 1.7
+//   `bersaglio`). Solo frontend (CucinaMobile 1.14).
     // 1.23 (2026-11-16): Controllo menu — un piatto che è già un articolo pronto (purè, lasagnetta)
     //   conta solo quello: niente più patate, burro, panna e sale della ricetta che lo produce.
     // 1.22 (2026-11-13): Controllo menu come libro mastro — dalla riga dell'elemento si correggono
@@ -339,7 +344,7 @@ const MODULE_VERSIONS = {
     //   cucina_*, 40 endpoint, nessuna UI.
     //   Doc: docs/modulo_scorte_cucina.md
     //   Mockup: docs/mockups/cucina_mobile_scorte_frigo.html
-    version: "1.23",
+    version: "1.24",
     label: "Scorte & Frigoriferi",
     status: "alpha",
     color: "orange",

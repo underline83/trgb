@@ -3,6 +3,9 @@
 
 ---
 
+## 2026-11-23 — Scorte & Frigoriferi 1.24: tag NFC sulle porte, un ripiano al tocco `[core]`
+Sulla porta di frigo e congelatori va un tag NFC per ripiano, sotto un'etichetta della Brother. Toccandolo col telefono si apre solo quel ripiano («Congelatore 1 · Ripiano 4»), con tutto quello che si fa già dal frigo: pallino, correzione, ＋ Aggiungi, scheda dell'articolo; «Vedi tutto il frigo» torna al frigo intero. Se il ripiano non esiste più, la pagina lo dice e mostra il frigo intero. Nel frigo, il nuovo «🏷️ Tag» (admin, chef, sous chef) dà per ogni ripiano «Copia link», da incollare in NFC Tools sull'iPhone per scrivere il tag, e l'etichetta 90×29: QR dello stesso link, nome del ripiano e un cerchio tratteggiato da 25 mm che segna dove sta il tag (pdfEtichetta 1.7, opzione `bersaglio`); in alto un PDF unico con le etichette di tutti i ripiani. Su iPhone il tag apre Safari: la prima volta si rifà l'accesso. Solo frontend (CucinaMobile 1.14), nessuna migrazione. `modulo_scorte_cucina.md` § Tag NFC sulle porte.
+
 ## 2026-11-21 — Clienti 3.44: «🗑 Cestina» nella Posta `[core]`
 Nella pagina Posta, aprendo una mail di info@, prenotazioni@ o delle altre caselle c'è «🗑 Cestina» (con conferma). La mail va nel Cestino della casella sul server: siccome le caselle sono IMAP, la trovi nel Cestino anche in Mail sul Mac e sull'iPhone, e da lì si recupera. In TRGB esce da «Da rispondere» e risulta «cancellata da te» appena gira la casella (parte da solo subito dopo). Si cestina solo da posta in arrivo o spam; la PEC no (valore legale, dalla webmail); trgb@ resta con «Segna gestita». È la prima cosa che TRGB sposta nelle caselle su richiesta: lo fa solo dalla pagina, Q dal connettore non cestina. (`email_scrittura_service` 1.2, `email_router` 1.5, `ClientiPosta` 1.6, nessuna migrazione.)
 

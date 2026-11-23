@@ -1,6 +1,7 @@
 // frontend/src/pages/cucina/CucinaMobile.jsx
 // Modulo: cucina
-// @version: v1.13 — «Collega i prodotti»: abbinamento guidato (sicuri in blocco, dubbi uno a uno, ricerca a mano) da Scorte; CollegaSheet condiviso (2026-11-08)
+// @version: v1.14 — tag NFC sulle porte: link di un ripiano (?r=) che apre solo quel ripiano; modo «🏷️ Tag» nel frigo con Copia link ed etichette 90×29 (2026-11-23)
+// v1.13 — «Collega i prodotti»: abbinamento guidato (sicuri in blocco, dubbi uno a uno, ricerca a mano) da Scorte; CollegaSheet condiviso (2026-11-08)
 // v1.12 — Collega: ingredienti prima delle ricette, ricerca per parole, si parte dalla prima parola del nome (2026-11-08)
 // v1.11 — scheda: riga «È: …» con Collega (ricetta / ingrediente / non-food), 🗑 Elimina prodotto (admin/chef); Spesa: 🗑 Non serve su ogni riga (2026-11-08)
 // v1.10 — 🖨️ Stampa del frigo (con colonna «Contato») e della lista spesa (2026-11-08)
@@ -59,6 +60,7 @@ import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import { isCucinaWriterRole } from "../../utils/authHelpers";
 import { stampaLista, stampaListaSpesa } from "../../utils/stampaLista";
+import { pdfEtichetteQr, mostraPdf, apriFinestraVuota, larghezzaTesto } from "../../utils/pdfEtichetta";
 
 const REFRESH_MS = 90_000;
 /** Finestra dell'«Annulla». Stessa di CantinaMobile: in servizio è il tempo di
@@ -385,6 +387,8 @@ const STYLE = `
   font-size:16px;margin-top:3px;}
 .km-add{margin-left:8px;background:#fff;border:1px solid var(--hair);border-radius:9px;padding:4px 10px;
   font-size:12.5px;font-weight:700;color:var(--red);cursor:pointer;}
+.km-link{font-size:11.5px;color:var(--muted);word-break:break-all;-webkit-user-select:all;user-select:all;padding:2px 2px 8px;}
+.km-link.ok{color:var(--inks);font-weight:600;}
 .km-res{display:flex;flex-direction:column;gap:6px;margin:8px 0 4px;}
 .km-res button{text-align:left;padding:11px 13px;border-radius:11px;border:1px solid var(--hair);background:#fff;
   font-size:14.5px;cursor:pointer;display:flex;justify-content:space-between;gap:8px;}
@@ -2233,14 +2237,92 @@ function TabFrigo({ onCount, apri, modi }) {
 // Dentro un frigo — ripiani dall'alto in basso, con i pallini.
 // La dotazione mostra ANCHE la roba finita: è il punto di tutto.
 // ─────────────────────────────────────────────────────────────
-function DentroFrigo({ id, canWrite, indietro, apriArticolo }) {
+// ─────────────────────────────────────────────────────────────
+// Tag NFC sulle porte (Marco 2026-11-23): un tag per ripiano, attaccato FUORI
+// sulla porta, che apre /cucina/mobile/frigo/{posto}?r={ripiano}. Il tag
+// contiene solo il link: lo si scrive dall'iPhone con NFC Tools incollando
+// il link copiato qui. Il link usa l'id del ripiano, non il codice: se il
+// ripiano si rinomina il tag resta buono. Sopra il tag va un'etichetta della
+// Brother (rotolo 29×90, come le gift card): variante «A» scelta da Marco il
+// 2026-11-23 — QR a sinistra (stesso link), nome al centro, a destra il cerchio
+// tratteggiato da 25 mm (la misura dei tag comprati) che dice dove sta il tag.
+// ─────────────────────────────────────────────────────────────
+function nomeRipiano(r) { return r.nome || `Ripiano ${r.codice}`; }
+
+function linkRipiano(ubicazioneId, ripianoId) {
+  return `${window.location.origin}/cucina/mobile/frigo/${ubicazioneId}?r=${ripianoId}`;
+}
+
+async function copiaTesto(testo) {
+  try {
+    await navigator.clipboard.writeText(testo);
+    return true;
+  } catch { /* Safari vecchio o permesso negato: si prova alla vecchia */ }
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = testo;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    ta.setSelectionRange(0, testo.length);
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    return ok;
+  } catch { return false; }
+}
+
+// Etichetta 90×29 orizzontale, PDF in piedi 29×90 (`ruota`): stesso formato
+// delle gift card (EtichettaGiftCard.jsx), rotolo montato sulla Brother.
+const TAG_MM = 25;   // diametro dei tag NFC comprati (MENUY, tondi 25 mm, NTAG213)
+function opzioniEtichettaRipiano(u, r) {
+  let nome = nomeRipiano(r);
+  let size = 19;
+  // spazio per il testo: da 3 + 22 QR + 3 = 28 mm fino al cerchio (90 − 2 − 25 = 63 mm),
+  // meno 2 mm di stacco ≈ 33 mm ≈ 92 pt. Si rimpicciolisce fino a 10 pt; un nome
+  // ancora più lungo si accorcia con «...» (il carattere «…» non c'è nel font del PDF).
+  const MAX_PT = 92;
+  while (size > 10 && larghezzaTesto(nome, size, true) > MAX_PT) size -= 1;
+  if (larghezzaTesto(nome, size, true) > MAX_PT) {
+    let corto = nome;
+    while (corto.length > 4 && larghezzaTesto(`${corto}...`, size, true) > MAX_PT) corto = corto.slice(0, -1).trimEnd();
+    nome = `${corto}...`;
+  }
+  // nome del posto in maiuscolo spaziato: se non sta, si stringe
+  const posto = (u.nome || "").toUpperCase();
+  let sizePosto = 7.5;
+  while (sizePosto > 5.5 && larghezzaTesto(posto, sizePosto, true) + [...posto].length > MAX_PT) sizePosto -= 0.5;
+  const righe = [
+    { testo: posto, sizePt: sizePosto, bold: true, spaziatura: 1 },
+    { testo: nome, sizePt: size, bold: true, spazioPrimaMm: 2.4 },
+  ];
+  if (r.destinazione) righe.push({ testo: r.destinazione.toLowerCase(), sizePt: 8.5, spazioPrimaMm: 2 });
+  return {
+    ruota: true, wMm: 90, hMm: 29,
+    qrText: linkRipiano(u.id, r.id), qrMm: 22, margineMm: 3, gapMm: 3, righe,
+    bersaglio: { dMm: TAG_MM, margineMm: 2 },
+  };
+}
+
+function stampaEtichetteRipiani(u, ripiani) {
+  if (!ripiani.length) return;
+  const finestra = apriFinestraVuota(); // dentro il clic: Safari blocca le finestre aperte dopo
+  const blob = pdfEtichetteQr(ripiani.map((r) => opzioniEtichettaRipiano(u, r)));
+  const slug = (u.nome || "frigo").toLowerCase().replace(/[^a-z0-9]+/g, "_");
+  mostraPdf(blob, `etichette_ripiani_${slug}.pdf`, finestra);
+}
+
+function DentroFrigo({ id, soloRipiano, canWrite, indietro, apriArticolo, tuttoIlFrigo }) {
   const [u, setU] = useState(null);
   const [aggiungi, setAggiungi] = useState(null);   // il ripiano su cui aggiungere
   const [corr, setCorr] = useState(null);           // correzione da tocco sul pallino (MOVIMENTI)
   const [err, setErr] = useState(null);
   // Vista: "tutti" | "mancanti" | "registro" (registro dei finiti, chef/sous chef)
+  //        | "tag" (link e etichette dei ripiani per i tag NFC, stessi ruoli del registro)
   const [vista, setVista] = useState("tutti");
-  const soloMancanti = vista === "mancanti";
+  const [copiato, setCopiato] = useState(null);     // { id, ok } dell'ultimo «Copia link»
+  const soloMancanti = vista === "mancanti";       // "mancanti" vale anche aperti da un tag
   const ruolo = localStorage.getItem("role");
   const vedeRegistro = ["superadmin", "admin", "chef", "sous_chef"].includes(ruolo);
 
@@ -2266,7 +2348,21 @@ function DentroFrigo({ id, canWrite, indietro, apriArticolo }) {
   if (!u) return <div className="km-body"><Vuoto icona="⏳" titolo="Carico…" /></div>;
 
   const t = u.temperature?.[0];
-  const finiti = (u.ripiani || []).reduce((s, r) => s + (r.finiti || 0), 0);
+  // Aperto da un tag (?r=): solo quel ripiano. Se il ripiano non c'è più (tolto,
+  // disattivato o di un altro posto) si dice e si mostra il frigo intero.
+  const focus = soloRipiano ? (u.ripiani || []).find((r) => String(r.id) === String(soloRipiano)) : null;
+  const ripPerso = !!soloRipiano && !focus;
+  const ripiani = focus ? [focus] : (u.ripiani || []);
+  const vistaEff = focus && (vista === "registro" || vista === "tag") ? "tutti" : vista;
+  const finiti = ripiani.reduce((s, r) => s + (r.finiti || 0), 0);
+  const tornaQui = focus
+    ? { path: `/cucina/mobile/frigo/${id}?r=${focus.id}`, label: nomeRipiano(focus) }
+    : { path: `/cucina/mobile/frigo/${id}`, label: u.nome };
+
+  async function copiaLink(r) {
+    const ok = await copiaTesto(linkRipiano(u.id, r.id));
+    setCopiato({ id: r.id, ok });
+  }
 
   // Stampa del frigo (Marco 2026-11-08): ripiano per ripiano, con quello che
   // dice TRGB e una colonna vuota per contare a penna. Segue la vista
@@ -2296,12 +2392,16 @@ function DentroFrigo({ id, canWrite, indietro, apriArticolo }) {
   return (
     <>
       <div className="km-head">
-        <button className="km-back" onClick={indietro}>‹ Il giro</button>
+        {focus
+          ? <button className="km-back" onClick={tuttoIlFrigo}>‹ {u.nome}</button>
+          : <button className="km-back" onClick={indietro}>‹ Il giro</button>}
         <div className="km-htop">
           <div>
-            <h1 className="km-serif">{u.nome}</h1>
+            <h1 className="km-serif">{focus ? nomeRipiano(focus) : u.nome}</h1>
             <div className="km-sub">
-              {finiti} da comprare · {(u.ripiani || []).length} ripiani · {totArt} articoli
+              {focus
+                ? <>{u.nome} · {(focus.dotazione || []).length} articoli · {finiti} da comprare</>
+                : <>{finiti} da comprare · {(u.ripiani || []).length} ripiani · {totArt} articoli</>}
             </div>
           </div>
           {u.refrigerato && (
@@ -2314,18 +2414,26 @@ function DentroFrigo({ id, canWrite, indietro, apriArticolo }) {
           )}
         </div>
         <div className="km-pills">
-          <button className={`km-pill${vista === "tutti" ? " on" : ""}`} onClick={() => setVista("tutti")}>
-            Tutti i ripiani
+          <button className={`km-pill${vistaEff === "tutti" ? " on" : ""}`} onClick={() => setVista("tutti")}>
+            {focus ? "Tutto il ripiano" : "Tutti i ripiani"}
           </button>
-          <button className={`km-pill${vista === "mancanti" ? " on" : ""}`} onClick={() => setVista("mancanti")}>
+          <button className={`km-pill${vistaEff === "mancanti" ? " on" : ""}`} onClick={() => setVista("mancanti")}>
             Solo mancanti{finiti > 0 && <span className="c">{finiti}</span>}
           </button>
-          {vedeRegistro && (
+          {focus && (
+            <button className="km-pill" onClick={tuttoIlFrigo}>Vedi tutto il frigo</button>
+          )}
+          {!focus && vedeRegistro && (
             <button className={`km-pill${vista === "registro" ? " on" : ""}`} onClick={() => setVista("registro")}>
               Registro
             </button>
           )}
-          {vista !== "registro" && (
+          {!focus && vedeRegistro && (
+            <button className={`km-pill${vista === "tag" ? " on" : ""}`} onClick={() => setVista("tag")}>
+              🏷️ Tag
+            </button>
+          )}
+          {!focus && vista !== "registro" && vista !== "tag" && (
             <button className="km-pill" onClick={stampa}>🖨️ Stampa</button>
           )}
         </div>
@@ -2347,14 +2455,58 @@ function DentroFrigo({ id, canWrite, indietro, apriArticolo }) {
           </div>
         )}
 
-        {vista === "registro" && <RegistroFiniti ubicazioneId={id} onCambio={load} />}
+        {ripPerso && (
+          <div className="km-banner a">
+            <span>🏷️</span>
+            <div><b>Questo ripiano non c'è più</b> (tolto, disattivato o spostato in un altro posto): ecco tutto il frigo. Il tag va riscritto.</div>
+          </div>
+        )}
 
-        {vista !== "registro" && (u.ripiani || []).length === 0 && (
+        {vistaEff === "registro" && <RegistroFiniti ubicazioneId={id} onCambio={load} />}
+
+        {vistaEff === "tag" && (
+          <>
+            <div className="km-banner a">
+              <span>🏷️</span>
+              <div>
+                <b>Un tag per ripiano, sulla porta.</b> «Copia link» → in NFC Tools: Scrivi → Aggiungi un record → URL → incolla → avvicina il tag.
+                Poi sopra il tag l'etichetta stampata, col cerchio tratteggiato sopra il tag.
+              </div>
+            </div>
+            {(u.ripiani || []).length > 0 && (
+              <button className="km-btn ghost" style={{ marginTop: 10 }}
+                      onClick={() => stampaEtichetteRipiani(u, u.ripiani || [])}>
+                🖨️ Etichette di tutti i ripiani ({(u.ripiani || []).length}) · 90×29
+              </button>
+            )}
+          </>
+        )}
+
+        {vistaEff !== "registro" && ripiani.length === 0 && (
           <Vuoto icona="📭" titolo="Nessun ripiano attivo"
                  testo="Ogni posto dovrebbe averne almeno uno." />
         )}
 
-        {vista !== "registro" && (u.ripiani || []).map((r) => {
+        {vistaEff === "tag" && ripiani.map((r) => (
+          <React.Fragment key={r.id}>
+            <div className="km-rip">
+              <div className="num">{r.codice}</div>
+              <div className="lb">{nomeRipiano(r)}</div>
+              {r.destinazione && <span className={`km-dest ${r.destinazione}`}>{r.destinazione.toLowerCase()}</span>}
+              <div className="rest" />
+              <button className="km-add" onClick={() => copiaLink(r)}>
+                {copiato?.id === r.id && copiato.ok ? "✓ Copiato" : "🔗 Copia link"}
+              </button>
+              <button className="km-add" onClick={() => stampaEtichetteRipiani(u, [r])}>🖨️</button>
+            </div>
+            <div className={`km-link${copiato?.id === r.id && copiato.ok ? " ok" : ""}`}>
+              {copiato?.id === r.id && !copiato.ok && "Copia non riuscita: tieni premuto sul link e copialo a mano. "}
+              {linkRipiano(u.id, r.id)}
+            </div>
+          </React.Fragment>
+        ))}
+
+        {vistaEff !== "registro" && vistaEff !== "tag" && ripiani.map((r) => {
           const righe = soloMancanti
             ? (r.dotazione || []).filter((d) => d.stato_semaforo === "FINITO" || d.stato_semaforo === "ESAURIMENTO")
             : (r.dotazione || []);
@@ -2377,8 +2529,7 @@ function DentroFrigo({ id, canWrite, indietro, apriArticolo }) {
                 <RigaArticolo key={a.giacenza_id} a={a} canWrite={canWrite}
                               onTap={(art, stato) => tap(art, stato, r.id,
                                 () => setCorr({ art, ripiano: r }))}
-                              onApri={(art) => apriArticolo(art.articolo_id,
-                                { path: `/cucina/mobile/frigo/${id}`, label: u.nome })} />
+                              onApri={(art) => apriArticolo(art.articolo_id, tornaQui)} />
               ))}
             </React.Fragment>
           );
@@ -2990,7 +3141,11 @@ export default function CucinaMobile() {
 
   let vista;
   if (attivo === "frigo" && id) {
-    vista = <DentroFrigo id={id} canWrite={canWrite} indietro={() => vai("frigo")} apriArticolo={apriArticolo} />;
+    // ?r={ripiano} = aperto da un tag NFC sulla porta: solo quel ripiano (2026-11-23)
+    const soloRipiano = new URLSearchParams(location.search).get("r");
+    vista = <DentroFrigo id={id} soloRipiano={soloRipiano} canWrite={canWrite}
+                         indietro={() => vai("frigo")} apriArticolo={apriArticolo}
+                         tuttoIlFrigo={() => navigate(`/cucina/mobile/frigo/${id}`)} />;
   } else if (attivo === "scorte" && id === "abbina") {
     vista = <Abbina indietro={() => vai("scorte")} />;
   } else if (attivo === "scorte" && id) {

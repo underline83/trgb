@@ -1,6 +1,6 @@
 // frontend/src/utils/pdfEtichetta.js
 // Platform (M.I) — PDF vettoriale di un'etichetta con QR, della misura esatta del rotolo.
-// @version: v1.6 — `margineDxMm` (margine destro diverso dal sinistro: la Brother sul continuo sposta la stampa verso la coda e taglia a destra), 2026-11-07; v1.5 — etichetta senza QR (qrText vuoto o qrMm 0: solo testo), 2026-11-07; v1.4 — `ecc` (correzione d'errore del QR) e `destra` (testo allineato a destra sulla stessa riga), 2026-11-07; v1.3 — più etichette in un PDF (pdfEtichetteQr), 2026-10-29; v1.2 — `ruota`: si disegna in orizzontale, la pagina esce in piedi come la carta del driver (2026-10-26); v1.1 — layout «verticale»: QR sopra e testo sotto, centrati (2026-10-26); v1.0 2026-10-25
+// @version: v1.7 — `bersaglio`: cerchio tratteggiato col posto del tag NFC al margine destro («NFC / tocca qui»), per le etichette dei ripiani, 2026-11-23; v1.6 — `margineDxMm` (margine destro diverso dal sinistro: la Brother sul continuo sposta la stampa verso la coda e taglia a destra), 2026-11-07; v1.5 — etichetta senza QR (qrText vuoto o qrMm 0: solo testo), 2026-11-07; v1.4 — `ecc` (correzione d'errore del QR) e `destra` (testo allineato a destra sulla stessa riga), 2026-11-07; v1.3 — più etichette in un PDF (pdfEtichetteQr), 2026-10-29; v1.2 — `ruota`: si disegna in orizzontale, la pagina esce in piedi come la carta del driver (2026-10-26); v1.1 — layout «verticale»: QR sopra e testo sotto, centrati (2026-10-26); v1.0 2026-10-25
 //
 // PERCHE' UN PDF E NON window.print() della pagina:
 //   Safari (Mac e iPad) ignora @page size: stampa la pagina in A4 sulla
@@ -61,6 +61,10 @@ function n(v) { return (Math.round(v * 1000) / 1000).toString(); }
  *                 destra = { testo, sizePt, bold }: sulla stessa linea di base,
  *                 allineato al margine destro (solo layout orizzontale)
  *   margineDxMm   margine destro, se diverso da margineMm (per `destra`)
+ *   bersaglio     solo orizzontale: { dMm, margineMm = 2, testo = "NFC", sotto = "tocca qui" }.
+ *                 Cerchio tratteggiato del diametro del tag NFC, attaccato al margine
+ *                 destro e centrato in verticale: dice dove sta il tag (sotto l'etichetta).
+ *                 Lo spazio per il testo lo calcola chi chiama (il testo non lo scavalca).
  *   ecc           correzione d'errore del QR: "M" (default) o "L" (QR più
  *                 piccolo a parità di contenuto: per etichette strette)
  *   layout        "orizzontale" (default: QR a sinistra, testo a destra) o
@@ -76,7 +80,8 @@ function n(v) { return (Math.round(v * 1000) / 1000).toString(); }
  * @returns {Blob} application/pdf
  */
 function paginaEtichetta({ wMm, hMm, qrText, qrMm, margineMm = 1.5, gapMm = 2, righe = [],
-  layout = "orizzontale", margineAltoMm = 2, ruota = false, centra = false, ecc = "M", margineDxMm = null }) {
+  layout = "orizzontale", margineAltoMm = 2, ruota = false, centra = false, ecc = "M", margineDxMm = null,
+  bersaglio = null }) {
   const vert = layout === "verticale";
   const largRiga = (r) => larghezzaTesto(r.testo, r.sizePt, r.bold) + (r.spaziatura || 0) * Math.max(0, [...r.testo].length - 1);
   const W = wMm * PT, H = hMm * PT;
@@ -126,6 +131,32 @@ function paginaEtichetta({ wMm, hMm, qrText, qrMm, margineMm = 1.5, gapMm = 2, r
       ops.push(`BT /${d.bold ? "F2" : "F1"} ${n(d.sizePt)} Tf 0 Tc ${n(xd)} ${n(y)} Td ${strPdf(d.testo)} Tj ET`);
     }
   });
+
+  // Posto del tag NFC: cerchio tratteggiato (4 curve di Bézier), linea 0,35 mm,
+  // tratti 1,2 / 0,8 mm; dentro «NFC» e «tocca qui» centrati.
+  if (bersaglio && !vert) {
+    const r = (bersaglio.dMm / 2) * PT;
+    const cx = W - (bersaglio.margineMm ?? 2) * PT - r;
+    const cy = H / 2;
+    const k = 0.5523 * r;
+    ops.push("q", "0 G", `${n(0.35 * PT)} w`, `[${n(1.2 * PT)} ${n(0.8 * PT)}] 0 d`,
+      `${n(cx + r)} ${n(cy)} m`,
+      `${n(cx + r)} ${n(cy + k)} ${n(cx + k)} ${n(cy + r)} ${n(cx)} ${n(cy + r)} c`,
+      `${n(cx - k)} ${n(cy + r)} ${n(cx - r)} ${n(cy + k)} ${n(cx - r)} ${n(cy)} c`,
+      `${n(cx - r)} ${n(cy - k)} ${n(cx - k)} ${n(cy - r)} ${n(cx)} ${n(cy - r)} c`,
+      `${n(cx + k)} ${n(cy - r)} ${n(cx + r)} ${n(cy - k)} ${n(cx + r)} ${n(cy)} c`,
+      "S", "Q");
+    const t1 = bersaglio.testo ?? "NFC";
+    const t2 = bersaglio.sotto ?? "tocca qui";
+    if (t1) {
+      const w1 = larghezzaTesto(t1, 10, true) + 0.5 * Math.max(0, [...t1].length - 1);
+      ops.push(`BT /F2 10 Tf 0.5 Tc ${n(cx - w1 / 2)} ${n(cy + 0.6 * PT)} Td ${strPdf(t1)} Tj ET`);
+    }
+    if (t2) {
+      const w2 = larghezzaTesto(t2, 6.5, false);
+      ops.push(`BT /F1 6.5 Tf 0 Tc ${n(cx - w2 / 2)} ${n(cy - 3.4 * PT)} Td ${strPdf(t2)} Tj ET`);
+    }
+  }
 
   if (ruota) ops.push("Q");
   const [PW, PH] = ruota ? [H, W] : [W, H];

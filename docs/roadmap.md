@@ -611,6 +611,7 @@ Sezione storica/piano qui sotto preservata per riferimento.
 | C.7 | Notifiche push / WA su checklist in scadenza (M.C + M.A) | S | MEDIA | |
 | C.8 | Export PDF registro mensile HACCP firmabile | S | MEDIA | M.B |
 | C.9 | Scorte & Frigoriferi a ripiani + Cucina da iPhone (/cucina/mobile) | L | ✅ FATTO 2026-09-07 → 10-02 | mig 171, congelatori con lotti FIFO, correzioni dal telefono, temperature dal gate (cucinaScorte 1.7). Vedi `modulo_scorte_cucina.md` |
+| C.10 | Tag NFC sulle porte: un tag per ripiano apre quel ripiano (`?r=`), modo «🏷️ Tag» con Copia link ed etichette Brother 90×29 | S | 🔨 2026-11-23 (da pushare) | cucinaScorte 1.24, solo frontend. Restano: comprare i tag anti-metal, scriverli con NFC Tools, attaccarli. Vedi `modulo_scorte_cucina.md` § Tag NFC |
 | **Linea cucina** (spec [`spec_linea_cucina.md`](spec_linea_cucina.md)) ||||
 | C.LN1 | **Compositore della linea**: una schermata sola per comporre la linea di un piatto (componenti, dotazione pezzo per pezzo — pentolino, GN 1/9 di scorta… — numeri, minimi frigo/gelo, riordino) invece della scheda Linea ricetta per ricetta | M | DA FARE (Marco 2026-10-23) | Oggi si fa da Ricette › piatto › Linea, testo con «+» |
 | C.LN2 | Accendere le linee «dal menu» di primi, secondi, contorni e spegnere le vecchie a mano | XS | DA FARE | In prova solo «Linea antipasti NEW» (template 15-16). Spegnere a mano: `attiva()` abbina per nome |
