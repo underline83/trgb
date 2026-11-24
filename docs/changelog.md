@@ -3,6 +3,20 @@
 
 ---
 
+## 2026-11-24 — Login 2.4: dopo il PIN si arriva al link aperto `[core]`
+Segnalazione di Marco: aprendo un link senza essere entrati (contatto della rubrica, QR, tag NFC del frigo) compariva il PIN e poi si finiva in Home, mai sulla pagina del link; da entrati il link andava diretto.
+
+**Causa**
+- `LoginForm` dopo il PIN riportava sempre a «/» (regola del 10/07/2026: «Home, non l'ultima pagina aperta»).
+- Col pass scaduto in memoria il link si perdeva ancora prima: la prima chiamata dava 401 e `apiFetch` ricaricava su `/login`.
+
+**Risolto**
+- `utils/dopoLogin.js`: il link d'arrivo si tiene per dopo il PIN se si era senza pass, o se il pass era già morto all'apertura (nessuna chiamata col pass riuscita prima del 401: passa il ricaricamento in `sessionStorage`). Dopo «Esci» (`handleLogout` riparte da «/») o se la sessione scade mentre si lavora: Home, come prima.
+- Indirizzi non validi (`/`, `/login`, `/accesso-q`, altri siti) non diventano destinazioni.
+
+**Note**
+- Test: `node tests/test_dopo_login.mjs` (7 ok); JSX controllati col parser Babel. Nessuna migrazione, solo frontend.
+
 ## 2026-11-24 — Clienti 3.46: il link «TRGB» nella rubrica del telefono `[core]`
 Marco aveva aggiunto il nome a un contatto «TG Agazzi» dall'iPhone: la rubrica è in sola lettura, quindi la modifica restava solo sul telefono (TRGB risponde 403) e si sarebbe persa alla prima modifica del cliente in TRGB. Scelta di Marco: niente scrittura dal telefono, un link per correggere in TRGB.
 

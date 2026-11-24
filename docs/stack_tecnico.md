@@ -154,6 +154,7 @@ Schema dettagliato → [`docs/database.md`](database.md)
 - **Store:** `app/data/users.json` — 4 utenti con hash PIN
 - **Cambio PIN:** Self-service per tutti + reset admin da pagina `/cambio-pin`
 - **Token frontend:** `localStorage` con gestione 401 centralizzata via `apiFetch()`
+- **Dopo il PIN** (`utils/dopoLogin.js`, dal 2026-11-24): se si è arrivati da un link (QR, tag NFC, contatto della rubrica, notifica) senza essere entrati o col pass già scaduto, si continua verso quel link; dopo «Esci» o se la sessione scade mentre si lavora si va alla Home (regola del 10/07/2026). Pass scaduto = nessuna chiamata col pass riuscita in quella pagina prima del 401; il link passa il ricaricamento su `/login` in `sessionStorage`
 - **Middleware:** `ReadOnlyViewerMiddleware` blocca POST/PUT/PATCH/DELETE per "viewer"
 
 Ruoli: `admin`, `chef`, `sommelier`, `sala`, `viewer`

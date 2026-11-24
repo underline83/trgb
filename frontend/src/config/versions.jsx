@@ -519,11 +519,14 @@ const MODULE_VERSIONS = {
     color: "green",
   },
   auth: {
+    // 2.4 (2026-11-24): dopo il PIN si continua verso il link aperto da fuori (QR, NFC, rubrica, notifica),
+    //   anche col pass scaduto (401 → /login); dopo «Esci» o sessione scaduta mentre si lavora → Home come prima
+    //   (utils/dopoLogin.js, LoginForm, apiFetch, App handleLogout; tests/test_dopo_login.mjs).
     // 2.3 (2026-10-20): Q nel browser — POST /auth/accesso-q (link usa-e-getta del
     //   connettore, strumento accesso_browser), pagina /accesso-q, Q senza PIN di sezione.
     // 2.2 (2026-07-10): lockout brute-force login (A1-04, backoff progressivo,
     // soglie in auth_settings.json) + PIN minimo 6 cifre per admin/contabile.
-    version: "2.3",
+    version: "2.4",
     label: "Login & Ruoli",
     status: "stabile",
     color: "green",

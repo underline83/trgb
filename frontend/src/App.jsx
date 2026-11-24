@@ -13,6 +13,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import ModuleRedirect from "./components/ModuleRedirect";
 import ErrorBoundary from "./components/ErrorBoundary";
 import SezionePinGate from "./components/SezionePinGate";
+import { dimenticaDestinazione } from "./utils/dopoLogin";
 import AccessoQ from "./pages/AccessoQ";
 import TrgbLoader from "./components/TrgbLoader";
 import { ToastProvider } from "./components/Toast";
@@ -304,6 +305,9 @@ export default function App() {
     localStorage.removeItem("role");
     localStorage.removeItem("username");
     localStorage.removeItem("pin_len");
+    // Dopo «Esci» il prossimo login riparte dalla Home (utils/dopoLogin)
+    dimenticaDestinazione();
+    window.history.replaceState(null, "", "/");
     setToken(null);
     setRole(null);
   }

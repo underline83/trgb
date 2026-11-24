@@ -1,4 +1,6 @@
 // frontend/src/config/api.js
+import { segnaSessioneViva, ricordaIngressoSeLink } from "../utils/dopoLogin";
+
 export const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
 /**
@@ -7,6 +9,7 @@ export const API_BASE = import.meta.env.VITE_API_BASE_URL;
  * Uso: identico a fetch(url, options), ma:
  *  - inietta automaticamente `Authorization: Bearer <token>` se presente
  *  - su 401: cancella token/role da localStorage e rimanda a /login
+ *    (se si era appena arrivati da un link, dopo il PIN si torna lì: utils/dopoLogin)
  *
  * Esempi:
  *   const res = await apiFetch(`${API_BASE}/endpoint`)
@@ -34,11 +37,13 @@ export async function apiFetch(url, options = {}) {
     }
     localStorage.removeItem("token");
     localStorage.removeItem("role");
+    ricordaIngressoSeLink();
     window.location.href = "/login";
     // Lancia un errore per interrompere la catena .then() del chiamante
     throw new Error(`Sessione scaduta (401 su ${url}). Reindirizzamento al login.`);
   }
 
+  if (token && response.ok) segnaSessioneViva();
   return response;
 }
 

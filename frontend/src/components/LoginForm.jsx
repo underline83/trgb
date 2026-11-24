@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import PinPad from "./PinPad";
+import { destinazioneDopoLogin } from "../utils/dopoLogin";
 const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
 /* ── Colori ruolo per bordo tile ── */
@@ -84,8 +85,9 @@ export default function LoginForm({ setToken, setRole }) {
         localStorage.setItem("username", selectedUser.username);
         localStorage.setItem("pin_len", String(currentPin.length)); // per SezionePinGate
         localStorage.setItem("display_name", data.display_name || selectedUser.display_name);
-        // Dopo il login vai sempre alla Home, non all'ultima pagina aperta.
-        window.history.replaceState(null, "", "/");
+        // Dopo il login: Home, non l'ultima pagina aperta (10/07/2026); ma se si è
+        // arrivati da un link (QR, NFC, rubrica, notifica) si continua lì (24/11/2026).
+        window.history.replaceState(null, "", destinazioneDopoLogin());
         setToken(data.access_token);
         setRole(data.role);
         return true;
