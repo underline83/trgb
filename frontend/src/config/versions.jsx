@@ -253,6 +253,9 @@ const MODULE_VERSIONS = {
     color: "orange",
   },
   cucinaScorte: {
+    // 1.25 (2026-11-24): fix — il «contenuto del pezzo» (contenuto_um) si salva anche da POST/PATCH articoli:
+    //   la valida() generica lo metteva in maiuscolo («ml» → «ML») e lo rifiutava sempre; ora passa da
+    //   controllo_menu.normalizza_um_contenuto (controllo_menu 1.5). Test: tests/test_contenuto_um.py.
     // 1.24 (2026-11-23): tag NFC sulle porte di frigo e congelatori — /cucina/mobile/frigo/{posto}?r={ripiano}
     //   apre solo quel ripiano (correggi, ＋ Aggiungi, scheda, «Vedi tutto il frigo»; ripiano tolto → avviso e frigo
     //   intero); nel frigo il modo «🏷️ Tag» (admin, chef, sous chef) con «Copia link» per NFC Tools ed etichette
@@ -352,7 +355,7 @@ const MODULE_VERSIONS = {
     //   cucina_*, 40 endpoint, nessuna UI.
     //   Doc: docs/modulo_scorte_cucina.md
     //   Mockup: docs/mockups/cucina_mobile_scorte_frigo.html
-    version: "1.24",
+    version: "1.25",
     label: "Scorte & Frigoriferi",
     status: "alpha",
     color: "orange",

@@ -3,6 +3,16 @@
 
 ---
 
+## 2026-11-24 — Scorte & Frigoriferi 1.25: il contenuto del pezzo si salva anche dalla scheda articolo `[core]`
+Trovato inserendo gli articoli della carta Inverno 2027: creando o modificando un articolo con `contenuto_um` (g, ml, pz, porz) la risposta era sempre 422 «contenuto_um non valido: 'ml'», anche col valore giusto.
+
+**Risolto**
+- `POST /cucina/scorte/articoli/` e `PATCH /cucina/scorte/articoli/{id}`: `contenuto_um` validato da `controllo_menu.normalizza_um_contenuto` (minuscolo, vuoto = nessuno). Prima passava dalla `valida()` delle liste chiuse di Scorte, che mette i valori in MAIUSCOLO e quindi non trovava mai «ml» fra {g, ml, pz, porz}.
+
+**Note**
+- Il Controllo menu (porzioni per pezzo) scriveva il contenuto direttamente e funzionava già: il bug toccava solo chi passa dalle API degli articoli (oggi nessuna pagina manda il campo).
+- Test: `python3 tests/test_contenuto_um.py` (4). Nessuna migrazione.
+
 ## 2026-11-23 — Clienti 3.45: WhatsApp tramite YCloud + chat «chiuse dal cliente» `[core]`
 Il collegamento diretto a Meta non passa senza essere Tech Provider; il numero dell'osteria è stato collegato in coexistence a YCloud (provato: messaggi in arrivo, risposte dall'app e storico visibili in YCloud). TRGB ora riceve da YCloud.
 

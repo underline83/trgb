@@ -356,7 +356,8 @@ def _normalizza_articolo(d: Dict[str, Any]) -> Dict[str, Any]:
     if "natura" in d:
         d["natura"] = _v(lambda: valida(d["natura"], NATURE_ARTICOLO, "natura"))
     if d.get("contenuto_um") is not None:
-        d["contenuto_um"] = _v(lambda: valida(d["contenuto_um"].strip().lower(), controllo_menu.UM_CONTENUTO, "contenuto_um"))
+        # Non con valida(): mette in maiuscolo e il contenuto e' in minuscolo (fix 2026-11-24).
+        d["contenuto_um"] = _v(lambda: controllo_menu.normalizza_um_contenuto(d["contenuto_um"]))
     if "famiglia_freschezza" in d:
         d["famiglia_freschezza"] = _v(
             lambda: valida(d["famiglia_freschezza"], FAMIGLIE_FRESCHEZZA, "famiglia_freschezza")

@@ -1,5 +1,5 @@
 # Modulo: cucina (legge menu_carta, ricette e task_manager in sola lettura)  ·  [core]
-# @version: v1.4 — il piatto che e' un articolo conta solo come pronto (non le righe che lo producono) · v1.3 — libro mastro: grammatura, scheda articolo e linea nella risposta · v1.2 — giacenze correggibili dalla pagina (RETTIFICA per ripiano), solo admin · v1.1 — «dal gelo diretto» (mig 234) · v1.0 — Controllo menu: porzioni realizzabili per piatto (2026-11-13, mig 233)
+# @version: v1.5 — contenuto_um validato qui (normalizza_um_contenuto): la valida() generica lo metteva in maiuscolo e lo rifiutava sempre · v1.4 — il piatto che e' un articolo conta solo come pronto (non le righe che lo producono) · v1.3 — libro mastro: grammatura, scheda articolo e linea nella risposta · v1.2 — giacenze correggibili dalla pagina (RETTIFICA per ripiano), solo admin · v1.1 — «dal gelo diretto» (mig 234) · v1.0 — Controllo menu: porzioni realizzabili per piatto (2026-11-13, mig 233)
 # -*- coding: utf-8 -*-
 """
 Controllo menu — per ogni piatto in carta, quante porzioni si possono fare con
@@ -79,6 +79,25 @@ _PEZZI = {"pz", "n", "nr", "pezzo", "pezzi"}
 _PEGGIO = {"ROSSO": 3, "GIALLO": 2, "VERDE": 1}
 _PORZIONI = {"porzione", "porzioni", "porz"}
 UM_CONTENUTO = {"g", "ml", "pz", "porz"}   # cucina_articoli.contenuto_um
+
+
+def normalizza_um_contenuto(valore: Any) -> Optional[str]:
+    """L'unita' del contenuto di un articolo, in minuscolo, o None se vuota.
+
+    Non passa dalla `valida()` delle liste chiuse di Scorte: quella mette i
+    valori in MAIUSCOLO (PZ, KG...), mentre il contenuto vive in minuscolo
+    (g | ml | pz | porz) e veniva rifiutato sempre, anche quando era giusto
+    (2026-11-24). ValueError, col messaggio dei valori ammessi, se non e' fra
+    quelle.
+    """
+    if valore is None:
+        return None
+    v = str(valore).strip().lower()
+    if not v:
+        return None
+    if v not in UM_CONTENUTO:
+        raise ValueError(f"contenuto_um non valido: {valore!r}. Valori: {sorted(UM_CONTENUTO)}")
+    return v
 
 
 def _base(qty: Optional[float], unit: Optional[str]) -> Optional[Tuple[str, float]]:
