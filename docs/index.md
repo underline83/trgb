@@ -58,7 +58,7 @@ Home del wiki di progetto. Ogni pagina di `docs/` è elencata qui, per argomento
 - 📄 [modulo_cucina.md](modulo_cucina.md) — Cucina: checklist HACCP, task manager (split task_manager previsto, DH.5), MEP.
 - 📄 [modulo_pratiche.md](modulo_pratiche.md) — Pratiche: scambi formali con enti, fornitori e creditori in attesa di esito (stati, termine, passi, allegati, avviso). Pratiche 1.0, dal 2026-10-08.
 - 📄 [modulo_comande.md](modulo_comande.md) — Comanda: tavoli aperti e comande in sala da TRGB (uscite, invio ai reparti, via, storni), in prova finché non c'è la Cassa. Comande 1.0, dal 2026-11-24.
-- 📄 [studio_ipratico_comanda.md](studio_ipratico_comanda.md) — Come l'osteria usa iPratico (dai conti) e cosa copiare nella Comanda; scelta su come escono i piatti. Studio del 2026-11-24.
+- 📄 [studio_ipratico_comanda.md](studio_ipratico_comanda.md) — Studio per la Comanda: come l'osteria usa iPratico (dai conti), cosa fanno i concorrenti (Passepartout, Lightspeed, Square, Toast, Cassa in Cloud), cosa copiare e le scelte aperte (come escono i piatti). Studio del 2026-11-24, in corso.
 - 📄 [modulo_scorte_cucina.md](modulo_scorte_cucina.md) — Scorte & Frigoriferi cucina: **schema proposto, non implementato**. Mockup dei flussi in [`mockups/cucina_mobile_scorte_frigo.html`](mockups/cucina_mobile_scorte_frigo.html).
 - 📄 [modulo_statistiche.md](modulo_statistiche.md) — Statistiche: import iPratico, KPI, top prodotti.
 - 📄 [modulo_sito.md](modulo_sito.md) — Visite del sito: viste e clic dal sito pubblico senza cookie, Statistiche › Sito, snippet `snippet/sito_visite.js`. Sito 1.0, dal 2026-10-23.

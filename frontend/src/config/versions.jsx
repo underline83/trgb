@@ -596,6 +596,10 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   clienti: {
+    // 3.48 (2026-11-24): preventivi da Claude/Q (connettore 1.22): menu_libreria, preventivo_crea (libreria, duplica,
+    //   menù da altri preventivi), preventivo_aggiorna, preventivo_menu, preventivo_invia (anteprima + codice, poi il
+    //   «manda» di Marco), preventivo_stato/proroga/libera_tavolo/elimina, link alla pagina; preventivi_service:
+    //   duplica_menu(verso_preventivo_id=) copia un menù in un altro preventivo. Codice in 09b80c7e, libreria e test dopo.
     // 3.47 (2026-11-24): pagina «💬 WhatsApp» (Clienti › WhatsApp) come la Posta — chat del numero dell'osteria in sola
     //   lettura: Da rispondere · Chiuse dal cliente · Tutte, periodo, ricerca (nome, numero, parole); chat a fumetti con
     //   «✓ Gestita» (mig 244 clienti_wa_gestite: fuori da «da rispondere», ci torna se il cliente riscrive; vale anche per
@@ -724,7 +728,7 @@ const MODULE_VERSIONS = {
     //   annullo/riattiva con storico movimenti, PDF buono A5 con identita'
     //   del locale, alert M.F sulle card in scadenza. Nessun impatto su
     //   corrispettivi/chiusure: registro informativo separato dalla cassa.
-    version: "3.47",
+    version: "3.48",
     label: "Gestione Clienti",
     status: "beta",
     color: "blue",

@@ -3,6 +3,23 @@
 
 ---
 
+## 2026-11-24 — Clienti 3.48 + connettore 1.22: i preventivi da Q, dalla creazione all'invio `[core]`
+Dal giro mail del 24/11 (gruppo TheFork di Mor): Q non poteva né creare né mandare un preventivo. Marco: «facciamo da 7 a 11» della lista «cosa manca».
+
+**Aggiunto**
+- Connettore: `menu_libreria`, `preventivo_crea` (menù dalla libreria per nome corto, duplicando un preventivo, o copiando singoli menù), `preventivo_aggiorna`, `preventivo_menu` (libreria, copia, aggiungi coi piatti, prezzi singolo/doppio, sconto, togli, ordina), `preventivo_invia` (email in due tempi: anteprima con codice, poi il «manda» di Marco; WhatsApp: link + registrazione), `preventivo_stato` (col motivo nello storico), `preventivo_proroga`, `preventivo_libera_tavolo`, `preventivo_elimina`. Link alla pagina in ogni risposta, anche in `preventivo_leggi` e `preventivo_conferma`.
+- `preventivi_service.duplica_menu(verso_preventivo_id=)`: copia un menù in un altro preventivo.
+- `tests/test_connettore_preventivi.py` (10 test su una copia dei DB, senza rete).
+
+**Cambiato**
+- `posta_elenco`: `dove` anche come parola sola; `posta_bozze`: `stato` «tutte» o vuoto.
+
+**Note**
+- Il codice degli strumenti (tranne `menu_libreria` e i menù dalla libreria) è uscito col push 09b80c7e di Clienti 3.47.
+- «Carica da template» in Nuovo preventivo non è un guasto: carica le condizioni della testata, non i menù; i menù pronti stanno nella libreria dei menù.
+
+---
+
 ## 2026-11-24 — Clienti 3.47 + sistema 6.8: la pagina «💬 WhatsApp» e Posta/WhatsApp dalla matrice Moduli `[core]`
 Marco: «costruiamo una pagina come Posta per WhatsApp», per admin + capo sala «(anche la posta)», con i flag della matrice Moduli per accendere e spegnere tutto a tutti.
 
