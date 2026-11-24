@@ -1,4 +1,5 @@
-# @version: v1.0-notifiche-service
+# @version: v1.1 (2026-11-24) — crea_notifica avvisa notifiche_push (la notifica diventa push se il suo tipo è acceso);
+#   crea_per_destinatari (più ruoli e utenti in un colpo, «admin» comprende superadmin); v1.0-notifiche-service
 # -*- coding: utf-8 -*-
 """
 Servizio Notifiche — TRGB Gestionale (mattone M.A)
@@ -18,7 +19,13 @@ Uso da altri moduli:
     )
 """
 
+import logging
+import re
+from typing import Any, Dict, Iterable, List, Optional
+
 from app.models.notifiche_db import get_notifiche_conn
+
+logger = logging.getLogger(__name__)
 
 
 # ─────────────────────────────────────────────
@@ -58,7 +65,75 @@ def crea_notifica(
     conn.commit()
     nid = cur.lastrowid
     conn.close()
+    # Push sui dispositivi (notifiche_push, fase 2): parte solo se il TIPO è acceso in
+    # Impostazioni › Notifiche, in un thread. Una push che non parte non rompe mai chi crea
+    # la notifica: il campanello resta la fonte.
+    try:
+        from app.services import notifiche_push
+        notifiche_push.avvia_da_notifica(nid, tipo, titolo, messaggio, link, dest_username, dest_ruolo)
+    except Exception:
+        logger.exception("avvio della push per la notifica %s non riuscito", nid)
     return nid
+
+
+_TIPO_OK = re.compile(r"^[a-z0-9_]{2,40}$")
+_URGENZE = ("normale", "alta", "urgente", "info")
+
+
+def crea_per_destinatari(
+    tipo: str,
+    titolo: str,
+    messaggio: Optional[str] = None,
+    link: Optional[str] = None,
+    ruoli: Optional[Iterable[str]] = None,
+    utenti: Optional[Iterable[str]] = None,
+    urgenza: str = "normale",
+    icona: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Una notifica a più ruoli e/o utenti, una riga per destinatario (il campanello
+    confronta il ruolo per uguaglianza: per questo «admin» qui manda anche a
+    «superadmin»). Controlla tutto PRIMA di scrivere: o partono tutte o nessuna.
+    Usata dallo strumento notifica_crea del connettore. Solleva ValueError."""
+    from app.services.auth_service import VALID_ROLES, list_users
+
+    tipo = (tipo or "").strip()
+    titolo = (titolo or "").strip()
+    messaggio = (messaggio or "").strip() or None
+    link = (link or "").strip() or None
+    if not _TIPO_OK.match(tipo):
+        raise ValueError("Tipo non valido: lettere minuscole, numeri e trattino basso (es. giro).")
+    if not titolo or len(titolo) > 120:
+        raise ValueError("Serve un titolo, al massimo 120 caratteri.")
+    if messaggio and len(messaggio) > 1500:
+        raise ValueError("Messaggio troppo lungo: al massimo 1500 caratteri (il resto sta nel report).")
+    if link and (not link.startswith("/") or link.startswith("//")):
+        raise ValueError("Il link dev'essere una pagina del gestionale (comincia con /).")
+    if urgenza not in _URGENZE:
+        raise ValueError(f"Urgenza: {', '.join(_URGENZE)}.")
+    ruoli_l: List[str] = []
+    for r in (ruoli or []):
+        r = (r or "").strip()
+        if r not in VALID_ROLES:
+            raise ValueError(f"Ruolo «{r}» inesistente. Validi: {', '.join(sorted(VALID_ROLES))}.")
+        if r not in ruoli_l:
+            ruoli_l.append(r)
+    if "admin" in ruoli_l and "superadmin" not in ruoli_l:
+        ruoli_l.append("superadmin")
+    noti = {u["username"] for u in list_users()}
+    utenti_l: List[str] = []
+    for u in (utenti or []):
+        u = (u or "").strip()
+        if u not in noti:
+            raise ValueError(f"Utente «{u}» inesistente.")
+        if u not in utenti_l:
+            utenti_l.append(u)
+    if not ruoli_l and not utenti_l:
+        raise ValueError("Serve almeno un destinatario: un ruolo o un utente.")
+    ids = [crea_notifica(tipo=tipo, titolo=titolo, messaggio=messaggio, link=link, icona=icona,
+                         urgenza=urgenza, dest_ruolo=r) for r in ruoli_l]
+    ids += [crea_notifica(tipo=tipo, titolo=titolo, messaggio=messaggio, link=link, icona=icona,
+                          urgenza=urgenza, dest_username=u) for u in utenti_l]
+    return {"create": len(ids), "ids": ids, "ruoli": ruoli_l, "utenti": utenti_l}
 
 
 def get_notifiche_utente(username: str, ruolo: str, limit: int = 50, offset: int = 0) -> list:

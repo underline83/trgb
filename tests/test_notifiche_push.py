@@ -9,6 +9,9 @@ Test delle push sui dispositivi (app/services/notifiche_push.py, mattone M.A —
 - dispositivi: registrazione, stesso dispositivo due volte, indirizzi rifiutati, ognuno i suoi;
 - invio: riuscito, dispositivo sparito (410 → tolto), errori di fila → spento, canale ignoto;
 - chiavi del locale: generate una volta sola, cifrate se c'è TRGB_SECRET_KEY.
+- fase 2: tipi accesi di partenza, accendi/spegni, destinatari come il campanello
+  («admin» non comprende superadmin), crea_notifica che diventa push solo se il tipo è
+  acceso e non si rompe se la push fallisce, crea_per_destinatari (tutto o niente).
 
     cd /Users/underline83/trgb && python3 tests/test_notifiche_push.py
 
@@ -32,8 +35,22 @@ from cryptography.hazmat.primitives import hashes  # noqa: E402
 from cryptography.hazmat.primitives.asymmetric import ec  # noqa: E402
 from cryptography.hazmat.primitives.asymmetric.utils import encode_dss_signature  # noqa: E402
 
+# auth_service importa fastapi, che nella VM delle prove non c'è: basta un doppio con
+# gli utenti e i ruoli (quello che usano destinatari e crea_per_destinatari).
+import types  # noqa: E402
+
+UTENTI = [{"username": "marco", "role": "superadmin"}, {"username": "paolo", "role": "admin"},
+          {"username": "anna", "role": "capo_sala"}, {"username": "luca", "role": "sala"},
+          {"username": "gino", "role": "chef"}]
+_auth = types.ModuleType("app.services.auth_service")
+_auth.list_users = lambda: [dict(u) for u in UTENTI]
+_auth.VALID_ROLES = {"superadmin", "admin", "contabile", "chef", "sous_chef", "commis",
+                     "sommelier", "capo_sala", "sala", "viewer"}
+sys.modules.setdefault("app.services.auth_service", _auth)
+
 from app.models import notifiche_db  # noqa: E402
 from app.services import notifiche_push as push  # noqa: E402
+from app.services import notifiche_service as servizio  # noqa: E402
 
 
 def b64(testo):
@@ -290,6 +307,175 @@ class TestChiavi(ConDb):
             self.assertIsNone(s["chiave_pubblica"])
             self.assertIn("TRGB_SECRET_KEY", s["errore"])
         self.assertEqual(self._salvata(), salvata)
+
+
+class Fase2(ConDb):
+    def setUp(self):
+        super().setUp()
+        self.subito = mock.patch.dict(os.environ, {"TRGB_PUSH_SUBITO": "1"})
+        self.subito.start()
+
+    def tearDown(self):
+        self.subito.stop()
+        super().tearDown()
+
+    def dispositivo(self, username, n=1):
+        return push.registra(username, {"endpoint": f"https://web.push.apple.com/{username}{n}",
+                                        "keys": ISCRIZIONE["keys"]})
+
+    def notifiche(self):
+        c = notifiche_db.get_notifiche_conn()
+        try:
+            return [dict(r) for r in c.execute("SELECT * FROM notifiche ORDER BY id")]
+        finally:
+            c.close()
+
+
+class TestRegole(Fase2):
+    def test_accesi_di_partenza(self):
+        for t in ("giro", "preventivo_risposta", "prenotazione_lista_attesa", "evento_confermato"):
+            self.assertTrue(push.push_accesa(t), t)
+        for t in ("turni", "alert_fatture_scadenza", "preventivo_scadenza", "mai_visto", ""):
+            self.assertFalse(push.push_accesa(t), t)
+
+    def test_spegnere_resta_spento_al_riavvio(self):
+        push.imposta_regola("giro", False, "marco")
+        notifiche_db.init_notifiche_db()
+        self.assertFalse(push.push_accesa("giro"))
+        push.imposta_regola("turni", True, "marco")
+        self.assertTrue(push.push_accesa("turni"))
+        with self.assertRaises(push.PushErrore):
+            push.imposta_regola("tipo con spazi", True)
+
+    def test_elenco_per_la_pagina(self):
+        servizio.crea_notifica(tipo="turni", titolo="Turni pubblicati")
+        servizio.crea_notifica(tipo="alert_fatture_scadenza", titolo="Fatture", dest_ruolo="admin")
+        self.dispositivo("marco")
+        e = push.regole()
+        self.assertEqual(e["dispositivi_accesi"], 1)
+        per = {r["tipo"]: r for r in e["regole"]}
+        self.assertTrue(per["giro"]["push"])
+        self.assertEqual(per["giro"]["etichetta"], "Giro osteria (mail e WhatsApp)")
+        self.assertEqual((per["turni"]["push"], per["turni"]["ultimi_30_giorni"], per["turni"]["a_chi"]), (False, 1, ["tutti"]))
+        self.assertEqual(per["alert_fatture_scadenza"]["etichetta"], "Avviso: fatture scadenza")
+        self.assertEqual(per["alert_fatture_scadenza"]["a_chi"], ["admin"])
+        self.assertTrue(e["regole"][0]["push"])
+        self.assertFalse(e["regole"][-1]["push"])
+
+
+class TestDestinatari(Fase2):
+    def test_come_il_campanello(self):
+        self.assertEqual(push.destinatari("luca", None), ["luca"])
+        self.assertEqual(push.destinatari(None, "admin"), ["paolo"])
+        self.assertEqual(push.destinatari(None, "superadmin"), ["marco"])
+        self.assertEqual(push.destinatari(None, "sommelier"), [])
+        self.assertEqual(push.destinatari("luca", "capo_sala"), ["anna", "luca"])
+        self.assertEqual(len(push.destinatari(None, None)), len(UTENTI))
+
+
+class TestNotificaCheSuona(Fase2):
+    def test_tipo_acceso_suona_a_chi_la_vede(self):
+        self.dispositivo("anna")
+        self.dispositivo("anna", 2)
+        self.dispositivo("marco")
+        self.dispositivo("luca")
+        with self.finto(201):
+            nid = servizio.crea_notifica(tipo="preventivo_risposta", titolo="Risposta di Rossi",
+                                         messaggio="Confermano per 12", link="/preventivi/7", dest_ruolo="capo_sala")
+        self.assertEqual(len(self.notifiche()), 1)
+        self.assertEqual(sorted(u for u, _, _ in self.inviate),
+                         ["https://web.push.apple.com/anna1", "https://web.push.apple.com/anna2"])
+        self.assertIsInstance(nid, int)
+
+    def test_tipo_spento_non_suona(self):
+        self.dispositivo("marco")
+        with self.finto(201):
+            servizio.crea_notifica(tipo="turni", titolo="Turni pubblicati")
+            servizio.crea_notifica(tipo="alert_fatture_scadenza", titolo="Fatture", dest_ruolo="superadmin")
+        self.assertEqual(len(self.notifiche()), 2)
+        self.assertEqual(self.inviate, [])
+
+    def test_globale_accesa_suona_a_tutti_quelli_con_un_dispositivo(self):
+        self.dispositivo("marco")
+        self.dispositivo("gino")
+        push.imposta_regola("turni", True, "marco")
+        with self.finto(201):
+            servizio.crea_notifica(tipo="turni", titolo="Turni pubblicati")
+        self.assertEqual(len(self.inviate), 2)
+
+    def test_push_rotta_non_rompe_la_notifica(self):
+        self.dispositivo("anna")
+        with mock.patch.object(push, "da_notifica", side_effect=RuntimeError("boom")):
+            nid = servizio.crea_notifica(tipo="giro", titolo="Giro", dest_ruolo="capo_sala")
+        self.assertEqual([n["id"] for n in self.notifiche()], [nid])
+        with mock.patch.object(push, "avvia_da_notifica", side_effect=RuntimeError("boom")):
+            servizio.crea_notifica(tipo="giro", titolo="Giro 2", dest_ruolo="capo_sala")
+        self.assertEqual(len(self.notifiche()), 2)
+
+    def test_senza_subito_parte_in_un_thread(self):
+        import threading
+        self.dispositivo("anna")
+        fatto = threading.Event()
+        vero = push.da_notifica
+
+        def spia(*a, **k):
+            try:
+                return vero(*a, **k)
+            finally:
+                fatto.set()
+        with mock.patch.dict(os.environ, {"TRGB_PUSH_SUBITO": "0"}), self.finto(201), \
+                mock.patch.object(push, "da_notifica", spia):
+            servizio.crea_notifica(tipo="giro", titolo="Giro", dest_ruolo="capo_sala")
+            self.assertTrue(fatto.wait(5))
+        self.assertEqual(len(self.inviate), 1)
+
+    def test_il_messaggio_porta_titolo_testo_e_link(self):
+        self.dispositivo("anna")
+        visto = {}
+        vero = push._carico
+
+        def spia(titolo, corpo, link, tag):
+            visto.update(titolo=titolo, corpo=corpo, link=link, tag=tag)
+            return vero(titolo, corpo, link, tag)
+        with self.finto(201), mock.patch.object(push, "_carico", spia):
+            nid = servizio.crea_notifica(tipo="giro", titolo="Giro osteria · 2 da rispondere",
+                                         messaggio="Rossi aspetta", link="/clienti/posta", dest_ruolo="capo_sala")
+        self.assertEqual(visto, {"titolo": "Giro osteria · 2 da rispondere", "corpo": "Rossi aspetta",
+                                 "link": "/clienti/posta", "tag": f"n{nid}"})
+
+
+class TestPerDestinatari(Fase2):
+    def test_admin_comprende_superadmin(self):
+        self.dispositivo("marco")
+        self.dispositivo("paolo")
+        self.dispositivo("anna")
+        with self.finto(201):
+            e = servizio.crea_per_destinatari("giro", "Giro osteria", "Niente di nuovo", "/clienti/posta",
+                                              ruoli=["admin", "capo_sala"])
+        self.assertEqual(e["ruoli"], ["admin", "capo_sala", "superadmin"])
+        self.assertEqual(e["create"], 3)
+        self.assertEqual(sorted(n["dest_ruolo"] for n in self.notifiche()), ["admin", "capo_sala", "superadmin"])
+        self.assertEqual(len(self.inviate), 3)
+
+    def test_utenti_e_ruoli_insieme(self):
+        e = servizio.crea_per_destinatari("giro", "Giro", ruoli=["sala"], utenti=["gino", "gino"])
+        self.assertEqual((e["ruoli"], e["utenti"], e["create"]), (["sala"], ["gino"], 2))
+
+    def test_tutto_o_niente(self):
+        casi = [dict(tipo="Giro Osteria", titolo="T", ruoli=["admin"]),
+                dict(tipo="giro", titolo="", ruoli=["admin"]),
+                dict(tipo="giro", titolo="T" * 121, ruoli=["admin"]),
+                dict(tipo="giro", titolo="T", messaggio="m" * 1501, ruoli=["admin"]),
+                dict(tipo="giro", titolo="T", link="https://altro.it", ruoli=["admin"]),
+                dict(tipo="giro", titolo="T", link="//altro.it", ruoli=["admin"]),
+                dict(tipo="giro", titolo="T", urgenza="altissima", ruoli=["admin"]),
+                dict(tipo="giro", titolo="T", ruoli=["admin", "padrone"]),
+                dict(tipo="giro", titolo="T", ruoli=["admin"], utenti=["nessuno"]),
+                dict(tipo="giro", titolo="T")]
+        for caso in casi:
+            with self.assertRaises(ValueError, msg=str(caso)):
+                servizio.crea_per_destinatari(**caso)
+        self.assertEqual(self.notifiche(), [])
 
 
 if __name__ == "__main__":

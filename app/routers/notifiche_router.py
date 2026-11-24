@@ -3,7 +3,7 @@
 # Router Notifiche & Comunicazioni — TRGB Gestionale (M.A)
 # ============================================================
 
-# @version: v1.1 (2026-11-24) — push sui dispositivi: /notifiche/push/* (stato, dispositivi, prova); v1.0-notifiche-router
+# @version: v1.2 (2026-11-24) — /notifiche/push/regole (quali tipi diventano push, solo admin); v1.1 (2026-11-24) — push sui dispositivi: /notifiche/push/* (stato, dispositivi, prova); v1.0-notifiche-router
 # -*- coding: utf-8 -*-
 """
 Router Notifiche & Comunicazioni — TRGB Gestionale
@@ -21,6 +21,8 @@ Endpoint:
     POST   /notifiche/push/dispositivi       — registra questo dispositivo
     DELETE /notifiche/push/dispositivi/{id}  — toglie un mio dispositivo
     POST   /notifiche/push/prova             — push di prova sui miei dispositivi
+    GET    /notifiche/push/regole            — quali tipi di notifica diventano push (solo admin)
+    PUT    /notifiche/push/regole/{tipo}     — accende/spegne la push di un tipo (solo admin)
 
   Comunicazioni (bacheca staff):
     GET  /comunicazioni           — lista attive per ruolo utente
@@ -214,6 +216,31 @@ def api_push_togli(dispositivo_id: int, current_user: Dict[str, Any] = Depends(_
 def api_push_prova(current_user: Dict[str, Any] = Depends(_OGNUNO)):
     """Manda una push di prova a tutti i dispositivi accesi dell'utente."""
     return notifiche_push.prova(current_user["username"])
+
+
+# ── Quali tipi diventano push (fase 2): la scelta è di chi amministra ──
+
+class RegolaIn(BaseModel):
+    push: bool
+
+
+@router.get("/push/regole")
+def api_push_regole(current_user: Dict[str, Any] = Depends(richiede_ruoli("admin", cosa="le regole delle notifiche push"))):
+    """Tipi di notifica con push accesa/spenta, quante negli ultimi 30 giorni e a chi vanno."""
+    return notifiche_push.regole()
+
+
+@router.put("/push/regole/{tipo}")
+def api_push_regola(
+    tipo: str,
+    body: RegolaIn,
+    current_user: Dict[str, Any] = Depends(richiede_ruoli("admin", cosa="le regole delle notifiche push")),
+):
+    """Accende o spegne la push di un tipo di notifica."""
+    try:
+        return notifiche_push.imposta_regola(tipo, body.push, current_user["username"])
+    except notifiche_push.PushErrore as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 # ═══════════════════════════════════════════════

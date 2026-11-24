@@ -41,6 +41,7 @@
     "notifiche_lettura",
     "notifiche_dispositivi",
     "notifiche_push_config",
+    "notifiche_push_regole",
     "comunicazioni",
     "alert_config",
     "schema_migrations",

@@ -42,6 +42,21 @@ Marco: «ipotizziamo uno schermo touch per la cucina»; fra tre prove ha scelto 
 
 ---
 
+## 2026-11-24 — Notifiche push, fase 2: le notifiche vere suonano sul telefono (mattone M.A) `[core]`
+Dopo la prova sull'iPhone («funziona»: la push di prova arriva a schermo bloccato e apre TRGB), Marco sulla proposta dei tipi accesi: «ok proviamole». Nessuna migrazione numerata (una tabella al boot), sistema invariato. Connettore 1.24.
+
+**Aggiunto**
+- **Una notifica diventa push se il suo tipo è acceso.** `crea_notifica` avvisa `notifiche_push`, che manda la push a chi vede quella notifica nel campanello, su tutti i suoi dispositivi accesi. Parte in un thread: chi crea la notifica non aspetta e non si rompe se il servizio push è giù.
+- **Accesi di partenza** (tabella `notifiche_push_regole`): giro osteria, risposte ai preventivi, posto liberato dalla lista d'attesa, evento confermato. Tutto il resto nasce spento: scadenze, pagamenti, turni restano solo nel campanello.
+- **Impostazioni › Notifiche**: in cima il riquadro «📲 Push sul telefono», un interruttore per tipo, con a chi va e quante ne sono arrivate negli ultimi 30 giorni (`NotifichePushRegole.jsx`; `GET /notifiche/push/regole`, `PUT /notifiche/push/regole/{tipo}`, solo admin).
+- **Strumento `notifica_crea` nel connettore** (platform, solo admin): una notifica nel campanello per ruoli e/o utenti, per il giro mail + WhatsApp (tipo «giro»). «admin» comprende superadmin. `notifiche_service.crea_per_destinatari` controlla tutto prima di scrivere.
+- `tests/test_notifiche_push.py`: da 19 a 32 prove.
+
+**Da sapere**
+- La push segue il campanello, non lo allarga: nel campanello il ruolo si confronta per uguaglianza, quindi una notifica mandata ad «admin» un superadmin non la vede e non gli suona. Vale per gli avvisi di scadenze e per le risposte ai preventivi (ruoli da `preventivi_avviso_ruoli`). Da decidere con Marco.
+
+---
+
 ## 2026-11-24 — Testata fuori da sotto l'orologio su iPhone e iPad (Header 6.3) `[core]`
 Marco, provando le notifiche dall'iPhone: «questo è un problema noto, la parte alta resta sotto la zona dell'isola dinamica/orologio e non è accessibile». Aprendo TRGB dall'icona sulla Home la pagina arriva fin sotto la barra di stato (`viewport-fit=cover` + barra trasparente) e la testata, attaccata in cima, ci finiva sotto: campanello, menu e utente non si toccavano. Solo frontend.
 

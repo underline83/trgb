@@ -20,6 +20,15 @@ from app.utils.locale_data import locale_data_path
 # R6.5 — path tenant-aware. Modulo: platform/M.A notifiche.
 DB_PATH = locale_data_path("notifiche.sqlite3")
 
+# Tipi di notifica che nascono con la push accesa (decisione di Marco, 24/11/2026:
+# «ok proviamole»). Tutto il resto nasce spento e si accende da Impostazioni › Notifiche.
+PUSH_ACCESE_DI_PARTENZA = (
+    "giro",                        # riepilogo del giro mail + WhatsApp (strumento notifica_crea)
+    "preventivo_risposta",         # un cliente ha risposto a un preventivo
+    "prenotazione_lista_attesa",   # si è liberato un posto per chi è in lista d'attesa
+    "evento_confermato",           # evento confermato: sala e cucina
+)
+
 
 def get_notifiche_conn() -> sqlite3.Connection:
     conn = sqlite3.connect(DB_PATH, timeout=30)
@@ -250,6 +259,10 @@ def init_notifiche_db() -> None:
             UPDATE comunicazioni SET updated_at = datetime('now','localtime') WHERE id = NEW.id;
         END
     """)
+
+    for _tipo in PUSH_ACCESE_DI_PARTENZA:
+        cur.execute("INSERT OR IGNORE INTO notifiche_push_regole (tipo, push, aggiornato_da) VALUES (?, 1, 'predefinito')",
+                    (_tipo,))
 
     conn.commit()
     conn.close()

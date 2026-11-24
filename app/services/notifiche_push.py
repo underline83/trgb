@@ -1,5 +1,6 @@
 # Modulo: platform (mattone M.A notifiche — push sui dispositivi) — [core]
-# @version: v1.0 (2026-11-24) — fase 1: dispositivi, chiavi del locale, invio web push, push di prova
+# @version: v1.1 (2026-11-24) — fase 2: regole per tipo (notifiche_push_regole), le notifiche vere diventano push
+#   (da_notifica, chiamata da crea_notifica); v1.0 (2026-11-24) — fase 1: dispositivi, chiavi, invio web push, prova
 # -*- coding: utf-8 -*-
 """
 Notifiche push sui dispositivi — TRGB Gestionale (mattone M.A)
@@ -9,9 +10,11 @@ obiettivo («la C»). Per questo il servizio è A CANALI: ogni dispositivo regis
 canale (`webpush` oggi; `apns` quando ci sarà l'app Capacitor) e chi manda non sa quale.
 Specifica: docs/spec_notifiche_push.md.
 
-Fase 1 (questo file): ognuno attiva le notifiche sul proprio dispositivo e si manda una
-push di prova. Le notifiche vere (crea_notifica) NON diventano ancora push: arriva con la
-fase 2, insieme agli interruttori per tipo.
+Fase 1: ognuno attiva le notifiche sul proprio dispositivo e si manda una push di prova.
+Fase 2: una notifica vera (crea_notifica) diventa push se il suo TIPO è acceso in
+`notifiche_push_regole` (Impostazioni › Notifiche); la ricevono gli stessi che la vedono nel
+campanello (`destinatari`), su tutti i loro dispositivi accesi. L'invio parte in un thread:
+chi crea la notifica non aspetta e non si rompe mai per colpa di una push.
 
 Web push senza librerie nuove: cifratura del messaggio (RFC 8291, aes128gcm) e firma del
 mittente (VAPID, RFC 8292) con `cryptography`, che c'è già; l'invio con `httpx`.
@@ -26,6 +29,7 @@ Tabelle (notifiche.sqlite3, create al boot da init_notifiche_db):
                           o, domani, token dell'app), chiavi, nome, esito dell'ultimo invio
   notifiche_push_config   chiave/valore: chiavi VAPID e i valori che Marco può cambiare
                           (ttl_ore, errori_max)
+  notifiche_push_regole   tipo → push accesa/spenta; un tipo senza riga non suona
 """
 
 from __future__ import annotations
@@ -36,6 +40,7 @@ import json
 import logging
 import os
 import struct
+import threading
 import time
 from typing import Any, Callable, Dict, List, Optional
 from urllib.parse import urlsplit
@@ -415,3 +420,144 @@ def prova(username: str) -> Dict[str, Any]:
     """La push di prova del tasto «Prova»: arriva su tutti i dispositivi accesi dell'utente."""
     return manda_a_utente(username, "Notifica di prova",
                           "Le notifiche su questo dispositivo funzionano.", "/", tag="prova")
+
+
+# ---------------------------------------------------------------------------
+# Fase 2 — quali notifiche diventano push, e a chi
+# ---------------------------------------------------------------------------
+
+# Nomi leggibili dei tipi per la pagina Impostazioni › Notifiche. Un tipo che non è qui
+# compare col suo nome tecnico: aggiungerlo qui quando nasce.
+ETICHETTE = {
+    "giro": "Giro osteria (mail e WhatsApp)",
+    "preventivo_risposta": "Risposte ai preventivi",
+    "prenotazione_lista_attesa": "Posto liberato, lista d'attesa",
+    "evento_confermato": "Evento confermato",
+    "preventivo_scadenza": "Preventivi in scadenza",
+    "prenotazione_opzione_scaduta": "Opzioni scadute",
+    "prenotazioni": "Prenotazioni",
+    "preventivi": "Preventivi",
+    "turni": "Turni pubblicati",
+    "linea_cucina": "Linea cucina",
+    "scadenze": "Scadenze",
+    "fatture": "Fatture",
+    "vini": "Vini",
+    "clienti": "Clienti",
+    "sistema": "Sistema",
+    "listino": "Listini",
+    "pagato": "Pagamenti visti",
+    "giftcard_scadenza": "Gift card in scadenza",
+    "pratiche_pagamento_annullato": "Pratiche: pagamento annullato",
+    "utenze_scadenza_condizioni": "Utenze: condizioni in scadenza",
+    "utenze_consumi_stimati": "Utenze: consumi stimati",
+}
+
+
+def _etichetta(tipo: str) -> str:
+    if tipo in ETICHETTE:
+        return ETICHETTE[tipo]
+    if tipo.startswith("alert_"):
+        return "Avviso: " + tipo[len("alert_"):].replace("_", " ")
+    return tipo.replace("_", " ").capitalize()
+
+
+def push_accesa(tipo: str) -> bool:
+    """La notifica di questo tipo deve suonare sui telefoni? Senza riga: no."""
+    conn = get_notifiche_conn()
+    try:
+        r = conn.execute("SELECT push FROM notifiche_push_regole WHERE tipo = ?", (tipo or "",)).fetchone()
+        return bool(r and r["push"])
+    finally:
+        conn.close()
+
+
+def regole() -> Dict[str, Any]:
+    """Per Impostazioni › Notifiche: ogni tipo conosciuto (con una regola, visto nel
+    campanello negli ultimi 90 giorni, o con un nome in ETICHETTE) con push accesa/spenta,
+    quante ne sono arrivate negli ultimi 30 giorni e a chi vanno. Prima gli accesi."""
+    conn = get_notifiche_conn()
+    try:
+        acc = {r["tipo"]: r for r in conn.execute("SELECT * FROM notifiche_push_regole")}
+        visti: Dict[str, Dict[str, Any]] = {}
+        for r in conn.execute("""
+            SELECT tipo,
+                   SUM(CASE WHEN created_at >= datetime('now','localtime','-30 days') THEN 1 ELSE 0 END) AS n30,
+                   GROUP_CONCAT(DISTINCT COALESCE(dest_username, dest_ruolo, 'tutti')) AS chi
+            FROM notifiche WHERE created_at >= datetime('now','localtime','-90 days') GROUP BY tipo
+        """):
+            visti[r["tipo"]] = {"n30": r["n30"] or 0, "chi": sorted((r["chi"] or "").split(","))}
+        dispositivi = conn.execute("SELECT COUNT(*) AS n FROM notifiche_dispositivi WHERE attivo = 1").fetchone()["n"]
+    finally:
+        conn.close()
+    tipi = set(acc) | set(visti) | {t for t in ETICHETTE}
+    righe = [{"tipo": t, "etichetta": _etichetta(t), "push": bool(t in acc and acc[t]["push"]),
+              "ultimi_30_giorni": visti.get(t, {}).get("n30", 0), "a_chi": visti.get(t, {}).get("chi", []),
+              "aggiornato_il": acc[t]["aggiornato_il"] if t in acc else None,
+              "aggiornato_da": acc[t]["aggiornato_da"] if t in acc else None} for t in tipi]
+    righe.sort(key=lambda r: (not r["push"], -r["ultimi_30_giorni"], r["etichetta"].lower()))
+    return {"regole": righe, "dispositivi_accesi": dispositivi}
+
+
+def imposta_regola(tipo: str, push: bool, chi: Optional[str] = None) -> Dict[str, Any]:
+    """Accende o spegne la push di un tipo."""
+    tipo = (tipo or "").strip()
+    if not tipo or len(tipo) > 60 or not all(c.isalnum() or c == "_" for c in tipo):
+        raise PushErrore("Tipo di notifica non valido.")
+    conn = get_notifiche_conn()
+    try:
+        conn.execute(
+            "INSERT INTO notifiche_push_regole (tipo, push, aggiornato_da) VALUES (?, ?, ?) "
+            "ON CONFLICT(tipo) DO UPDATE SET push = excluded.push, aggiornato_da = excluded.aggiornato_da, "
+            "aggiornato_il = datetime('now','localtime')", (tipo, 1 if push else 0, chi))
+        conn.commit()
+    finally:
+        conn.close()
+    return {"tipo": tipo, "etichetta": _etichetta(tipo), "push": bool(push)}
+
+
+def destinatari(dest_username: Optional[str], dest_ruolo: Optional[str]) -> List[str]:
+    """Gli utenti che vedono la notifica nel campanello: quello nominato, quelli col ruolo
+    (uguaglianza esatta, come `get_notifiche_utente`: «admin» NON comprende superadmin),
+    oppure tutti se la notifica è globale. La push segue il campanello, non lo allarga."""
+    from app.services.auth_service import list_users
+    utenti = list_users()
+    chi = set()
+    if dest_username:
+        chi.add(dest_username)
+    if dest_ruolo:
+        chi.update(u["username"] for u in utenti if u.get("role") == dest_ruolo)
+    if not dest_username and not dest_ruolo:
+        chi.update(u["username"] for u in utenti)
+    return sorted(chi)
+
+
+def da_notifica(notifica_id: int, tipo: str, titolo: str, messaggio: Optional[str] = None,
+                link: Optional[str] = None, dest_username: Optional[str] = None,
+                dest_ruolo: Optional[str] = None) -> Dict[str, Any]:
+    """Una notifica appena creata diventa push, se il suo tipo è acceso. Torna cosa ha fatto
+    (serve alle prove e al log)."""
+    if not push_accesa(tipo):
+        return {"push": False}
+    esito = {"push": True, "utenti": 0, "mandate": 0, "fallite": 0, "tolte": 0}
+    for username in destinatari(dest_username, dest_ruolo):
+        e = manda_a_utente(username, titolo, messaggio or "", link or "/", tag=f"n{notifica_id}")
+        if e["dispositivi"]:
+            esito["utenti"] += 1
+        for k in ("mandate", "fallite", "tolte"):
+            esito[k] += e[k]
+    return esito
+
+
+def avvia_da_notifica(*args: Any, **kwargs: Any) -> None:
+    """Come `da_notifica`, ma in un thread e senza mai sollevare: è la chiamata che fa
+    `crea_notifica`. Chi crea una notifica (una rotta, un job) non deve aspettare il
+    servizio push né rompersi se è giù. TRGB_PUSH_SUBITO=1 la fa sul posto (prove)."""
+    def _lavoro() -> None:
+        try:
+            da_notifica(*args, **kwargs)
+        except Exception:
+            logger.exception("push della notifica non riuscita")
+    if os.environ.get("TRGB_PUSH_SUBITO") == "1":
+        _lavoro()
+    else:
+        threading.Thread(target=_lavoro, name="trgb-push", daemon=True).start()

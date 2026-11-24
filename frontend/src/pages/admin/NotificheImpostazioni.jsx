@@ -1,10 +1,11 @@
 // src/pages/admin/NotificheImpostazioni.jsx
-// @version: v2.0-mattoni — refactor con M.I UI primitives (Btn, StatusBadge, EmptyState)
+// @version: v2.1 (2026-11-24) — in cima il riquadro «📲 Push sul telefono» (NotifichePushRegole); v2.0-mattoni — refactor con M.I UI primitives (Btn, StatusBadge, EmptyState)
 // Tab "Notifiche" dentro ImpostazioniSistema — NON usa PageLayout, vive nel container padre.
 
 import React, { useState, useEffect } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
 import { Btn, StatusBadge, EmptyState } from "../../components/ui";
+import NotifichePushRegole from "./NotifichePushRegole";
 
 // ---------------------------------------------------------------------------
 // COSTANTI
@@ -140,6 +141,9 @@ export default function NotificheImpostazioni() {
 
   return (
     <div className="space-y-6">
+      {/* Push sul telefono (M.A, fase 2): quali tipi di notifica suonano */}
+      <NotifichePushRegole />
+
       <p className="text-neutral-500 text-sm">
         Configura soglie, destinatari e canali per ogni tipo di alert automatico.
       </p>

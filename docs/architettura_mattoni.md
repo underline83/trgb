@@ -58,7 +58,7 @@ Servizi/componenti riutilizzabili che piu' moduli richiedono. Costruirli PRIMA e
 - **DB:** `notifiche_dispositivi`, `notifiche_push_config` (in `notifiche.sqlite3`, create al boot).
 - **Rotte:** `GET /notifiche/push/stato`, `POST /notifiche/push/dispositivi`, `DELETE /notifiche/push/dispositivi/{id}`, `POST /notifiche/push/prova` — tutti i ruoli, ognuno i suoi dispositivi.
 - **Frontend:** `utils/push.js` (l'unico punto che parla con le push), `components/NotifichePush.jsx` (riquadro in fondo al pannello del campanello), `public/sw.js` (`push`, `notificationclick`).
-- **Non ancora:** le notifiche vere (`crea_notifica`) non diventano push. Fase 2: interruttori per tipo e destinatari, aggancio a `crea_notifica`, strumento `notifica_crea` nel connettore.
+- **Fase 2 (2026-11-24):** `crea_notifica` avvisa `notifiche_push.avvia_da_notifica`: la notifica diventa push se il suo tipo è acceso in `notifiche_push_regole` (Impostazioni › Notifiche › «📲 Push sul telefono», `GET/PUT /notifiche/push/regole`, admin), a chi la vede nel campanello (`destinatari`), in un thread. Accesi di partenza: `notifiche_db.PUSH_ACCESE_DI_PARTENZA`. Per mandare a più ruoli: `notifiche_service.crea_per_destinatari` («admin» comprende superadmin); dal connettore: `notifica_crea`. Un tipo nuovo nasce spento: per farlo suonare lo si accende da Impostazioni e gli si dà un nome in `notifiche_push.ETICHETTE`.
 
 ---
 
