@@ -1,13 +1,16 @@
-# @version: v1.2 (2026-11-24) — pagina «💬 WhatsApp»: chat, gestita, ricerca; permessi dalla matrice Moduli (clienti/whatsapp)
+# @version: v1.3 (2026-11-24) — scrivere dalla pagina: POST /chat/{numero}/invia (sub clienti/whatsapp_scrivere)
+# v1.2 (2026-11-24) — pagina «💬 WhatsApp»: chat, gestita, ricerca; permessi dalla matrice Moduli (clienti/whatsapp)
 # v1.1 (2026-11-23) — ingresso YCloud + impostazioni chat «chiuse dal cliente»
 # v1.0 (2026-11-02) — check WhatsApp in sola lettura
 # Modulo: clienti — [core]
 # -*- coding: utf-8 -*-
 """
-Router WhatsApp in SOLA LETTURA del numero del locale (coexistence; dal 23/11/2026 via YCloud).
+Router WhatsApp del numero del locale (coexistence; dal 23/11/2026 via YCloud): lettura, e dal
+24/11/2026 risposte scritte a mano dalla pagina «💬 WhatsApp».
 
 Manifesto (per module.json a R8):
-  modulo: clienti · tabelle: clienti_wa_messaggi, clienti_wa_contatti, clienti_wa_eventi
+  modulo: clienti · tabelle: clienti_wa_messaggi, clienti_wa_contatti, clienti_wa_eventi,
+  clienti_wa_gestite, clienti_wa_invii
   (+ chiavi wa_* in clienti_impostazioni) · service: app/services/clienti_whatsapp_service.py
   endpoint:
     GET  /clienti/whatsapp/webhook   PUBBLICO (Meta): verifica con WA_VERIFY_TOKEN
@@ -19,9 +22,12 @@ Manifesto (per module.json a R8):
     GET  /clienti/whatsapp/cerca              idem
     GET  /clienti/whatsapp/chat/{numero}      idem — una chat intera per la pagina «💬 WhatsApp»
     POST /clienti/whatsapp/chat/{numero}/gestita  idem — «✓ Gestita» / tolta
+    POST /clienti/whatsapp/chat/{numero}/invia    Clienti › «WhatsApp · scrivere» nella matrice Moduli —
+                                              testo al cliente via YCloud, solo entro 24 ore dal suo
+                                              ultimo messaggio (regola di WhatsApp)
     PUT  /clienti/whatsapp/conservazione      admin
     PUT  /clienti/whatsapp/chiusura           admin (parole e lunghezza delle chat «chiuse dal cliente»)
-  Nessun endpoint manda messaggi ai clienti.
+  Scrive ai clienti SOLO /invia: un testo scritto da una persona. Niente invii automatici.
   Va montato PRIMA di clienti_router (che ha rotte /clienti/{id}).
 """
 
@@ -37,7 +43,7 @@ from pydantic import BaseModel, Field
 from typing import List
 
 from app.services import clienti_whatsapp_service as wa
-from app.services.permessi import richiede_sotto_modulo, solo_admin
+from app.services.permessi import ha_sotto_modulo, richiede_sotto_modulo, solo_admin
 
 logger = logging.getLogger("trgb.whatsapp")
 
@@ -156,8 +162,15 @@ pagina_router = APIRouter(
 )
 
 
+_SCRIVERE = richiede_sotto_modulo("clienti", "whatsapp_scrivere", cosa="scrivere su WhatsApp dal gestionale")
+
+
 class GestitaIn(BaseModel):
     gestita: bool = True
+
+
+class InviaIn(BaseModel):
+    testo: str = Field(..., min_length=1, max_length=wa.TESTO_MAX)
 
 
 @pagina_router.get("/conversazioni")
@@ -175,9 +188,13 @@ def cerca(chi: Optional[str] = None, testo: Optional[str] = None, giorni: int = 
 
 
 @pagina_router.get("/chat/{numero}")
-def chat(numero: str, giorni: int = Query(180, ge=1, le=730)):
+def chat(numero: str, giorni: int = Query(180, ge=1, le=730), user: dict = Depends(_PAGINA)):
     try:
-        return wa.chat(numero, giorni=giorni)
+        voce = wa.chat(numero, giorni=giorni)
+        # la casella per scrivere: chiave YCloud nel .env + «WhatsApp · scrivere» nella matrice
+        voce["scrivere"] = {"configurato": wa.invio_configurato(),
+                            "permesso": ha_sotto_modulo(user, "clienti", "whatsapp_scrivere")}
+        return voce
     except ValueError as e:
         raise HTTPException(400, str(e))
     except LookupError as e:
@@ -190,3 +207,17 @@ def gestita(numero: str, body: GestitaIn, user: dict = Depends(_PAGINA)):
         return wa.imposta_gestita(numero, body.gestita, chi=(user or {}).get("username"))
     except ValueError as e:
         raise HTTPException(400, str(e))
+
+
+@pagina_router.post("/chat/{numero}/invia")
+def invia(numero: str, body: InviaIn, user: dict = Depends(_SCRIVERE)):
+    try:
+        return wa.invia_testo(numero, body.testo, chi=(user or {}).get("username"))
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except wa.FinestraChiusa as e:
+        raise HTTPException(409, str(e))
+    except wa.InvioNonConfigurato as e:
+        raise HTTPException(503, str(e))
+    except wa.InvioFallito as e:
+        raise HTTPException(502, str(e))

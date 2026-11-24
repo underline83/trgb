@@ -3,6 +3,21 @@
 
 ---
 
+## 2026-11-24 — Clienti 3.49 + sistema 6.9: si risponde su WhatsApp da TRGB `[core]`
+Marco, dopo la pagina «💬 WhatsApp» (3.47): «possiamo inviare messaggi da lì?» → «procedi».
+
+**Aggiunto**
+- Casella per scrivere sotto la chat: il testo parte dal numero dell'osteria via API YCloud (`sendDirectly`, `YCLOUD_API_KEY` nel `.env`) e compare anche nell'app sul telefono. Solo entro 24 ore dall'ultimo messaggio del cliente (regola di WhatsApp): la pagina dice quanto resta, poi la casella si spegne con «rispondi dal telefono».
+- Mig 245 `clienti_wa_invii`: ogni invio con chi l'ha scritto, testo, esito, errore, stato di consegna; il messaggio partito entra nella chat con fonte «da TRGB (utente)» e le spunte ✓ / ✓✓ / ✓✓ blu dal webhook `whatsapp.message.updated`. Non partito → fumetto rosso con l'errore, la chat resta da rispondere.
+- Sotto-modulo `clienti/whatsapp_scrivere` («WhatsApp · scrivere», admin + capo sala) separato dalla lettura.
+- Impostazioni › WhatsApp: riga «Scrivere dalla pagina» (chiave presente/manca); guida § Y punto 5.
+
+**Note**
+- Costi: dal 01/10/2026 Meta fa pagare le risposte via API oltre le 1.000 gratuite al mese per numero; YCloud le scala dal credito, senza ricarichi. Dal telefono restano gratis.
+- Q non scrive su WhatsApp (istruzioni del connettore).
+
+---
+
 ## 2026-11-24 — Clienti 3.48 + connettore 1.22: i preventivi da Q, dalla creazione all'invio `[core]`
 Dal giro mail del 24/11 (gruppo TheFork di Mor): Q non poteva né creare né mandare un preventivo. Marco: «facciamo da 7 a 11» della lista «cosa manca».
 

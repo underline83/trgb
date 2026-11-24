@@ -1,10 +1,14 @@
-// @version: v1.0 (2026-11-24) — «💬 WhatsApp»: le chat del numero dell'osteria come la Posta
+// @version: v1.1 (2026-11-24) — si scrive da qui: casella sotto la chat (via YCloud, solo entro 24 ore dall'ultimo
+//   messaggio del cliente, per chi ha «WhatsApp · scrivere» nella matrice Moduli), spunte di consegna, invii non partiti
+// v1.0 (2026-11-24) — «💬 WhatsApp»: le chat del numero dell'osteria come la Posta
 // Modulo: clienti (pagina) — dati da clienti_whatsapp_service (arrivano da YCloud, sola lettura)
 // Elenco a sinistra (Da rispondere · Chiuse dal cliente · Tutte, periodo, ricerca), chat aperta a destra.
-// TRGB NON manda messaggi: «Apri in WhatsApp» apre la chat nell'app di chi guarda (wa.me, mattone M.C),
+// Si scrive dalla casella sotto la chat (parte dal numero dell'osteria, si vede anche sul telefono); «Apri in
+// WhatsApp» apre invece l'app di chi guarda (wa.me, mattone M.C: dal telefono personale partirebbe dal suo numero),
 // «✓ Gestita» toglie la chat da «da rispondere» finché il cliente non riscrive (mig 244).
 // Chi la vede: matrice Moduli, clienti/whatsapp (dal 24/11/2026 admin + capo sala).
 // Il testo dei messaggi si mostra SOLO come testo (whitespace-pre-wrap): niente link cliccabili.
+// Chi può scrivere: matrice Moduli, clienti/whatsapp_scrivere (il backend lo dice in chat.scrivere.permesso).
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
@@ -53,6 +57,32 @@ function attesa(ore) {
   return `${Math.round(ore / 24)} gg`;
 }
 
+function durata(min) {
+  if (min == null) return "";
+  const h = Math.floor(min / 60), m = min % 60;
+  return h ? `${h} h ${String(m).padStart(2, "0")} min` : `${m} min`;
+}
+
+// spunte come su WhatsApp: ✓ partito, ✓✓ consegnato, ✓✓ blu letto
+function Spunte({ stato }) {
+  if (stato === "read") return <span className="text-sky-500" title="Letto">✓✓</span>;
+  if (stato === "delivered") return <span title="Consegnato">✓✓</span>;
+  if (stato === "sent" || stato === "accepted") return <span title="Partito">✓</span>;
+  return null;
+}
+
+function finoAlle(quando) {
+  // «AAAA-MM-GG HH:MM» → «alle 21:40» oggi, «domani alle 9:15» altrimenti
+  const [g, h] = (quando || "").split(" ");
+  const d = new Date();
+  const oggi = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return g === oggi ? `alle ${h}` : `domani alle ${h}`;
+}
+
+async function dettaglioErrore(res, ripiego) {
+  try { const j = await res.json(); return (typeof j.detail === "string" && j.detail) || ripiego; } catch { return ripiego; }
+}
+
 function Stato({ v }) {
   if (!v) return null;
   if (v.stato === "da_rispondere") return <StatusBadge tone="danger" dot>Da rispondere · {attesa(v.attesa_ore)}</StatusBadge>;
@@ -77,6 +107,9 @@ export default function ClientiWhatsAppChat() {
   const [caricaChat, setCaricaChat] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [toast, setToast] = useState(null);
+  const [testo, setTesto] = useState("");
+  const [inviando, setInviando] = useState(false);
+  const [erroreInvio, setErroreInvio] = useState("");
   const fondo = useRef(null);
 
   useEffect(() => { const t = setTimeout(() => setQDeb(q.trim()), 350); return () => clearTimeout(t); }, [q]);
@@ -117,6 +150,7 @@ export default function ClientiWhatsAppChat() {
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(null), 3500); return () => clearTimeout(t); }, [toast]);
 
   const apri = (numero) => {
+    if (numero !== aperta) { setTesto(""); setErroreInvio(""); }
     setAperta(numero);
     setParams(numero ? { n: numero } : {}, { replace: true });
     if (numero && window.innerWidth < 1024) window.scrollTo({ top: 0 });
@@ -133,6 +167,25 @@ export default function ClientiWhatsAppChat() {
       setToast({ tipo: "ok", testo: gestita ? "Segnata gestita: torna da rispondere se il cliente riscrive" : "Tolto «gestita»" });
       await Promise.all([caricaUna(chat.numero, true), caricaElenco(true)]);
     } catch (e) { setToast({ tipo: "err", testo: e.message }); } finally { setSalvando(false); }
+  };
+
+  const invia = async () => {
+    const t = testo.trim();
+    if (!chat || !t || inviando) return;
+    setInviando(true);
+    setErroreInvio("");
+    try {
+      const res = await apiFetch(`${API_BASE}/clienti/whatsapp/chat/${encodeURIComponent(chat.numero)}/invia`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ testo: t }),
+      });
+      if (!res.ok) throw new Error(await dettaglioErrore(res, "Messaggio non partito"));
+      setTesto("");
+      setToast({ tipo: "ok", testo: "Messaggio partito dal numero dell'osteria" });
+      await Promise.all([caricaUna(chat.numero, true), caricaElenco(true)]);
+    } catch (e) {
+      setErroreInvio(e.message);
+      caricaUna(chat.numero, true);  // l'invio non partito compare nella chat
+    } finally { setInviando(false); }
   };
 
   const tutte = dati?.conversazioni || [];
@@ -165,10 +218,10 @@ export default function ClientiWhatsAppChat() {
             <div>
               <h1 className="text-2xl font-bold text-neutral-900" style={{ fontFamily: "'Playfair Display', serif" }}>💬 WhatsApp</h1>
               <p className="text-sm text-neutral-500 mt-1">
-                Le chat del numero dell'osteria, in sola lettura
+                Le chat del numero dell'osteria
                 {agg?.ultimo_webhook ? ` · ultimo segnale da WhatsApp ${oraCorta(agg.ultimo_webhook.slice(0, 16))}` : ""}
                 {dati ? ` · ${dati.da_rispondere} da rispondere` : ""}.
-                Si risponde dal telefono (o con «Apri in WhatsApp»).
+                Si risponde da qui entro 24 ore dall'ultimo messaggio del cliente, altrimenti dal telefono.
               </p>
               {agg && !agg.collegato && (
                 <p className="text-xs text-amber-700 mt-1">
@@ -244,7 +297,7 @@ export default function ClientiWhatsAppChat() {
             <div className={`${aperta ? "" : "hidden lg:block"} flex-1 min-w-0`}>
               <div className="bg-white rounded-xl border border-neutral-200 shadow-sm lg:sticky lg:top-4 flex flex-col lg:max-h-[calc(100vh-2rem)]">
                 {!aperta ? (
-                  <EmptyState icon="👈" title="Scegli una chat" description="I messaggi si leggono qui. Per rispondere usa il telefono o «Apri in WhatsApp»." />
+                  <EmptyState icon="👈" title="Scegli una chat" description="I messaggi si leggono qui; si risponde sotto la chat (entro 24 ore dall'ultimo messaggio del cliente) o dal telefono." />
                 ) : caricaChat && !chat ? (
                   <p className="p-6 text-sm text-neutral-400">Caricamento…</p>
                 ) : !chat ? (
@@ -272,7 +325,8 @@ export default function ClientiWhatsAppChat() {
                         ) : (chat.stato === "da_rispondere" || chat.stato === "chiusa_dal_cliente") ? (
                           <Btn size="md" variant="success" onClick={() => segnaGestita(true)} loading={salvando}>✓ Gestita</Btn>
                         ) : null}
-                        {link && <Btn size="md" variant="secondary" as="a" href={link} target="_blank" rel="noopener noreferrer">💬 Apri in WhatsApp</Btn>}
+                        {link && <Btn size="md" variant="secondary" as="a" href={link} target="_blank" rel="noopener noreferrer"
+                          title="Apre il WhatsApp di questo dispositivo: dal telefono personale risponderesti col tuo numero">💬 Apri in WhatsApp</Btn>}
                         {chat.cliente_id && <Btn size="md" variant="secondary" onClick={() => navigate(`/clienti/${chat.cliente_id}`)}>👤 Scheda cliente</Btn>}
                       </div>
                       {chat.gestita_da && (
@@ -292,12 +346,15 @@ export default function ClientiWhatsAppChat() {
                                 </div>
                               );
                             }
+                            const fallito = m.consegna === "failed";
                             return (
                               <div key={m.id} className={`flex ${mio ? "justify-end" : "justify-start"}`}>
-                                <div className={`max-w-[85%] rounded-2xl px-3 py-2 shadow-sm border ${mio ? "bg-teal-50 border-teal-100 rounded-br-md" : "bg-white border-neutral-200 rounded-bl-md"}`}>
+                                <div className={`max-w-[85%] rounded-2xl px-3 py-2 shadow-sm border ${fallito ? "bg-red-50 border-red-200 rounded-br-md" : mio ? "bg-teal-50 border-teal-100 rounded-br-md" : "bg-white border-neutral-200 rounded-bl-md"}`}>
                                   <div className="text-sm text-neutral-800 whitespace-pre-wrap break-words">{m.testo || `[${m.tipo}]`}</div>
+                                  {fallito && <div className="text-[11px] text-red-700 mt-1">⚠️ Non partito: {m.errore}</div>}
                                   <div className="text-[10px] text-neutral-400 mt-1 text-right">
-                                    {m.fonte ? `${m.fonte} · ` : ""}{(m.quando || "").slice(11)}
+                                    {m.fonte ? `${m.fonte}${m.da ? ` (${m.da})` : ""} · ` : ""}{(m.quando || "").slice(11)}
+                                    {!fallito && m.consegna && <> <Spunte stato={m.consegna} /></>}
                                   </div>
                                 </div>
                               </div>
@@ -307,6 +364,34 @@ export default function ClientiWhatsAppChat() {
                       ))}
                       <div ref={fondo} />
                     </div>
+                    {chat.scrivere?.permesso && (
+                      <div className="px-3 sm:px-4 py-3 border-t border-neutral-100 space-y-2">
+                        {!chat.scrivere.configurato ? (
+                          <p className="text-xs text-neutral-500">Per scrivere da qui manca la chiave API di YCloud nel server (Impostazioni › WhatsApp).</p>
+                        ) : chat.finestra?.aperta ? (
+                          <>
+                            <textarea value={testo} onChange={(e) => setTesto(e.target.value)} rows={3} maxLength={4096}
+                              onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); invia(); } }}
+                              placeholder="Scrivi la risposta…"
+                              className="w-full border border-neutral-200 rounded-xl px-3 py-2 text-sm resize-y min-h-[72px] focus:outline-none focus:ring-2 focus:ring-teal-500" />
+                            {erroreInvio && <div className="text-xs text-red-700">{erroreInvio}</div>}
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Btn size="md" variant="success" onClick={invia} loading={inviando} disabled={!testo.trim()}>Invia</Btn>
+                              <span className="text-[11px] text-neutral-400">
+                                Parte dal numero dell'osteria e si vede anche sul telefono · puoi scrivere ancora per {durata(chat.finestra.minuti_rimasti)}
+                                {chat.finestra.fino_a ? ` (fino ${finoAlle(chat.finestra.fino_a)})` : ""} · ⌘/Ctrl+Invio per mandare
+                              </span>
+                            </div>
+                          </>
+                        ) : (
+                          <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                            {chat.finestra?.ultimo_cliente
+                              ? `Sono passate più di 24 ore dall'ultimo messaggio del cliente (${oraCorta(chat.finestra.ultimo_cliente)}): WhatsApp non lascia scrivere da qui. Rispondi dal telefono dell'osteria.`
+                              : "Il cliente non ha ancora scritto: WhatsApp non lascia iniziare la chat da qui."}
+                          </p>
+                        )}
+                      </div>
+                    )}
                     <div className="px-4 py-2 border-t border-neutral-100 text-[11px] text-neutral-400">
                       Ultimi {chat.periodo_giorni} giorni · foto e file non si vedono (solo la didascalia) · chat di gruppo escluse
                     </div>

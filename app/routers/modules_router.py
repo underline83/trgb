@@ -200,6 +200,9 @@ DEFAULT_MODULES = [
             # segue questa matrice (permessi.richiede_sotto_modulo): si cambia da Impostazioni.
             {"key": "posta",        "label": "Posta",        "roles": ["superadmin", "admin", "capo_sala"]},
             {"key": "whatsapp",     "label": "WhatsApp",     "roles": ["superadmin", "admin", "capo_sala"]},
+            # Scrivere ai clienti dalla pagina WhatsApp (via YCloud, entro 24 ore): voce a parte,
+            # così si può dare la lettura a uno e la scrittura a un altro (Marco, 24/11).
+            {"key": "whatsapp_scrivere", "label": "WhatsApp · scrivere", "roles": ["superadmin", "admin", "capo_sala"]},
             {"key": "giftcard",     "label": "Gift Card",    "roles": ["superadmin", "admin", "sala", "sommelier", "capo_sala", "contabile"]},
             {"key": "dashboard",    "label": "Dashboard",    "roles": ["superadmin", "admin", "sala", "sommelier", "capo_sala", "contabile"]},
             {"key": "import",       "label": "Import",       "roles": ["superadmin", "admin"]},
@@ -240,7 +243,8 @@ MODULI_DA_AGGIUNGERE = ("pratiche", "comande")
 # Stessa cosa per i sotto-moduli nati dopo (modulo, sub). Va aggiunto anche al
 # runtime: una sub che manca fa ricadere canAccessSub sui ruoli del MODULO
 # (per dipendenti: anche sala, chef, sommelier...) e la protezione salta.
-SUB_DA_AGGIUNGERE = (("dipendenti", "candidati"), ("clienti", "posta"), ("clienti", "whatsapp"))
+SUB_DA_AGGIUNGERE = (("dipendenti", "candidati"), ("clienti", "posta"), ("clienti", "whatsapp"),
+                     ("clienti", "whatsapp_scrivere"))
 
 
 def _aggiungi_sub_nuove(data: list) -> bool:

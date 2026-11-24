@@ -20,9 +20,14 @@ Il numero è già collegato a YCloud (23/11/2026, account YCloud «Tre Gobbi S.R
    Finché il segreto non c'è TRGB risponde 503 e YCloud ritenta da solo (10 s, 30 s, 5 min, 30 min, 1 h…): i messaggi di quei minuti arrivano dopo.
 4. Manda un WhatsApp di prova all'osteria e rispondi dal telefono: in Clienti › Impostazioni › WhatsApp devono comparire «Collegato» e le due righe nelle chat recenti.
 
+5. **Per scrivere dalla pagina 💬 WhatsApp di TRGB** (clienti 3.49, dopo il push): YCloud › **Developers › API Key** (`https://www.ycloud.com/console/#/app/developers/apikey`) → copia la chiave e mettila nel `.env` del VPS: `YCLOUD_API_KEY=…` — non incollarla in chat. Poi `sudo systemctl restart trgb-backend`. In Clienti › Impostazioni › WhatsApp la riga «Scrivere dalla pagina» passa ad «attivo». Chi può scrivere: Impostazioni Sistema › Moduli › Gestione Clienti › «WhatsApp · scrivere».
+   - Si scrive solo entro **24 ore** dall'ultimo messaggio del cliente (regola di WhatsApp); dopo, la casella si spegne e si risponde dal telefono.
+   - Dal 01/10/2026 Meta fa pagare le risposte mandate dall'API oltre le **1.000 gratuite al mese** per numero; YCloud le scala dal suo credito (Wallet), senza ricarichi. Quelle scritte dal telefono restano gratis. Se il credito è a zero e le gratuite sono finite, l'invio da TRGB dà errore: si risponde dal telefono.
+   - Il messaggio parte dal numero dell'osteria e compare anche nell'app sul telefono.
+
 **Se il collegamento cade** (TRGB manda una notifica): apri l'app WhatsApp Business sul telefono (va aperta almeno ogni ~2 settimane). Se non basta, YCloud › WhatsApp Manager › Create Channel › WhatsApp Business App, ed entra con il **tuo profilo Facebook vero** e il **portfolio dove sta la Pagina dell'osteria**: da altri profili o portfolio Meta rifiuta, perché il WhatsApp è legato a quella Pagina.
 
-**Da non fare:** rispondere dalla casella (Inbox) di YCloud (i messaggi da lì si pagano; per TRGB contano comunque come risposta); nel popup di Meta scegliere «Aggiungi numero» con verifica via SMS/chiamata: è la registrazione standard e staccherebbe il numero dall'app.
+**Da non fare:** rispondere dalla casella (Inbox) di YCloud: meglio dalla pagina di TRGB, che registra chi ha scritto (per TRGB contano comunque come risposta); nel popup di Meta scegliere «Aggiungi numero» con verifica via SMS/chiamata: è la registrazione standard e staccherebbe il numero dall'app.
 
 ## 0. Prima di tutto
 

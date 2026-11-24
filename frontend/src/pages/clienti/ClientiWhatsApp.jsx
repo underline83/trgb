@@ -1,4 +1,5 @@
-// @version: v1.1 (2026-11-23) — collegamento via YCloud (indirizzo webhook, segreto, eventi) e
+// @version: v1.2 (2026-11-24) — riga «Scrivere dalla pagina WhatsApp» (YCLOUD_API_KEY presente/manca)
+// v1.1 (2026-11-23) — collegamento via YCloud (indirizzo webhook, segreto, eventi) e
 //   chat «chiuse dal cliente» con parole/lunghezza modificabili; il «Collega» Meta resta solo se YCloud non c'è
 // v1.0 (2026-11-02) — WhatsApp del locale in sola lettura (coexistence Meta)
 // Modulo: clienti
@@ -163,6 +164,11 @@ export default function ClientiWhatsApp() {
           </li>
           <li>Eventi da spuntare: {(yc.eventi || []).join(", ")}</li>
           <li>Segreto (YCLOUD_WEBHOOK_SECRET nel .env del VPS): {yc.segreto_presente ? "presente" : "manca"}</li>
+          <li>
+            Scrivere dalla pagina 💬 WhatsApp (chiave YCLOUD_API_KEY nel .env, da YCloud › Developers › API Keys):{" "}
+            {yc.api_key_presente ? "attivo" : "manca la chiave"} — solo entro 24 ore dall'ultimo messaggio del cliente;
+            chi può scrivere si decide in Impostazioni Sistema › Moduli («WhatsApp · scrivere»).
+          </li>
           {c.collegato_at && <li>Primo messaggio arrivato il {c.collegato_at}</li>}
           <li>Ultimo evento: {a.ultimo_webhook || "mai"}{a.storico ? ` · storico ${a.storico}` : ""}</li>
           {c.ultimo_account_update && <li>Ultimo avviso sull'account: {c.ultimo_account_update}</li>}
@@ -173,7 +179,8 @@ export default function ClientiWhatsApp() {
         <p className="text-xs text-neutral-400">
           Se il collegamento cade: apri l'app WhatsApp Business sul telefono (va aperta almeno ogni 2 settimane).
           Se non basta, ricollega il numero da YCloud entrando con il profilo che gestisce la Pagina Facebook dell'osteria.
-          Dalla casella di YCloud non si scrive: i messaggi da lì si pagano.
+          Le risposte scritte da TRGB (o dalla casella di YCloud) passano dall'API di WhatsApp: oltre le 1.000 al mese
+          per numero si pagano, scalate dal credito di YCloud. Quelle dal telefono restano gratis.
         </p>
         {errore && viaYcloud && <p className="text-sm text-red-600">{errore}</p>}
       </div>

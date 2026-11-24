@@ -1,10 +1,12 @@
-# @version: v1.2 (2026-11-24) — pagina «💬 WhatsApp»: chat(), «gestita» a mano (mig 244), ricerca q in conversazioni
+# @version: v1.3 (2026-11-24) — scrivere da TRGB via YCloud (invia_testo, finestra 24 ore, invii in clienti_wa_invii, stati dal webhook)
+# v1.2 (2026-11-24) — pagina «💬 WhatsApp»: chat(), «gestita» a mano (mig 244), ricerca q in conversazioni
 # v1.1 (2026-11-23) — ingresso YCloud (provider scelto) + chat «chiuse dal cliente»
 # v1.0 (2026-11-02) — check WhatsApp in sola lettura (coexistence Meta)
 # Modulo: clienti — [core]
 # -*- coding: utf-8 -*-
 """
-clienti_whatsapp_service.py — archivio WhatsApp in SOLA LETTURA del numero del locale.
+clienti_whatsapp_service.py — archivio WhatsApp del numero del locale (lettura) e, dal
+2026-11-24, risposte scritte dalla pagina «💬 WhatsApp» (via YCloud, vedi invia_testo).
 
 Come funziona (doc: docs/modulo_clienti_crm.md § WhatsApp, guida Meta in
 docs/guida_whatsapp_meta.md):
@@ -14,7 +16,9 @@ docs/guida_whatsapp_meta.md):
     («smb_message_echoes»), per lo storico degli ultimi 6 mesi («history») e per la
     rubrica dell'app («smb_app_state_sync»);
   · TRGB salva numero, direzione, testo e ora. I media NON si scaricano;
-  · TRGB NON manda messaggi: nessuna funzione qui scrive ai clienti;
+  · TRGB scrive ai clienti SOLO con invia_testo: un messaggio di testo scritto da una
+    persona nella pagina, dentro le 24 ore dall'ultimo messaggio del cliente (regola di
+    WhatsApp), via API YCloud. Niente invii automatici, niente modelli, niente massive;
   · i messaggi più vecchi di clienti_impostazioni.wa_conservazione_giorni si
     cancellano da soli.
 
@@ -35,6 +39,7 @@ whatsapp.message.updated, ...) su POST /clienti/whatsapp/ycloud, firmati con
 YCloud-Signature. Finiscono nelle stesse tabelle: il resto (conversazioni, cerca, giro)
 non sa da dove arrivano.
   YCLOUD_WEBHOOK_SECRET  segreto dell'endpoint creato in YCloud › Developers › Webhooks
+  YCLOUD_API_KEY         chiave API di YCloud (Developers › API Keys): serve solo per scrivere
 """
 
 from __future__ import annotations
@@ -146,6 +151,7 @@ def configurazione() -> Dict[str, Any]:
         "provider": "ycloud" if ycloud_configurato() else "meta",
         "ycloud": {
             "segreto_presente": ycloud_configurato(),
+            "api_key_presente": invio_configurato(),
             "webhook_path": YCLOUD_PATH,
             "eventi": list(EVENTI_YCLOUD),
         },
@@ -504,6 +510,10 @@ def _elabora_evento_ycloud(conn, evento: Dict[str, Any]) -> tuple[int, Optional[
             n = _salva_messaggio(conn, _da_ycloud(entrata), numero, "in", fonte)
             _ricorda_numero(conn, entrata.get("to"))
         else:
+            if tipo == "whatsapp.message.updated":
+                nostro = _invio_trgb(conn, uscita)
+                if nostro is not None:
+                    return nostro  # scritto dalla pagina di TRGB: stato di consegna
             if str(uscita.get("status") or "").lower() == "failed":
                 return 0, "non partito"
             if not uscita.get("to"):
@@ -616,6 +626,10 @@ def _pulizia(conn, forza: bool = False) -> Dict[str, int]:
         "DELETE FROM clienti_wa_eventi WHERE ricevuto_at < datetime('now','localtime', ?)",
         (f"-{min(giorni, 30)} days",),
     ).rowcount
+    try:  # i messaggi scritti da TRGB seguono la stessa conservazione
+        conn.execute("DELETE FROM clienti_wa_invii WHERE at < datetime('now','localtime', ?)", (f"-{giorni} days",))
+    except sqlite3.OperationalError:
+        pass
     conn.commit()
     return {"messaggi": m, "eventi": e}
 
@@ -849,7 +863,7 @@ def conversazioni(giorni: int = 7, solo_da_rispondere: bool = False, limite: int
 
 
 FONTI_ETICHETTA = {"webhook": None, "eco": "dal telefono", "ycloud": "dalla casella YCloud",
-                   "storico": "storico"}
+                   "storico": "storico", "trgb": "da TRGB"}
 
 
 def chat(numero: str, giorni: int = 180, limite: int = 500) -> Dict[str, Any]:
@@ -861,7 +875,7 @@ def chat(numero: str, giorni: int = 180, limite: int = 500) -> Dict[str, Any]:
     conn = get_clienti_conn()
     try:
         righe = conn.execute(
-            """SELECT * FROM (SELECT id, ts, direzione, tipo, testo, fonte FROM clienti_wa_messaggi
+            """SELECT * FROM (SELECT id, wamid, ts, direzione, tipo, testo, fonte FROM clienti_wa_messaggi
                               WHERE numero = ? AND ts >= ? ORDER BY ts DESC, id DESC LIMIT ?)
                ORDER BY ts ASC, id ASC""",
             (numero, dal, limite),
@@ -876,14 +890,29 @@ def chat(numero: str, giorni: int = 180, limite: int = 500) -> Dict[str, Any]:
         except sqlite3.OperationalError:
             pass
         voce["gestita_da"] = {"da": g["da"], "at": g["at"]} if g and voce.get("stato") == "gestita" else None
-        voce["messaggi"] = [
-            {"id": r["id"], "quando": _quando(r["ts"]), "ts": r["ts"],
-             "chi": "cliente" if r["direzione"] == "in" else "locale",
-             "tipo": r["tipo"], "testo": r["testo"],
-             "fonte": FONTI_ETICHETTA.get(r["fonte"]) if r["direzione"] == "out" else
-                      ("storico" if r["fonte"] == "storico" else None)}
-            for r in righe
-        ]
+        invii = _invii_di(conn, numero, dal)
+        voce["messaggi"] = []
+        for r in righe:
+            m = {"id": r["id"], "quando": _quando(r["ts"]), "ts": r["ts"],
+                 "chi": "cliente" if r["direzione"] == "in" else "locale",
+                 "tipo": r["tipo"], "testo": r["testo"],
+                 "fonte": FONTI_ETICHETTA.get(r["fonte"]) if r["direzione"] == "out" else
+                          ("storico" if r["fonte"] == "storico" else None)}
+            if r["fonte"] == "trgb":
+                inv = invii["per_wamid"].get(r["wamid"])
+                if inv:
+                    m["da"] = inv["da"]
+                    m["consegna"] = inv["stato"]
+            voce["messaggi"].append(m)
+        # scritti da TRGB e non partiti / non consegnati: si vedono, ma non sono messaggi
+        for inv in invii["errori"]:
+            voce["messaggi"].append({
+                "id": f"invio-{inv['id']}", "quando": inv["at"][:16], "ts": inv["ts"], "chi": "locale",
+                "tipo": "text", "testo": inv["testo"], "fonte": "da TRGB", "da": inv["da"],
+                "consegna": "failed", "errore": inv["errore"] or "non partito",
+            })
+        voce["messaggi"].sort(key=lambda x: (x["ts"] or 0))
+        voce["finestra"] = _finestra(conn, numero)
         voce["periodo_giorni"] = giorni
         return voce
     finally:
@@ -918,6 +947,250 @@ def imposta_gestita(numero: str, gestita: bool, chi: Optional[str] = None) -> Di
         return {"numero": "+" + numero, "stato": st.get("stato")}
     finally:
         conn.close()
+
+
+# ============================================================
+# SCRIVERE DALLA PAGINA (via YCloud — decisione di Marco 2026-11-24)
+# ============================================================
+# Solo testo scritto da una persona, solo dentro la finestra di 24 ore che apre (e riapre)
+# ogni messaggio del cliente: è una regola di WhatsApp, non un'impostazione. Fuori dalla
+# finestra servono i modelli approvati da Meta, che TRGB non manda: si risponde dal
+# telefono, che non ha il limite. Il messaggio parte dal numero del locale e compare anche
+# nell'app sul telefono (coexistence). Dal 01/10/2026 Meta fa pagare le risposte oltre le
+# 1.000 gratuite al mese per numero; YCloud le scala dal suo credito, senza ricarichi.
+
+YCLOUD_API = "https://api.ycloud.com/v2"
+FINESTRA_S = 24 * 3600          # regola di WhatsApp
+FINESTRA_MARGINE_S = 60         # nell'ultimo minuto non si prova: arriverebbe a finestra chiusa
+TESTO_MAX = 4096                # limite di WhatsApp per un messaggio di testo
+TIPI_NON_APRONO = ("reaction", "system", "errors")   # prudenza: non contano per la finestra
+_ORDINE_STATO = {"accepted": 0, "sent": 1, "delivered": 2, "read": 3}
+
+
+class InvioNonConfigurato(Exception):
+    """Manca la chiave API di YCloud o il numero del locale."""
+
+
+class FinestraChiusa(Exception):
+    """Più di 24 ore dall'ultimo messaggio del cliente."""
+
+
+class InvioFallito(Exception):
+    """YCloud o WhatsApp hanno rifiutato il messaggio."""
+
+
+def invio_configurato() -> bool:
+    return bool(_env("YCLOUD_API_KEY"))
+
+
+def _finestra(conn, numero: str, ora: Optional[int] = None) -> Dict[str, Any]:
+    """La finestra di 24 ore per scrivere da TRGB: aperta?, fino a quando, minuti rimasti."""
+    ora = ora or int(time.time())
+    segnaposto = ",".join("?" * len(TIPI_NON_APRONO))
+    r = conn.execute(
+        f"""SELECT MAX(ts) AS u FROM clienti_wa_messaggi
+            WHERE numero = ? AND direzione = 'in' AND tipo NOT IN ({segnaposto})""",
+        (numero, *TIPI_NON_APRONO),
+    ).fetchone()
+    ultimo = int(r["u"]) if r and r["u"] else None
+    if not ultimo:
+        return {"aperta": False, "fino_a": None, "minuti_rimasti": 0, "ultimo_cliente": None}
+    rimasti = ultimo + FINESTRA_S - ora
+    return {"aperta": rimasti > FINESTRA_MARGINE_S, "fino_a": _quando(ultimo + FINESTRA_S),
+            "minuti_rimasti": max(0, rimasti // 60), "ultimo_cliente": _quando(ultimo)}
+
+
+def _invii_di(conn, numero: str, dal: int) -> Dict[str, Any]:
+    """Gli invii da TRGB di una chat: per wamid (autore e consegna) e quelli non partiti."""
+    out: Dict[str, Any] = {"per_wamid": {}, "errori": []}
+    try:
+        righe = conn.execute(
+            """SELECT id, testo, da, at, esito, errore, wamid, stato,
+                      CAST(strftime('%s', at, 'utc') AS INTEGER) AS ts
+               FROM clienti_wa_invii WHERE numero = ? AND at >= datetime(?, 'unixepoch', 'localtime')""",
+            (numero, dal),
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return out
+    for r in righe:
+        voce = dict(r)
+        out["per_wamid"][r["wamid"] or f"trgb:{r['id']}"] = voce
+        if r["esito"] == "errore":
+            out["errori"].append(voce)
+    return out
+
+
+def _ycloud(metodo: str, percorso: str, corpo: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    chiave = _env("YCLOUD_API_KEY")
+    if not chiave:
+        raise InvioNonConfigurato("Manca la chiave API di YCloud (YCLOUD_API_KEY nel .env)")
+    dati = json.dumps(corpo, ensure_ascii=False).encode("utf-8") if corpo is not None else None
+    req = urllib.request.Request(f"{YCLOUD_API}/{percorso.lstrip('/')}", data=dati, method=metodo)
+    req.add_header("X-API-Key", chiave)
+    req.add_header("Accept", "application/json")
+    if dati is not None:
+        req.add_header("Content-Type", "application/json")
+    try:
+        with urllib.request.urlopen(req, timeout=_TIMEOUT) as r:
+            return json.loads(r.read().decode("utf-8") or "{}")
+    except urllib.error.HTTPError as e:
+        testo = e.read().decode("utf-8", "replace")[:1000]
+        try:
+            j = json.loads(testo)
+            err = j.get("error") if isinstance(j.get("error"), dict) else {}
+            msg = err.get("message") or j.get("message") or testo
+        except ValueError:
+            msg = testo
+        raise InvioFallito(f"YCloud HTTP {e.code}: {msg}") from None
+    except (urllib.error.URLError, TimeoutError) as e:
+        raise InvioFallito(f"YCloud non raggiungibile: {getattr(e, 'reason', e)}") from None
+
+
+def _errore_ycloud(m: Dict[str, Any]) -> str:
+    wa = m.get("whatsappApiError") if isinstance(m.get("whatsappApiError"), dict) else {}
+    return str(m.get("errorMessage") or wa.get("message") or m.get("errorCode") or "rifiutato")[:500]
+
+
+def invia_testo(numero: str, testo: str, chi: Optional[str] = None) -> Dict[str, Any]:
+    """Scrive un messaggio di testo al cliente dal numero del locale (pagina «💬 WhatsApp»).
+    ValueError (dati), InvioNonConfigurato, FinestraChiusa, InvioFallito."""
+    numero = _cifre(numero)
+    if not numero:
+        raise ValueError("Numero non valido")
+    testo = (testo or "").strip()
+    if not testo:
+        raise ValueError("Scrivi il messaggio")
+    if len(testo) > TESTO_MAX:
+        raise ValueError(f"Messaggio troppo lungo: al massimo {TESTO_MAX} caratteri")
+    if not invio_configurato():
+        raise InvioNonConfigurato("Manca la chiave API di YCloud (YCLOUD_API_KEY nel .env)")
+    with _lock:
+        conn = get_clienti_conn()
+        try:
+            mittente = _imp_get(conn, "wa_numero")
+            if not mittente:
+                raise InvioNonConfigurato("Il numero del locale non è ancora noto: arriva col primo messaggio da YCloud")
+            f = _finestra(conn, numero)
+            if not f["aperta"]:
+                raise FinestraChiusa(
+                    "Sono passate più di 24 ore dall'ultimo messaggio del cliente: WhatsApp non lascia "
+                    "scrivere da TRGB. Rispondi dal telefono dell'osteria." if f["ultimo_cliente"] else
+                    "Il cliente non ha mai scritto: WhatsApp non lascia iniziare la chat da TRGB.")
+            invio_id = conn.execute(
+                "INSERT INTO clienti_wa_invii (numero, testo, da, esito) VALUES (?, ?, ?, 'in_invio')",
+                (numero, testo, (chi or "")[:80] or None),
+            ).lastrowid
+            conn.commit()
+        finally:
+            conn.close()
+
+    corpo = {"from": "+" + _cifre(mittente), "to": "+" + numero, "type": "text",
+             "text": {"body": testo}, "externalId": f"trgb-{invio_id}"}
+    try:
+        r = _ycloud("POST", "/whatsapp/messages/sendDirectly", corpo)
+    except InvioFallito as e:
+        _segna_invio(invio_id, esito="errore", errore=str(e))
+        raise
+    stato = str(r.get("status") or "accepted").lower()
+    if stato == "failed":
+        err = _errore_ycloud(r)
+        _segna_invio(invio_id, esito="errore", errore=err, ycloud_id=r.get("id"), wamid=r.get("wamid"), stato="failed")
+        raise InvioFallito(f"WhatsApp non l'ha accettato: {err}")
+
+    with _lock:
+        conn = get_clienti_conn()
+        try:
+            gia = conn.execute("SELECT esito, wamid FROM clienti_wa_invii WHERE id = ?", (invio_id,)).fetchone()
+            if gia and gia["esito"] == "errore":   # il webhook è arrivato prima e dice «non consegnato»
+                conn.commit()
+                raise InvioFallito("WhatsApp non l'ha consegnato")
+            wamid = r.get("wamid") or (gia["wamid"] if gia else None)
+            conn.execute(
+                """UPDATE clienti_wa_invii SET esito = 'inviato', ycloud_id = COALESCE(?, ycloud_id),
+                          wamid = COALESCE(?, wamid), stato = COALESCE(stato, ?),
+                          aggiornato_at = datetime('now','localtime') WHERE id = ?""",
+                (r.get("id"), wamid, stato, invio_id),
+            )
+            chiave = wamid or f"trgb:{invio_id}"
+            if not conn.execute(
+                    """INSERT OR IGNORE INTO clienti_wa_messaggi (wamid, numero, direzione, tipo, testo, ts, fonte)
+                       VALUES (?, ?, 'out', 'text', ?, ?, 'trgb')""",
+                    (chiave, numero, testo, _ts_iso(r.get("sendTime"), r.get("createTime")))).rowcount:
+                conn.execute("UPDATE clienti_wa_messaggi SET fonte = 'trgb' WHERE wamid = ?", (chiave,))
+            conn.commit()
+        finally:
+            conn.close()
+    return {"numero": "+" + numero, "invio_id": invio_id, "stato": stato}
+
+
+def _segna_invio(invio_id: int, **campi: Any) -> None:
+    with _lock:
+        conn = get_clienti_conn()
+        try:
+            conn.execute(
+                """UPDATE clienti_wa_invii SET esito = COALESCE(?, esito), errore = COALESCE(?, errore),
+                          ycloud_id = COALESCE(?, ycloud_id), wamid = COALESCE(?, wamid), stato = COALESCE(?, stato),
+                          aggiornato_at = datetime('now','localtime') WHERE id = ?""",
+                (campi.get("esito"), campi.get("errore"), campi.get("ycloud_id"), campi.get("wamid"),
+                 campi.get("stato"), invio_id),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+
+def _invio_trgb(conn, m: Dict[str, Any]) -> Optional[tuple]:
+    """whatsapp.message.updated di un messaggio scritto da TRGB: aggiorna la consegna e tiene
+    UNA riga in clienti_wa_messaggi (fonte «trgb»), qualunque cosa arrivi prima fra la
+    risposta di YCloud e il webhook. None se il messaggio non è nostro."""
+    ext = str(m.get("externalId") or "")
+    yid, wamid = m.get("id"), m.get("wamid")
+    try:
+        r = None
+        if ext.startswith("trgb-") and ext[5:].isdigit():
+            r = conn.execute("SELECT * FROM clienti_wa_invii WHERE id = ?", (int(ext[5:]),)).fetchone()
+        if r is None and yid:
+            r = conn.execute("SELECT * FROM clienti_wa_invii WHERE ycloud_id = ?", (str(yid),)).fetchone()
+        if r is None and wamid:
+            r = conn.execute("SELECT * FROM clienti_wa_invii WHERE wamid = ?", (wamid,)).fetchone()
+    except sqlite3.OperationalError:
+        return None
+    if r is None:
+        return None
+    stato = str(m.get("status") or "").lower() or None
+    wamid = wamid or r["wamid"]
+    segnaposto = f"trgb:{r['id']}"
+    if stato == "failed":
+        conn.execute(
+            """UPDATE clienti_wa_invii SET esito = 'errore', stato = 'failed', errore = ?,
+                      ycloud_id = COALESCE(ycloud_id, ?), wamid = COALESCE(wamid, ?),
+                      aggiornato_at = datetime('now','localtime') WHERE id = ?""",
+            (_errore_ycloud(m), yid, wamid, r["id"]),
+        )
+        conn.execute("DELETE FROM clienti_wa_messaggi WHERE fonte = 'trgb' AND wamid IN (?, ?)",
+                     (segnaposto, wamid or segnaposto))
+        return 0, "scritto da TRGB: non consegnato"
+    vecchio = _ORDINE_STATO.get(r["stato"] or "", -1)
+    nuovo = _ORDINE_STATO.get(stato or "", -1)
+    conn.execute(
+        """UPDATE clienti_wa_invii SET stato = ?, ycloud_id = COALESCE(ycloud_id, ?), wamid = COALESCE(wamid, ?),
+                  aggiornato_at = datetime('now','localtime') WHERE id = ?""",
+        (stato if nuovo >= vecchio else r["stato"], yid, wamid, r["id"]),
+    )
+    nuovi = 0
+    if wamid and r["esito"] != "errore":
+        if conn.execute("SELECT 1 FROM clienti_wa_messaggi WHERE wamid = ?", (wamid,)).fetchone():
+            conn.execute("UPDATE clienti_wa_messaggi SET fonte = 'trgb' WHERE wamid = ?", (wamid,))
+            conn.execute("DELETE FROM clienti_wa_messaggi WHERE wamid = ?", (segnaposto,))
+        elif conn.execute("SELECT 1 FROM clienti_wa_messaggi WHERE wamid = ?", (segnaposto,)).fetchone():
+            conn.execute("UPDATE clienti_wa_messaggi SET wamid = ? WHERE wamid = ?", (wamid, segnaposto))
+        else:
+            nuovi = conn.execute(
+                """INSERT OR IGNORE INTO clienti_wa_messaggi (wamid, numero, direzione, tipo, testo, ts, fonte)
+                   VALUES (?, ?, 'out', 'text', ?, ?, 'trgb')""",
+                (wamid, r["numero"], r["testo"], _ts_iso(m.get("sendTime"), m.get("createTime"))),
+            ).rowcount or 0
+    return nuovi, f"scritto da TRGB: {stato or '?'}"
 
 
 def cerca(chi: Optional[str] = None, testo: Optional[str] = None, giorni: int = 180,

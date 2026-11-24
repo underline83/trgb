@@ -596,6 +596,12 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   clienti: {
+    // 3.49 (2026-11-24): si scrive dalla pagina «💬 WhatsApp» — casella sotto la chat, testo via API YCloud (sendDirectly,
+    //   YCLOUD_API_KEY) dal numero dell'osteria, solo entro 24 ore dall'ultimo messaggio del cliente (regola di WhatsApp;
+    //   fuori: «rispondi dal telefono»); mig 245 clienti_wa_invii (chi, testo, esito, stato), messaggio con fonte «trgb»,
+    //   spunte ✓/✓✓ dal webhook whatsapp.message.updated, invii non partiti in rosso. Chi può: sub clienti/whatsapp_scrivere
+    //   («WhatsApp · scrivere», admin + capo sala). clienti_whatsapp_service 1.3, router 1.3, ClientiWhatsAppChat 1.1,
+    //   ClientiWhatsApp 1.2, connettore (istruzioni: Q non scrive su WhatsApp).
     // 3.48 (2026-11-24): preventivi da Claude/Q (connettore 1.22): menu_libreria, preventivo_crea (libreria, duplica,
     //   menù da altri preventivi), preventivo_aggiorna, preventivo_menu, preventivo_invia (anteprima + codice, poi il
     //   «manda» di Marco), preventivo_stato/proroga/libera_tavolo/elimina, link alla pagina; preventivi_service:
@@ -728,7 +734,7 @@ const MODULE_VERSIONS = {
     //   annullo/riattiva con storico movimenti, PDF buono A5 con identita'
     //   del locale, alert M.F sulle card in scadenza. Nessun impatto su
     //   corrispettivi/chiusure: registro informativo separato dalla cassa.
-    version: "3.48",
+    version: "3.49",
     label: "Gestione Clienti",
     status: "beta",
     color: "blue",
@@ -907,6 +913,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 6.9 (2026-11-24): mig 245 clienti_wa_invii — messaggi WhatsApp scritti dalla pagina via YCloud (clienti 3.49).
     // 6.8 (2026-11-24): mig 244 clienti_wa_gestite («✓ Gestita» nella pagina 💬 WhatsApp) + M.G permessi 1.1:
     //   richiede_sotto_modulo / ha_sotto_modulo / ruoli_sotto_modulo, il backend segue la matrice Moduli (Posta e WhatsApp
     //   di Clienti per admin + capo sala). Stesso push del modulo comande qui sotto (un solo bump).
@@ -1081,7 +1088,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "6.8",
+    version: "6.9",
     label: "Sistema",
     status: "stabile",
     color: "green",
