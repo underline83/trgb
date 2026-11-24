@@ -3,6 +3,16 @@
 
 ---
 
+## 2026-11-24 — Clienti 3.46: il link «TRGB» nella rubrica del telefono `[core]`
+Marco aveva aggiunto il nome a un contatto «TG Agazzi» dall'iPhone: la rubrica è in sola lettura, quindi la modifica restava solo sul telefono (TRGB risponde 403) e si sarebbe persa alla prima modifica del cliente in TRGB. Scelta di Marco: niente scrittura dal telefono, un link per correggere in TRGB.
+
+**Aggiunto**
+- Ogni contatto della rubrica ha il link «TRGB» (`item1.URL` + `X-ABLabel`) alla scheda del cliente, `<app>/clienti/<id>`: si tocca, si corregge in TRGB dietro al login, e la rubrica porta la correzione su tutti i telefoni. Indirizzo da `TRGB_APP_URL` o da `locale.json` «dominio_app», vuoto = niente link (`clienti_rubrica_service._url_app`).
+
+**Note**
+- Cambiano tutte le schede: alla prima sincronizzazione dopo il push i telefoni riscaricano la rubrica intera (~4.660 contatti) e le modifiche fatte a mano sui contatti TG spariscono.
+- Test: `tests/test_rubrica_vcard.py` (6 ok). Nessuna migrazione.
+
 ## 2026-11-24 — Scorte & Frigoriferi 1.25: il contenuto del pezzo si salva anche dalla scheda articolo `[core]`
 Trovato inserendo gli articoli della carta Inverno 2027: creando o modificando un articolo con `contenuto_um` (g, ml, pz, porz) la risposta era sempre 422 «contenuto_um non valido: 'ml'», anche col valore giusto.
 

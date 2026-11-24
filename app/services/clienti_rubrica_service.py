@@ -11,7 +11,11 @@ clienti_profilo_service). Ogni contatto:
   - nome sul telefono = prefisso + nome + stelle (la somma: i colori non si vedono,
     il numero sì), in N come titolo/suffisso così l'ordine resta per cognome;
   - telefoni, email;
-  - nota: stelle, segmento, visite, ultima visita, allergie, preferenze, etichette.
+  - nota: stelle, segmento, visite, ultima visita, allergie, preferenze, etichette;
+  - link «TRGB» alla scheda del cliente nel gestionale (<app>/clienti/<id>): il
+    contatto non si cambia dal telefono, si tocca il link e si corregge in TRGB,
+    dietro al login (decisione di Marco, 24/11/2026). Indirizzo da TRGB_APP_URL o
+    da locale.json «dominio_app», come il connettore; vuoto = niente link.
 Niente compleanni: 4.000 compleanni nel calendario del telefono non servono.
 
 Accessi: uno per telefono (clienti_rubrica_accessi), password pbkdf2 mostrata una
@@ -23,6 +27,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import logging
+import os
 import re
 import secrets
 import threading
@@ -93,7 +98,19 @@ def _data(iso: Optional[str]) -> str:
     return f"{iso[8:10]}/{iso[5:7]}/{iso[0:4]}" if iso and len(iso) >= 10 else ""
 
 
-def _vcard(c: Dict[str, Any], prefisso: str) -> str:
+def _url_app() -> str:
+    """Indirizzo delle pagine del gestionale (frontend) per il link nel contatto:
+    TRGB_APP_URL, altrimenti https://<dominio_app> da locale.json (come main.py per il
+    connettore). Vuoto se non c'è: il contatto esce senza link."""
+    url = os.environ.get("TRGB_APP_URL", "").strip()
+    if not url:
+        from app.utils.locale_data import locale_info
+        dom = str(locale_info().get("dominio_app") or "").strip()
+        url = (dom if dom.startswith("http") else f"https://{dom}") if dom else ""
+    return url.rstrip("/")
+
+
+def _vcard(c: Dict[str, Any], prefisso: str, url_app: str = "") -> str:
     nome = (c.get("nome") or "").strip()
     cognome = (c.get("cognome") or "").strip()
     if c.get("nome2"):
@@ -143,6 +160,10 @@ def _vcard(c: Dict[str, Any], prefisso: str) -> str:
         righe.append(f"TEL;TYPE={'CELL' if i == 0 else 'VOICE'}:{t}")
     if c.get("email"):
         righe.append(f"EMAIL;TYPE=INTERNET:{_esc(c['email'].strip())}")
+    if url_app:
+        # item1.* + X-ABLabel: sull'iPhone il link si chiama «TRGB» (DAVx5 legge lo stesso)
+        righe.append(f"item1.URL:{url_app}/clienti/{c['id']}")
+        righe.append("item1.X-ABLabel:TRGB")
     righe.append(f"NOTE:{_esc(chr(10).join(x for x in nota if x))}")
     if prefisso:
         righe.append(f"CATEGORIES:{_esc(prefisso)}")
@@ -159,6 +180,7 @@ def _costruisci() -> Dict[str, Any]:
     conn = get_clienti_conn()
     try:
         imp = impostazioni(conn)
+        url_app = _url_app()
         righe = conn.execute(f"""
             SELECT c.id, c.nome, c.cognome, c.nome2, c.cognome2, c.telefono, c.telefono2, c.email,
                    c.allergie, c.restrizioni_dietetiche, c.pref_cibo, c.pref_bevande, c.pref_posto,
@@ -193,7 +215,7 @@ def _costruisci() -> Dict[str, Any]:
         d["telefoni"] = telefoni
         d["uid"] = f"trgb-cliente-{d['id']}"
         d["etichette"] = etichette.get(d["id"], [])
-        v = _vcard(d, imp["prefisso"])
+        v = _vcard(d, imp["prefisso"], url_app)
         carte[f"{d['uid']}.vcf"] = ('"' + hashlib.sha1(v.encode("utf-8")).hexdigest()[:20] + '"', v)
     ctag = hashlib.sha1("|".join(f"{k}{e}" for k, (e, _) in sorted(carte.items())).encode()).hexdigest()[:24]
     return {"carte": carte, "ctag": ctag, "fatta": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}

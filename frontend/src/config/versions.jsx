@@ -593,6 +593,9 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   clienti: {
+    // 3.46 (2026-11-24): rubrica del telefono — ogni contatto ha il link «TRGB» alla scheda del cliente
+    //   (<app>/clienti/<id>, item1.URL + X-ABLabel): dal telefono non si scrive, si corregge in TRGB dietro al login
+    //   (clienti_rubrica_service, tests/test_rubrica_vcard.py; nessuna migrazione).
     // 3.45 (2026-11-23): WhatsApp tramite YCloud — POST /clienti/whatsapp/ycloud firmato (YCloud-Signature, YCLOUD_WEBHOOK_SECRET):
     //   messaggi, eco dall'app, storico, risposte dalla casella YCloud (contano come risposta), rubrica, avvisi account
     //   nelle tabelle di sempre; chat «chiuse dal cliente» (solo grazie/ok/emoji dopo la nostra risposta, parole e lunghezza
@@ -711,7 +714,7 @@ const MODULE_VERSIONS = {
     //   annullo/riattiva con storico movimenti, PDF buono A5 con identita'
     //   del locale, alert M.F sulle card in scadenza. Nessun impatto su
     //   corrispettivi/chiusure: registro informativo separato dalla cassa.
-    version: "3.45",
+    version: "3.46",
     label: "Gestione Clienti",
     status: "beta",
     color: "blue",

@@ -679,6 +679,7 @@ Il foglio storico (`gift-card-lista.xlsx`, 174 righe dal dic 2021) era compilato
 - nome sul telefono = prefisso + nome + stelle: «TG Daniele Trentini ★★★★». Le stelle sono la somma (i colori non si vedono, il numero sì). In `N` il prefisso è titolo e le stelle suffisso, così l'ordine resta per cognome;
 - telefoni (CELL/VOICE), email, `CATEGORIES` = etichette CRM;
 - nota: stelle per colore, segmento, visite, ultima visita, allergie e restrizioni, preferenze (cibo, bevande, posto);
+- link **«TRGB»** alla scheda del cliente nel gestionale (`item1.URL` = `<app>/clienti/<id>` + `item1.X-ABLabel:TRGB`; dalla v3.46, 24/11/2026). Decisione di Marco: niente scrittura dal telefono (cambiare il nome sull'iPhone resta solo sull'iPhone, TRGB risponde 403 e alla prima modifica del cliente in TRGB il telefono riprende la versione del server); si tocca il link, si corregge in TRGB dietro al login e la rubrica lo porta a tutti i telefoni. Indirizzo da `TRGB_APP_URL` o da `locale.json` «dominio_app» (come il connettore), vuoto = niente link;
 - niente compleanni (4.000 compleanni nel calendario del telefono non servono).
 
 **Server CardDAV in sola lettura** (`clienti_rubrica_router.public_router`, senza JWT, Basic auth con gli accessi):
@@ -703,6 +704,7 @@ Il foglio storico (`gift-card-lista.xlsx`, 174 righe dal dic 2021) era compilato
 | C-CL-R02 | Contatti dai clienti con stelle (nome, telefoni, email, nota) | `clienti_rubrica_service.py:_costruisci/_vcard` | sistema | 🆕 |
 | C-CL-R03 | Stato della rubrica, prefisso e soglia | `GET /clienti/rubrica/stato`, `PUT /clienti/impostazioni`, `ClientiRubrica.jsx` | admin | 🆕 |
 | C-CL-R04 | Accessi per telefono: crea (password una volta) e revoca | `POST /clienti/rubrica/accessi`, `POST /clienti/rubrica/accessi/{id}/revoca` | admin | 🆕 |
+| C-CL-R05 | Link «TRGB» nel contatto che apre la scheda del cliente nel gestionale (per correggere dal telefono) | `clienti_rubrica_service.py:_vcard/_url_app` | telefoni → admin/sala con Clienti › Lista | 🆕 |
 
 ## 18.2 Punti aperti
 
