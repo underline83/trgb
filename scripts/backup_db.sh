@@ -1,6 +1,17 @@
 #!/bin/bash
 # backup_db.sh — Backup atomico di tutti i database TRGB con verifiche di integrità
 #
+# Versione 2.3 (2026-11-24) — dopo il check del 24/11:
+#  - FILE CARICATI nel ciclo --daily: /home/marco/trgb_uploads (documenti
+#    dipendenti, CV, allegati pratiche, F24, foto menu, listini) e
+#    locali/<id>/data/uploads (bollette utenze, XML intermittenti). Prima non
+#    erano in nessun backup. Copia ADDITIVA in backups/uploads/ (cp -a -u) e su
+#    Drive con `rclone copy`: non cancella mai, né in locale né su Drive.
+#  - JSON di configurazione: ai 5 «core» si aggiungono da soli tutti gli altri
+#    *.json della cartella dati (auth_settings, email_settings, email_caselle…).
+#  - Sync runbook: `locali/*/data/` esclusa. Portava su Drive i DB vivi copiati
+#    a caldo (non atomici), doppione inaffidabile di db-daily.
+#
 # Versione 2.2.1 (2026-07-02) — HOTFIX: v2.2 usava `-cmd "PRAGMA busy_timeout"`
 #  che stampa il valore come prima riga di output → il check leggeva "15000"
 #  invece di "ok" → tutti i DB flaggati source_corrupted, backup orario saltato.
@@ -98,7 +109,45 @@ JSON_FILES=(
     "modules.runtime.meta.json"
     "closures_config.json"
 )
-JSON_MIN_SIZE_BYTES=20  # JSON valido minimo "{}" + un po' di margine
+JSON_CORE_COUNT=${#JSON_FILES[@]}
+JSON_MIN_SIZE_BYTES=20  # per i 5 «core»: sotto = sospetto svuotamento
+JSON_MIN_SIZE_EXTRA=2   # per gli altri JSON scoperti: "{}" è legittimo
+
+# v2.3 — DISCOVERY degli altri JSON della cartella dati (auth_settings.json,
+# email_settings.json, email_caselle.json, e quelli che nasceranno). I 5 sopra
+# restano in lista comunque: se uno sparisce, il «non trovato» si vede nel log.
+declare -A _SEEN_JSON
+for _j in "${JSON_FILES[@]}"; do _SEEN_JSON[$_j]=1; done
+for _dir in "$LOCALE_DATA_DIR" "$DATA_DIR"; do
+    [ -d "$_dir" ] || continue
+    for _f in "$_dir"/*.json; do
+        [ -f "$_f" ] || continue
+        _name=$(basename "$_f")
+        if [ -z "${_SEEN_JSON[$_name]:-}" ]; then
+            JSON_FILES+=("$_name")
+            _SEEN_JSON[$_name]=1
+        fi
+    done
+done
+unset _dir _f _name _j
+
+# Soglia minima per un JSON: più severa per i 5 core.
+json_min_size() {
+    local name="$1" i
+    for ((i = 0; i < JSON_CORE_COUNT; i++)); do
+        [ "${JSON_FILES[$i]}" == "$name" ] && { echo "$JSON_MIN_SIZE_BYTES"; return; }
+    done
+    echo "$JSON_MIN_SIZE_EXTRA"
+}
+
+# v2.3 — File caricati dagli utenti (NON sono DB): "sorgente|nome nel backup".
+# Copia additiva, mai cancellazioni. Vedi docs/sicurezza_backup.md §2.1.
+UPLOADS_SOURCES=(
+    "${TRGB_UPLOADS_DIR:-/home/marco/trgb_uploads}|trgb_uploads"
+    "$LOCALE_DATA_DIR/uploads|locale_data_uploads"
+)
+BACKUP_UPLOADS="$DATA_DIR/backups/uploads"
+UPLOADS_STAMP="$DATA_DIR/backups/.last_uploads_backup"
 
 # Formato timestamp AAAAMMDDHHMMSS (14 cifre, niente separatori — più compatto e
 # ordinabile lessicograficamente).
@@ -317,7 +366,7 @@ do_backup_json() {
     fi
 
     local sz=$(stat -c%s "$src" 2>/dev/null || echo 0)
-    if [ "$sz" -lt "$JSON_MIN_SIZE_BYTES" ]; then
+    if [ "$sz" -lt "$(json_min_size "$name")" ]; then
         echo "  ✗ $name: dimensione $sz B troppo piccola (sospetto svuotamento)"
         return 1
     fi
@@ -532,10 +581,47 @@ if [ "$MODE" == "--daily" ]; then
         echo "⚠️  TROPPI BACKUP FALLITI ($ok_count/$total ok) → ROTAZIONE SOSPESA"
     fi
 
-    # Sync su Google Drive — DAILY include 3 destinazioni:
+    # ── v2.3: copia dei file caricati (additiva) ────────────────────────────
+    # cp -a -u: copia i file nuovi o più recenti, non cancella mai niente in
+    # destinazione. Un file tolto dal VPS resta nel backup: è voluto.
+    # Fallimento = RUN_FAILED (fa rumore: notifica + watchdog), aggiunto DOPO
+    # la rotazione dei DB così non la influenza.
+    echo ""
+    echo "📎 Copia file caricati (additiva: non cancella mai)..."
+    UPLOADS_ALL_OK=true
+    UPLOADS_DONE=0
+    for _entry in "${UPLOADS_SOURCES[@]}"; do
+        _usrc="${_entry%%|*}"
+        _uname="${_entry##*|}"
+        if [ ! -d "$_usrc" ]; then
+            echo "  ⚠️  $_usrc: cartella non trovata → skip"
+            continue
+        fi
+        _udest="$BACKUP_UPLOADS/$_uname"
+        mkdir -p "$_udest"
+        _uerr=$(cp -a -u "$_usrc/." "$_udest/" 2>&1)
+        _urc=$?
+        _n_src=$(find "$_usrc" -type f 2>/dev/null | wc -l)
+        _n_dest=$(find "$_udest" -type f 2>/dev/null | wc -l)
+        if [ "$_urc" -eq 0 ] && [ "$_n_dest" -ge "$_n_src" ]; then
+            echo "  ✅ $_uname: $_n_src file sul VPS, $_n_dest nel backup ($(du -sh "$_udest" 2>/dev/null | cut -f1))"
+            UPLOADS_DONE=$((UPLOADS_DONE + 1))
+        else
+            echo "  ❌ $_uname: copia fallita (rc=$_urc, sorgente=$_n_src, backup=$_n_dest, err=${_uerr:-n/a})"
+            RUN_FAILED+=("uploads_$_uname:copy_failed")
+            UPLOADS_ALL_OK=false
+        fi
+    done
+    if $UPLOADS_ALL_OK && [ "$UPLOADS_DONE" -gt 0 ]; then
+        date +%s > "$UPLOADS_STAMP"
+    fi
+    unset _entry _usrc _uname _udest _uerr _urc _n_src _n_dest
+
+    # Sync su Google Drive — DAILY include 4 destinazioni:
     #  1. db-daily/   — backup completo dei DB di questo ciclo
     #  2. db-lkg/     — last_known_good cumulativa (1 copia integra per file)
-    #  3. runbook/    — script + push.sh + docs + CLAUDE.md (recovery code)
+    #  3. db-uploads/ — file caricati (v2.3, `rclone copy`: non cancella mai)
+    #  4. db-runbook/ — script + push.sh + docs + CLAUDE.md (recovery code)
     #     così se il VPS muore E git è inaccessibile, su Drive c'è anche il
     #     codice/script per ripristinare. Ridondante con GitHub ma nessuna
     #     dipendenza esterna richiesta.
@@ -557,6 +643,16 @@ if [ "$MODE" == "--daily" ]; then
             RUN_WARNINGS+=("drive_lkg_sync:failed")
         fi
 
+        # v2.3: file caricati. `copy`, NON `sync`: su Drive non si cancella mai.
+        if [ -d "$BACKUP_UPLOADS" ]; then
+            if rclone copy "$BACKUP_UPLOADS" "${DRIVE_PATH%-daily}-uploads" --config "$RCLONE_CONF" 2>&1; then
+                echo "  ✅ Drive uploads copy completato"
+            else
+                echo "  ⚠️  Drive uploads copy fallito"
+                RUN_WARNINGS+=("drive_uploads:failed")
+            fi
+        fi
+
         # Runbook: script + push.sh + docs + CLAUDE.md (lista esplicita, niente
         # app/ perché è in git). Sync incrementale: solo i file cambiati.
         echo "  📜 Sync runbook (scripts + docs + push.sh + CLAUDE.md)..."
@@ -567,9 +663,14 @@ if [ "$MODE" == "--daily" ]; then
             fi
         done
         # Cartelle da sincronizzare (specchio completo)
+        # v2.3: da locali/ si esclude <id>/data/ (DB vivi e upload: hanno già le
+        # loro copie verificate in db-daily, db-lkg e db-uploads). Senza
+        # --delete-excluded le copie vecchie già su Drive restano dove sono.
         for d in scripts docs locali; do
             if [ -d "$PROJECT_DIR/$d" ]; then
-                if rclone sync "$PROJECT_DIR/$d" "${DRIVE_PATH%-daily}-runbook/$d/" --config "$RCLONE_CONF" --exclude '**/__pycache__/**' --exclude '**/*.pyc' 2>&1 >/dev/null; then
+                _extra_excl=()
+                [ "$d" == "locali" ] && _extra_excl=(--exclude '/*/data/**')
+                if rclone sync "$PROJECT_DIR/$d" "${DRIVE_PATH%-daily}-runbook/$d/" --config "$RCLONE_CONF" --exclude '**/__pycache__/**' --exclude '**/*.pyc' ${_extra_excl[@]+"${_extra_excl[@]}"} 2>&1 >/dev/null; then
                     echo "    ✅ $d/"
                 else
                     echo "    ⚠️  $d/ sync fallito"

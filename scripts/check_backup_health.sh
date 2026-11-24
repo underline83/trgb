@@ -12,6 +12,15 @@
 #   4. last_known_good/:    contiene tutti i DB con size > 8KB e integrity ok
 #   5. Backup hourly count: almeno N backup recenti per ogni DB
 #
+# v1.3 (2026-11-24):
+#  - Lista DB DINAMICA, come backup_db.sh dal 15/5: la lista fissa dei 10 DB di
+#    maggio lasciava senza sorveglianza i 7 nati dopo (accessi, cassa_conti,
+#    comande, connettore, email, pratiche, sito).
+#  - integrity_check sulla LKG con `immutable=1`: non crea più i -shm/-wal
+#    accanto ai file (che finivano anche su Drive). Se l'apertura immutable non
+#    dà "ok" si ricade sul metodo di prima (-readonly + retry): mai peggio di v1.2.
+#  - Check 6: copia dei file caricati (backup_db.sh v2.3) più vecchia di 25h.
+#
 # v1.2 (2026-07-02): dedupe notifiche. Il check gira ogni 30 min e ri-notificava
 # lo stesso identico problema (es. last_run_failed:1) ad ogni giro finché il run
 # successivo di backup_db.sh non puliva lo status → notifiche doppie/quadruple
@@ -34,6 +43,7 @@ set -uo pipefail
 
 PROJECT_DIR="/home/marco/trgb/trgb"
 DATA_DIR="$PROJECT_DIR/app/data"
+LOCALE_DATA_DIR="$PROJECT_DIR/locali/tregobbi/data"
 BACKUP_DIR="$DATA_DIR/backups"
 LKG_DIR="$BACKUP_DIR/last_known_good"
 HOURLY_DIR="$BACKUP_DIR/hourly"
@@ -41,6 +51,7 @@ STATUS_FILE="$BACKUP_DIR/.last_backup_status.json"
 DRIVE_SYNC_STAMP="$BACKUP_DIR/.last_drive_sync"
 HEALTH_STATUS_FILE="$BACKUP_DIR/.last_health_status.json"
 NOTIFY_STAMP_FILE="$BACKUP_DIR/.last_health_notified"
+UPLOADS_STAMP="$BACKUP_DIR/.last_uploads_backup"
 VENV_PYTHON="/home/marco/trgb/venv-trgb/bin/python"
 
 RENOTIFY_AFTER_SECONDS=21600  # 6h: re-remind se il problema persiste
@@ -50,21 +61,33 @@ HOURLY_MAX_AGE_MIN=70    # backup orario deve essere < 70 min (60+10 grace)
 DAILY_MAX_AGE_HOURS=25   # backup daily deve essere < 25 ore (24+1 grace)
 DRIVE_MAX_AGE_HOURS=25   # sync Drive deve essere < 25 ore
 
-DBS=(
-    "foodcost.db"
-    "admin_finance.sqlite3"
-    "vini.sqlite3"
-    "vini_magazzino.sqlite3"
-    "vini_settings.sqlite3"
-    "dipendenti.sqlite3"
-    "clienti.sqlite3"
-    "notifiche.sqlite3"
-    "tasks.sqlite3"
-    "bevande.sqlite3"
-)
+UPLOADS_MAX_AGE_HOURS=25 # copia dei file caricati (gira coi daily)
+NEW_DB_GRACE_MIN=70      # un DB nato da meno di così può non avere ancora la LKG
+
+# v1.3 — DISCOVERY DINAMICA, stessa regola di backup_db.sh: ogni *.sqlite3 e
+# *.db nelle due cartelle dati. I file sotto MIN_SIZE_BYTES (stub) si saltano:
+# backup_db.sh li segnala già come source_corrupted → check 5 (last_run_failed).
+DBS=()
+declare -A DB_SRC
+for _dir in "$LOCALE_DATA_DIR" "$DATA_DIR"; do
+    [ -d "$_dir" ] || continue
+    for _f in "$_dir"/*.sqlite3 "$_dir"/*.db; do
+        [ -f "$_f" ] || continue
+        _name=$(basename "$_f")
+        [ "$(stat -c%s "$_f" 2>/dev/null || echo 0)" -lt "$MIN_SIZE_BYTES" ] && continue
+        if [ -z "${DB_SRC[$_name]:-}" ]; then
+            DBS+=("$_name")
+            DB_SRC[$_name]="$_f"
+        fi
+    done
+done
+unset _dir _f _name
 
 NOW=$(date +%s)
 ISSUES=()
+if [ ${#DBS[@]} -eq 0 ]; then
+    ISSUES+=("nessun_db_trovato")
+fi
 
 # ── Funzione helper: invia notifica via M.A ─────────────────────────────────
 notify() {
@@ -168,6 +191,13 @@ LKG_OLD=0
 check_lkg_integrity() {
     local file="$1"
     local result
+    # v1.3: prima prova immutable (nessun -shm/-wal creato). Se non dà "ok"
+    # — URI non supportato, file a metà copia — si continua col metodo v1.1.
+    result=$(sqlite3 "file:${file}?immutable=1" "PRAGMA integrity_check;" 2>/dev/null | head -1)
+    if [ "$result" = "ok" ]; then
+        echo "ok"
+        return 0
+    fi
     result=$(sqlite3 -readonly "$file" "PRAGMA integrity_check;" 2>&1 | head -1)
     if [ "$result" = "ok" ]; then
         echo "ok"
@@ -182,6 +212,14 @@ check_lkg_integrity() {
 for db in "${DBS[@]}"; do
     f="$LKG_DIR/$db"
     if [ ! -f "$f" ]; then
+        # v1.3: un DB appena nato (deploy fra un backup orario e l'altro) non ha
+        # ancora la LKG: non è un allarme. %W = data di nascita, 0 se ignota.
+        BORN=$(stat -c%W "${DB_SRC[$db]}" 2>/dev/null || echo 0)
+        if [ "${BORN:-0}" -gt 0 ] && [ $(( (NOW - BORN) / 60 )) -lt "$NEW_DB_GRACE_MIN" ]; then
+            echo "  ℹ️  $db: nato da meno di $NEW_DB_GRACE_MIN min, LKG al prossimo backup"
+            LKG_OK=$((LKG_OK + 1))
+            continue
+        fi
         LKG_MISSING=$((LKG_MISSING + 1))
         ISSUES+=("lkg_missing:$db")
         continue
@@ -226,6 +264,24 @@ if [ -f "$STATUS_FILE" ]; then
     fi
 else
     echo "⚠️  Nessuno status file (backup_db.sh v2 non ancora deployato?)"
+fi
+
+# ── 6. Copia dei file caricati (backup_db.sh v2.3) ──────────────────────────
+# Lo stamp lo scrive backup_db.sh --daily quando la copia riesce. Finché non
+# esiste (primo daily dopo il deploy della v2.3) non è un allarme.
+echo ""
+echo "--- Check 6: copia file caricati ---"
+if [ -f "$UPLOADS_STAMP" ]; then
+    LAST_UP_EPOCH=$(cat "$UPLOADS_STAMP" 2>/dev/null || echo 0)
+    AGE_H=$(( (NOW - ${LAST_UP_EPOCH:-0}) / 3600 ))
+    if [ "$AGE_H" -gt "$UPLOADS_MAX_AGE_HOURS" ]; then
+        ISSUES+=("uploads_backup_stale_${AGE_H}h")
+        echo "❌ Copia file caricati di ${AGE_H}h fa (soglia $UPLOADS_MAX_AGE_HOURS h)"
+    else
+        echo "✅ Copia file caricati: ${AGE_H}h fa"
+    fi
+else
+    echo "ℹ️  Nessuna copia dei file caricati ancora (parte col prossimo --daily)"
 fi
 
 # ── Riepilogo + notifica se issues ──────────────────────────────────────────

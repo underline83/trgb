@@ -3,6 +3,26 @@
 
 ---
 
+## 2026-11-24 — Backup 2.3: file caricati nel backup, watchdog su tutti i DB, docs riallineate `[mixed]`
+Marco: «è un po' che non controlliamo il sistema di backup… fai un check». Esito in `claude/check_backup_2026-11-24.md`; stato sul VPS verificato da Marco via ssh (healthy, 17 DB su 17, crontab corretto).
+
+**Aggiunto**
+- `backup_db.sh` v2.3: nel `--daily` entrano `/home/marco/trgb_uploads/` e `locali/tregobbi/data/uploads/` (copia additiva in `app/data/backups/uploads/` e su Drive in `TRGB-Backup/db-uploads/`, mai cancellazioni). Prima non erano in nessun backup.
+- JSON di configurazione scoperti da soli (oltre ai 5 core: auth_settings, email_settings, email_caselle…).
+- `check_backup_health.sh` v1.3: check 6 sulla copia dei file caricati.
+
+**Cambiato**
+- Watchdog e card Impostazioni › Backup (`/system/backup-health`): lista DB dinamica al posto dei 10 fissi di maggio (7 DB nati dopo non erano sorvegliati). Integrity check con `immutable=1`: niente più `-shm`/`-wal` in `last_known_good/`.
+- Sync runbook su Drive: esclusa `locali/*/data/` (DB vivi copiati a caldo).
+- `setup-backup-and-security.sh`: installa il cron vero (orario, 03:00, 18:00, watchdog 15,45).
+- Docs: `sicurezza_backup.md`, `database.md` §1 (17 DB) e §15, `deploy.md` §10, `installazione_nuovo_server.md`, TODO di `problemi.md`.
+
+**Note**
+- Provato: sintassi e un giro completo (orario, daily, watchdog) in una cartella di prova con uno `sqlite3` finto. **Non provato** col vero `sqlite3` del VPS: dopo il push guardare `backup_health.log` e il daily delle 18:00 o 03:00.
+- Nessuna migrazione, versione di sistema invariata.
+
+---
+
 ## 2026-11-24 — Comanda 1.1: coperto in conto da solo, tasti «Stuzzico» e «Pane», calici dalle bottiglie in mescita `[mixed]`
 Marco, dopo lo studio su come l'osteria usa iPratico ([studio_ipratico_comanda.md](studio_ipratico_comanda.md)): «mettiamo i calici così perché al momento non sono linkati col sistema; in futuro tramite TRGB selezioneremmo il calice aperto. Sistema quello che già hai capito». Sempre in prova.
 

@@ -84,13 +84,13 @@ nuovi (con WAL già attivo sui path vecchi), si genera una race in cui:
    corretti, orari osteria (domenica aperta)
 
 **Da fare ancora (TODO):**
-- [ ] Setup cron del nuovo backup_db.sh + check_backup_health.sh sul VPS
+- [x] Setup cron del nuovo backup_db.sh + check_backup_health.sh sul VPS (verificato col crontab il 2026-11-24)
 - [ ] Ricreare utenti staff dall'app (Impostazioni → Utenti)
 - [ ] Aruba snapshot manuale del VPS (settimanale)
 - [ ] Time Machine attivo sul Mac
 - [ ] Backblaze B2 ridondante a Drive
-- [ ] R6.5 push 2 (consolidamento fisico DB + rimozione fallback locale_data_path)
-  da fare DOPO che sistema backup è solido e testato
+- [x] R6.5 push 2 (consolidamento fisico DB + rimozione fallback locale_data_path)
+  — fatto il 4-5 maggio 2026 (push 2 e push 3)
 - [ ] Restore test settimanale automatico
 
 **Lezioni:**

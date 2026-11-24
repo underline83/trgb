@@ -1,6 +1,6 @@
 # Sicurezza e Backup — TRGB Gestionale
 
-> **Tipo:** 📄 pagina wiki · **Stato:** parziale · **Ultima verifica:** 2026-07-02
+> **Tipo:** 📄 pagina wiki · **Stato:** attuale · **Ultima verifica:** 2026-11-24
 > **Vedi anche:** [deploy.md](deploy.md), [analisi_hardening_vps.md](analisi_hardening_vps.md), [installazione_nuovo_server.md](installazione_nuovo_server.md)
 
 > **Documento creato**: 4 maggio 2026 dopo l'incidente di corruzione silente DB
@@ -74,17 +74,27 @@ File: `scripts/backup_db.sh`
   monitor esterni e dalla skill `/guardiano`.
 - **Notifica via M.A** (`notifiche_service.crea_notifica`) se uno o più backup
   falliscono, con `urgenza='alta'` e `dest_ruolo='superadmin'`.
-- **Lista DB completa**: 10 DB (foodcost, admin_finance, vini, vini_magazzino,
-  vini_settings, dipendenti, clienti, **notifiche, tasks, bevande**). Le
-  ultime 3 erano fuori dalla lista v1, ed è uno dei motivi della perdita.
-- **Lista JSON config**: 5 file (users.json, modules.json, modules.runtime.json,
-  modules.runtime.meta.json, closures_config.json). Validati con
-  `python -mjson.tool` prima di accettarli.
+- **Lista DB dinamica** (dal 15/5/2026): ogni `*.sqlite3` e `*.db` della cartella
+  dati entra nel backup da solo, senza toccare lo script. Al 24/11/2026 sono
+  17 (i 10 di maggio + accessi, cassa_conti, comande, connettore, email,
+  pratiche, sito). L'elenco coi moduli è in [database.md](database.md) §1.
+- **JSON config**: i 5 «core» (users.json, modules.json, modules.runtime.json,
+  modules.runtime.meta.json, closures_config.json) più, dalla v2.3, ogni altro
+  `*.json` della cartella dati (auth_settings, email_settings, email_caselle…).
+  Validati come JSON prima di accettarli; soglia minima 20 byte per i core.
+- **File caricati** (v2.3, 24/11/2026) — nel ciclo `--daily`:
+  `/home/marco/trgb_uploads/` (documenti dipendenti, CV, allegati pratiche, F24,
+  export iPratico, foto menu, listini) e `locali/tregobbi/data/uploads/`
+  (bollette utenze, XML intermittenti) vengono copiati in
+  `app/data/backups/uploads/{trgb_uploads,locale_data_uploads}/` con `cp -a -u`
+  e su Drive con `rclone copy`. La copia è **additiva**: un file cancellato sul
+  VPS resta nel backup e su Drive. Prima della v2.3 questi file non erano in
+  nessun backup. Se la copia fallisce è un fallimento vero (notifica M.A).
 - **Dual path** (locale-aware): cerca prima in `locali/tregobbi/data/`, poi
   fallback a `app/data/`. Se trova entrambi (durante migrazione) usa quello
   con dimensione maggiore.
 - **Sync Drive separato per `last_known_good/`** (oltre al daily): copia
-  separata su `gdrive:TRGB-Backup-lkg` così nemmeno se Drive daily diventa
+  separata su `gdrive:TRGB-Backup/db-lkg` così nemmeno se Drive daily diventa
   corrotto perdiamo l'LKG.
 - **v2.2 / v2.2.1 (2 lug 2026) — anti falsi positivi da lock**: i check `PRAGMA
   integrity_check` sulla sorgente ora aprono con `-readonly` + `.timeout`
@@ -112,12 +122,24 @@ File: `scripts/backup_db.sh`
 - **03:00** — osteria sicuramente chiusa (notte profonda)
 - **18:00** — finestra morta tra fine pranzo (16:00) e inizio cena (19:30)
 
-Ogni sync `--daily` invia 3 cose distinte su Drive:
+Ogni sync `--daily` invia 4 cose distinte su Drive:
 1. `gdrive:TRGB-Backup/db-daily/` — backup DB di questo ciclo (retention 14)
-2. `gdrive:TRGB-Backup-lkg/` — last_known_good cumulativa (1 copia integra/file)
-3. `gdrive:TRGB-Backup-runbook/` — script + push.sh + docs + CLAUDE.md + locali/
+2. `gdrive:TRGB-Backup/db-lkg/` — last_known_good cumulativa (1 copia integra/file)
+3. `gdrive:TRGB-Backup/db-uploads/` — file caricati (v2.3; `rclone copy`, mai cancellazioni)
+4. `gdrive:TRGB-Backup/db-runbook/` — script + push.sh + docs + CLAUDE.md + locali/
    (lo "userbook di recovery"; permette di ricostruire il sistema da zero anche
-   senza accesso a GitHub)
+   senza accesso a GitHub). Dalla v2.3 `locali/*/data/` è esclusa: portava su
+   Drive i DB vivi copiati a caldo, doppione non atomico di db-daily. Le copie
+   vecchie già su Drive in `db-runbook/locali/tregobbi/data/` non vengono
+   cancellate dallo script: si possono togliere a mano.
+
+**Quanto pesa e cosa si cancella (stima del 24/11/2026 dai DB scaricati):** un
+giro completo dei 17 DB pesa circa 89 MB. Le copie NON si sommano all'infinito:
+hourly tiene le ultime 10 per DB (~0,9 GB), daily le ultime 14 cartelle
+(~1,25 GB), LKG una copia sola (~0,1 GB). Totale sul VPS circa 2,3 GB su 157
+(disco al 17%), e cresce solo se crescono i DB. Su Drive `db-daily` è lo
+specchio del daily locale (stessa rotazione). L'unica parte che si accumula per
+scelta sono i file caricati (21 MB al 24/11).
 
 **Cron consigliato:**
 ```
@@ -136,13 +158,19 @@ Ogni sync `--daily` invia 3 cose distinte su Drive:
 File: `scripts/check_backup_health.sh`
 
 **Cosa fa:**
-- Gira via cron OGNI 30 MINUTI (indipendentemente da backup_db.sh)
-- Verifica 5 cose:
+- Gira via cron OGNI 30 MINUTI, ai minuti 15 e 45 (sfasato dai backup)
+- Verifica 6 cose:
   1. Backup orario fresco (< 70 min)
   2. Backup daily fresco (< 25 ore)
   3. Drive sync fresco (< 25 ore)
-  4. `last_known_good/` contiene tutti i 10 DB con size+integrity OK
+  4. `last_known_good/` contiene tutti i DB della cartella dati con
+     size+integrity OK. **v1.3 (24/11/2026): lista dinamica** come il backup
+     (prima erano i 10 fissi di maggio, i 7 DB nati dopo non erano sorvegliati).
+     Un DB nato da meno di 70 minuti non è un allarme. L'integrity check apre
+     le copie con `immutable=1` e non lascia più `-shm`/`-wal` accanto ai file
+     (se l'apertura immutable non dà `ok` ricade sul `-readonly` di prima).
   5. Status file `.last_backup_status.json` riporta `failed_count: 0`
+  6. Copia dei file caricati (v1.3): stamp `.last_uploads_backup` < 25 ore
 - Scrive esito in `backups/.last_health_status.json`
 - Se 1+ check fallisce → notifica via M.A con urgenza alta a `superadmin`
 - **v1.2 (2 lug 2026) — dedupe notifiche**: notifica solo se il set di issues
@@ -158,8 +186,14 @@ dall'ultimo backup, qualcosa non va". È il watchdog del watchdog.
 
 **Cron:**
 ```
-*/30 * * * * /home/marco/trgb/trgb/scripts/check_backup_health.sh >> /home/marco/trgb/backup_health.log 2>&1
+15,45 * * * * /home/marco/trgb/trgb/scripts/check_backup_health.sh >> /home/marco/trgb/backup_health.log 2>&1
 ```
+
+Crontab verificato sul VPS il 24/11/2026: le 4 righe (orario, 03:00, 18:00,
+watchdog 15,45) sono quelle di questa pagina.
+
+La card in Impostazioni › Backup (`/system/backup-health`, `main.py`) dal
+24/11/2026 usa la stessa lista dinamica.
 
 ### 2.3 Layer 3 — `push.sh` v2 (post-incidente)
 
@@ -194,7 +228,8 @@ File: `~/.claude/skills/guardiano/SKILL.md` (vedi `docs/skill_guardiano_patch_po
 
 ### 2.5 Backup multipli (3-2-1 reale)
 
-**Ora abbiamo 4 livelli locali + 3 destinazioni Drive:**
+**Ora abbiamo 4 livelli locali + 4 destinazioni Drive** (più la copia dei file
+caricati in `app/data/backups/uploads/`, v2.3):
 1. **Hourly** in `app/data/backups/hourly/` (10 ultimi per DB)
 2. **Daily** in `app/data/backups/daily/<TIMESTAMP>/` (14 cartelle = 1 settimana
    con 2 sync/giorno)
@@ -202,16 +237,20 @@ File: `~/.claude/skills/guardiano/SKILL.md` (vedi `docs/skill_guardiano_patch_po
    nuovo backup fallisce; sempre 1 copia integra per file)
 4. **Drive remote** (3 destinazioni):
    - `gdrive:TRGB-Backup/db-daily/` — backup completi giornalieri (rotazione 14)
-   - `gdrive:TRGB-Backup-lkg/` — last_known_good cumulativo (1 copia integra/file)
-   - `gdrive:TRGB-Backup-runbook/` — script + push.sh + docs + CLAUDE.md +
-     locali/ (codice di recovery indipendente da git/GitHub)
+   - `gdrive:TRGB-Backup/db-lkg/` — last_known_good cumulativo (1 copia integra/file)
+   - `gdrive:TRGB-Backup/db-uploads/` — file caricati (additivo)
+   - `gdrive:TRGB-Backup/db-runbook/` — script + push.sh + docs + CLAUDE.md +
+     locali/ senza `data/` (codice di recovery indipendente da git/GitHub)
 
 **Da fare ancora (TODO):**
 - [ ] Aruba snapshot manuale settimanale (Marco lo fa dal pannello)
 - [ ] Backblaze B2 sync alternativa a Drive (ridondanza geografica)
 - [ ] Time Machine attivo sul Mac di Marco
 - [ ] Restore test settimanale automatico (lancia un `.backup` di prova,
-  compara dimensione/integrity, notifica via M.A se fallisce)
+  compara dimensione/integrity, notifica via M.A se fallisce) — T.7 in
+  [roadmap.md](roadmap.md). Al 24/11/2026 un restore non è mai stato provato.
+- [ ] Capire i due buchi di 10-12 ore senza backup orario del 1/6 e 1/8/2026
+  (notifiche `hourly_stale_584min` e `_764min`, tutti e due il primo del mese)
 
 ---
 
@@ -278,9 +317,8 @@ finché non vengono dismissate.
 
 ## 5. Roadmap futura della sicurezza
 
-- **R6.5 push 2** — Consolidamento fisico DB in `locali/tregobbi/data/` e
-  rimozione del fallback in `locale_data_path()`. **Da fare DOPO** che il
-  sistema backup è solido (week of 4 mag).
+- ~~**R6.5 push 2**~~ — ✅ fatto a maggio 2026 (push 2 del 4/5 e push 3 del 5/5):
+  DB in `locali/tregobbi/data/`, fallback di `locale_data_path()` rimosso.
 - **Restore test automatico settimanale** — script che ogni domenica notte
   fa un restore di prova in `/tmp/restore_test/`, lancia integrity_check,
   notifica via M.A.

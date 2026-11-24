@@ -530,7 +530,7 @@ cat > /tmp/cron_new.txt << 'EOF'
 0 18 * * * /home/<USER>/trgb/trgb/scripts/backup_db.sh --daily >> /home/<USER>/trgb/backup.log 2>&1
 
 # TRGB health check ogni 30 min — alarm via M.A se backup non gira
-*/30 * * * * /home/<USER>/trgb/trgb/scripts/check_backup_health.sh >> /home/<USER>/trgb/backup_health.log 2>&1
+15,45 * * * * /home/<USER>/trgb/trgb/scripts/check_backup_health.sh >> /home/<USER>/trgb/backup_health.log 2>&1
 EOF
 crontab /tmp/cron_new.txt
 crontab -l

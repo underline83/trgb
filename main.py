@@ -427,14 +427,25 @@ def system_backup_health(user=Depends(get_current_user)):
         out["ages"]["drive_h"] = None
 
     # 5. Lista file last_known_good
-    expected_files = [
-        "foodcost.db", "admin_finance.sqlite3", "vini.sqlite3",
-        "vini_magazzino.sqlite3", "vini_settings.sqlite3",
-        "dipendenti.sqlite3", "clienti.sqlite3",
-        "notifiche.sqlite3", "tasks.sqlite3", "bevande.sqlite3",
+    # Dal 2026-11-24 la lista è DINAMICA, come backup_db.sh e check_backup_health.sh:
+    # ogni DB (non stub) e ogni JSON della cartella dati del locale. La lista fissa
+    # di maggio mostrava «10/10» anche coi 7 DB nati dopo fuori dal conto.
+    _core_json = [
         "users.json", "modules.json", "modules.runtime.json",
         "modules.runtime.meta.json", "closures_config.json",
     ]
+    expected_files = []
+    try:
+        for _p in sorted(_ldd().iterdir()):
+            if not _p.is_file() or _p.name.startswith("."):
+                continue
+            if _p.name.endswith((".sqlite3", ".db")) and _p.stat().st_size >= 8192:
+                expected_files.append(_p.name)
+            elif _p.name.endswith(".json") and _p.name not in _core_json:
+                expected_files.append(_p.name)
+    except Exception as e:
+        out["issues"].append(f"data_dir_list_error:{e}")
+    expected_files += _core_json
     out["lkg_summary"]["total_expected"] = len(expected_files)
 
     if lkg_dir.exists():
@@ -465,7 +476,8 @@ def system_backup_health(user=Depends(get_current_user)):
                 if not fname.endswith(".json"):
                     try:
                         import sqlite3
-                        conn = sqlite3.connect(f"file:{f}?mode=ro", uri=True, timeout=2)
+                        # immutable=1: non crea -shm/-wal accanto alla copia LKG
+                        conn = sqlite3.connect(f"file:{f}?mode=ro&immutable=1", uri=True, timeout=2)
                         cur = conn.cursor()
                         cur.execute("PRAGMA integrity_check;")
                         result = cur.fetchone()

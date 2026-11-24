@@ -2,7 +2,9 @@
 # setup-backup-and-security.sh
 # Da eseguire UNA VOLTA sul server come root (o con sudo)
 # Configura:
-#   1. Cron orario + giornaliero tramite scripts/backup_db.sh
+#   1. Cron orario + 2 giornalieri (03:00, 18:00) + watchdog, come in
+#      docs/sicurezza_backup.md (allineato il 2026-11-24: prima installava
+#      il cron vecchio con --hourly, daily solo 03:30 e nessun watchdog)
 #   2. Fail2ban whitelist per evitare auto-blocco
 #   3. Permessi eseguibili sullo script di backup
 #
@@ -14,7 +16,8 @@ set -euo pipefail
 
 TRGB_DIR="/home/marco/trgb/trgb"
 BACKUP_SCRIPT="$TRGB_DIR/scripts/backup_db.sh"
-LOG_DIR="/home/marco/trgb/backups"   # ospita solo backup.log
+HEALTH_SCRIPT="$TRGB_DIR/scripts/check_backup_health.sh"
+LOG_DIR="/home/marco/trgb"           # backup.log e backup_health.log
 
 echo "═══════════════════════════════════════════"
 echo "🔧 Setup backup e sicurezza"
@@ -33,34 +36,33 @@ if [ ! -f "$BACKUP_SCRIPT" ]; then
   exit 1
 fi
 chmod +x "$BACKUP_SCRIPT"
-echo "  ✅ $BACKUP_SCRIPT reso eseguibile"
+[ -f "$HEALTH_SCRIPT" ] && chmod +x "$HEALTH_SCRIPT"
+echo "  ✅ script di backup e watchdog resi eseguibili"
 
 # ── 3. Configura cron per marco ──
 echo ""
 echo "⏰ Configurazione cron backup (orario + giornaliero)..."
-CRON_HOURLY="0 * * * * $BACKUP_SCRIPT --hourly >> $LOG_DIR/backup.log 2>&1"
-CRON_DAILY="30 3 * * * $BACKUP_SCRIPT --daily >> $LOG_DIR/backup.log 2>&1"
+CRON_LINES=(
+  "0 * * * * $BACKUP_SCRIPT >> $LOG_DIR/backup.log 2>&1"
+  "0 3 * * * $BACKUP_SCRIPT --daily >> $LOG_DIR/backup.log 2>&1"
+  "0 18 * * * $BACKUP_SCRIPT --daily >> $LOG_DIR/backup.log 2>&1"
+  "15,45 * * * * $HEALTH_SCRIPT >> $LOG_DIR/backup_health.log 2>&1"
+)
 
 CURRENT_CRON="$(crontab -u marco -l 2>/dev/null || true)"
-
-ADD_HOURLY=true
-ADD_DAILY=true
-if echo "$CURRENT_CRON" | grep -qF "backup_db.sh --hourly"; then
-  ADD_HOURLY=false
-  echo "  ⏭️ Cron hourly già presente"
-fi
-if echo "$CURRENT_CRON" | grep -qF "backup_db.sh --daily"; then
-  ADD_DAILY=false
-  echo "  ⏭️ Cron daily già presente"
-fi
-
-if $ADD_HOURLY || $ADD_DAILY; then
-  NEW_CRON="$CURRENT_CRON"
-  $ADD_HOURLY && NEW_CRON="$NEW_CRON"$'\n'"$CRON_HOURLY"
-  $ADD_DAILY  && NEW_CRON="$NEW_CRON"$'\n'"$CRON_DAILY"
+NEW_CRON="$CURRENT_CRON"
+ADDED=0
+for line in "${CRON_LINES[@]}"; do
+  if echo "$CURRENT_CRON" | grep -qF "$line"; then
+    echo "  ⏭️ già presente: $line"
+  else
+    NEW_CRON="$NEW_CRON"$'\n'"$line"
+    ADDED=$((ADDED + 1))
+    echo "  ✅ aggiunto: $line"
+  fi
+done
+if [ "$ADDED" -gt 0 ]; then
   echo "$NEW_CRON" | crontab -u marco -
-  $ADD_HOURLY && echo "  ✅ Cron hourly aggiunto (ogni ora al minuto 0)"
-  $ADD_DAILY  && echo "  ✅ Cron daily  aggiunto (03:30)"
 fi
 
 # ── 4. Configura fail2ban whitelist ──

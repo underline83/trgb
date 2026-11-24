@@ -181,11 +181,10 @@ a funzionare (mount `/static` sempre attivo). Migrare solo se si vogliono
 unificare e avere la garanzia di persistenza tra deploy futuri.
 
 ### Backup
-La cartella `/home/marco/trgb_uploads/` deve essere inclusa nel backup
-periodico (vedi sezione 10). Esempio rclone aggiuntivo:
-```bash
-rclone sync /home/marco/trgb_uploads/ gdrive:trgb_uploads_backup/
-```
+Dal 2026-11-24 la cartella `/home/marco/trgb_uploads/` è nel backup `--daily`
+di `scripts/backup_db.sh` (v2.3): copia additiva in `app/data/backups/uploads/`
+e su Drive in `TRGB-Backup/db-uploads/`. Dettagli in
+[sicurezza_backup.md](sicurezza_backup.md) §2.1.
 
 ---
 
@@ -349,14 +348,16 @@ Il percorso nel sudoers deve corrispondere esattamente all'output di `which syst
 
 ## 10.1 Backup giornaliero database (automatico)
 
+> Pagina canonica: [sicurezza_backup.md](sicurezza_backup.md). Qui solo i comandi.
+
 Lo script `scripts/backup_db.sh` viene eseguito via cron in due modalità:
 
-- `--hourly` ogni ora al minuto 0 (retention 48 ore)
-- `--daily` alle 03:30 (retention 7 giorni + sync su Google Drive)
+- senza argomenti, ogni ora al minuto 0 (ultime 10 copie per DB, in `hourly/`)
+- `--daily` alle 03:00 e alle 18:00 (ultime 14 cartelle + sync su Google Drive + copia dei file caricati)
 
-Usa `sqlite3 .backup` (copia atomica e consistente) su tutti i 6 database SQLite.
-Ogni esecuzione produce una cartella `YYYYMMDD_HHMMSS/` sotto `app/data/backups/{hourly,daily}/` contenente le copie dei DB.
-Il backup `--daily` viene inoltre sincronizzato su Google Drive (cartella `TRGB-Backup/db-daily`) via rclone.
+Usa `sqlite3 .backup` (copia atomica) su tutti i DB della cartella dati, scoperti da soli, con `integrity_check` su ogni copia.
+Il daily produce una cartella `YYYYMMDDHHMMSS/` sotto `app/data/backups/daily/`; l'orario scrive file `<db>_<timestamp>` in `hourly/`.
+Un secondo cron, `scripts/check_backup_health.sh` ai minuti 15 e 45, avvisa via notifica se qualcosa non gira.
 
 ```bash
 # Backup manuale (giornaliero)
@@ -367,7 +368,8 @@ ls -la /home/marco/trgb/trgb/app/data/backups/daily/
 ls -la /home/marco/trgb/trgb/app/data/backups/hourly/
 
 # Log backup (cron)
-tail -f /home/marco/trgb/backups/backup.log
+tail -f /home/marco/trgb/backup.log
+tail -f /home/marco/trgb/backup_health.log
 ```
 
 > ⚠️ **Attenzione**: lo script deve avere il bit `+x`. Se dopo un push.sh sparisce (capitato a fine marzo 2026), il cron fallisce silenziosamente con `Permission denied`. Il fix è `chmod +x scripts/backup_db.sh` sul VPS. La UI mostra un banner rosso se l'ultimo backup ha più di 48 ore.
@@ -382,8 +384,7 @@ Endpoint API: `GET /backup/download` (backup istantaneo), `GET /backup/list` (li
 
 ## 10.3 Google Drive (backup off-site)
 
-I backup giornalieri vengono sincronizzati automaticamente su Google Drive nella cartella `TRGB-Backup/db-daily` via rclone.
-Anche gli script principali (`scripts/backup_db.sh`, `push.sh`, `setup-backup-and-security.sh`) sono copiati in `TRGB-Backup/scripts/`.
+A ogni daily rclone manda su Google Drive, sotto `TRGB-Backup/`: `db-daily/` (specchio dei daily), `db-lkg/` (ultima copia integra), `db-uploads/` (file caricati, mai cancellati) e `db-runbook/` (script, docs, push.sh, CLAUDE.md, `locali/` senza i dati).
 
 ```bash
 # Verifica configurazione rclone

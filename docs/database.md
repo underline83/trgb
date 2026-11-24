@@ -3,15 +3,15 @@
 > **Tipo:** 📄 pagina wiki · **Stato:** attuale · **Ultima verifica:** —
 > **Vedi anche:** [architettura_locale.md](architettura_locale.md), [architettura_pattern.md](architettura_pattern.md), [stack_tecnico.md](stack_tecnico.md), [sicurezza_backup.md](sicurezza_backup.md)
 
-**Ultimo aggiornamento:** 2026-05-08
+**Ultimo aggiornamento:** 2026-11-24 (solo §1 elenco DB e §15 backup; le sezioni per DB sono ferme a maggio)
 **Path canonico:** `locali/tregobbi/data/` (post R6.5 push 2+3, vedi [`architettura_locale.md`](architettura_locale.md)).
 **Path legacy:** `app/data/` — mantenuto per dev locale, NON in produzione (R6.5 push 3 ha rimosso il fallback runtime).
-**Migrazioni:** solo `foodcost.db` ha migrazioni tracciate via `migration_runner.py` + `schema_migrations` (001-114). Gli altri 9 DB hanno schema runtime via `init_*_db()` (debt aperto T.5 in [`roadmap.md`](roadmap.md)).
+**Migrazioni:** solo `foodcost.db` ha migrazioni tracciate via `migration_runner.py` + `schema_migrations` (245 al 24/11/2026). Gli altri DB hanno schema runtime via `init_*_db()` (debt aperto T.5 in [`roadmap.md`](roadmap.md)).
 **Pattern WAL:** attivo su `vini_magazzino`, `notifiche`, `foodcost`, `vini`, `vini_settings`. Da estendere ai restanti 5 DB (T.4 in [`roadmap.md`](roadmap.md)).
 
 ---
 
-## 1. Database attivi (10 file)
+## 1. Database attivi (17 file al 2026-11-24)
 
 | File | Modulo | DB pattern | Versione/migrazioni |
 |------|--------|-----------|---------------------|
@@ -25,9 +25,18 @@
 | `bevande.sqlite3` | Carta Bevande — sezioni + voci editoriali (7 sezioni extra-vini) | runtime | v1.0 (mig 089 nel codice ma DB separato) |
 | `tasks.sqlite3` | Cucina — checklist HACCP + task singoli + livelli/brigata | runtime | v1.x (mig 084-088 nel codice, DB separato dopo R6.5) |
 | `notifiche.sqlite3` | M.A Notifiche — alert system-wide | runtime | v1.x |
+| `pratiche.sqlite3` | Pratiche — pratiche, passi, allegati (modulo dal 2026-10-08) | runtime | `app/models/pratiche_db.py` |
+| `connettore.sqlite3` | Platform M.K — OAuth del connettore MCP, link di accesso di Q | runtime | `app/models/connettore_db.py` |
+| `cassa_conti.sqlite3` | Cassa — conti chiusi scaricati da iPratico Cloud (dal 2026-10-18) | runtime | `app/models/cassa_conti_db.py` |
+| `sito.sqlite3` | Sito — visite ed eventi del sito (dal 2026-10-23) | runtime | `app/models/sito_db.py` |
+| `accessi.sqlite3` | Platform — «Vedi come» del superadmin (dal 2026-11-06) | runtime | `app/services/vedi_come.py` |
+| `email.sqlite3` | Platform M.D — posta in arrivo delle caselle, bozze (dal 2026-11-13) | runtime | `app/models/email_db.py` |
+| `comande.sqlite3` | Comande — conti, righe, tasti rapidi (dal 2026-11-24, in prova) | runtime | `app/models/comande_db.py` |
+
+> I 7 DB dopo `notifiche` sono nati da ottobre 2026 e non hanno ancora una sezione qui sotto: lo schema è nel file indicato. Il backup li prende da solo (discovery dinamica, [sicurezza_backup.md](sicurezza_backup.md)).
 
 > ⚠️ **Note path:**
-> - In **produzione**: tutti e 10 in `/home/marco/trgb/trgb/locali/tregobbi/data/`.
+> - In **produzione**: tutti in `/home/marco/trgb/trgb/locali/tregobbi/data/`.
 > - In **dev locale Mac**: `app/data/` (non locale-aware, è il path legacy pre-R6.5).
 > - `users.json`, `modules.json`, `modules.runtime.json`, `modules.runtime.meta.json`, `closures_config.json` vivono nello stesso path (sono config, non DB).
 
@@ -291,11 +300,13 @@ In `locali/tregobbi/data/`:
 
 Sistema completo post-incidente 4 maggio 2026. Vedi [`sicurezza_backup.md`](sicurezza_backup.md) per architettura.
 
-- **Hourly:** ogni ora, retention 48h
-- **Daily:** alle 03:30 + 18:00, retention 7gg + sync Drive (`gdrive:TRGB-Backup/db-daily`)
-- **Last Known Good:** 10 DB integri preservati + 5 JSON
+- **Hourly:** ogni ora, ultime 10 copie per DB
+- **Daily:** alle 03:00 + 18:00, ultime 14 cartelle (una settimana) + sync Drive (`gdrive:TRGB-Backup/db-daily`)
+- **Last Known Good:** una copia integra per ogni DB e JSON, mai ruotata se il backup nuovo fallisce
+- **File caricati:** `trgb_uploads/` e `data/uploads/` copiati a ogni daily, in locale e su Drive, senza mai cancellare (dal 2026-11-24)
 - **Sanity check:** `sqlite3 PRAGMA integrity_check` su ogni DB post-restart (in `push.sh` v2)
-- **Watchdog:** `check_backup_health.sh` ogni 30min con alert M.A se `unhealthy`
+- **Watchdog:** `check_backup_health.sh` ai minuti 15 e 45 con alert M.A se `unhealthy`
+- DB e JSON sono scoperti da soli nella cartella dati: un DB nuovo entra nel backup senza toccare gli script.
 
 ---
 
