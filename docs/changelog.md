@@ -3,6 +3,29 @@
 
 ---
 
+## 2026-11-24 — Comanda 2.0: «vai e attendi», conto a elenco, mappa dei tavoli `[mixed]`
+Marco ha mandato 83 screen di iPratico e 5 foto degli scontrini di cucina: l'osteria lavora a «vai e attendi» (la comanda parte intera, divisa per uscite, e ogni uscita si chiama). Fra le due schermate disegnate ha scelto il conto a elenco: «la tessera ha senso quando ci sono le foto dei piatti (ma io non la uso)». E: «su iPratico non c'è una mappa, è un limite». Sempre in prova.
+
+**Aggiunto**
+- **Uscite libere che vanno o attendono**: «Invia comanda» manda tutto ai reparti, la prima uscita nuova va e le altre attendono; «Vai con la preparazione» su un'uscita che attende (il reparto riceve di nuovo i suoi piatti), «Attendi» e «Invia sollecito» su una andata. `POST /comande/conti/{id}/uscite/{n}/vai|attendi|sollecita`, tabella `comande_uscite`, colonna `comande_invii.azione`.
+- **Tasti rapidi con la loro uscita** (`comande_tasti_rapidi.uscita`): dal seme dell'osteria lo stuzzico cade nella 1 e il pane nella 2, dovunque si stia battendo; «Nuova uscita» le salta.
+- **Mappa dei tavoli**: la piantina disegnata in Prenotazioni, una scheda per sala, tavoli colorati per stato. `tavoli_sala_service` 1.1 dà posizioni ed elementi.
+- **Tavoli**: «Uscita 2 di 5 · 12 min», minuti dall'apertura (contati dal server), «sollecitata», filtro «Miei».
+- **Sposta**: il conto passa a un tavolo libero (l'API c'era dalla 1.0, mancava il tasto).
+
+**Cambiato**
+- **Conto a elenco**: catalogo a sinistra (gruppi in colonna, voci in lista), comanda per uscite a destra sempre a vista; su telefono si alternano. Il catalogo non è più una finestra.
+- **Invii**: la comanda è divisa per uscite con «va / attende»; le chiamate dicono cosa sono (vai, attendi, sollecito).
+- **Impostazioni**: tolte le uscite fisse (quante uscite, uscita di partenza per famiglia); ogni tasto rapido ha la sua uscita. Le quattro chiavi restano nel DB, non lette.
+- Le uscite si chiamano «Uscita 1», «Uscita 2»; «Subito» resta solo sui conti nati con la 1.x. `POST /comande/conti/{id}/via` resta e fa «vai».
+
+**Note**
+- Nessuna migrazione numerata: `init_comande_db()` crea `comande_uscite` e aggiunge due colonne (solo ADD COLUMN). Versione di sistema invariata, comande 2.0.
+- Provato: router col TestClient (stati delle uscite, chiamate, seconda e terza comanda, limiti, sposta); una copia del DB comande di produzione portata da 1.1 a 2.0 (integrity ok, DB veri non toccati); scenario coi dati veri (506 articoli, 31 tavoli, 23 elementi di piantina); le quattro pagine montate in un'anteprima coi componenti veri di TRGB e guardate con un browser a 1180 px e 390 px, clic compresi. **Non provato:** il server vero e un iPad vero.
+- Non fatto, da decidere con Marco: varianti a gruppi, nome corto per la cucina, unisci ordine, cambio cameriere.
+
+---
+
 ## 2026-11-24 — Backup 2.3: file caricati nel backup, watchdog su tutti i DB, docs riallineate `[mixed]`
 Marco: «è un po' che non controlliamo il sistema di backup… fai un check». Esito in `claude/check_backup_2026-11-24.md`; stato sul VPS verificato da Marco via ssh (healthy, 17 DB su 17, crontab corretto).
 

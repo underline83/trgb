@@ -1,4 +1,4 @@
-# @version: v1.1 (2026-11-24) — coperto messo in conto da solo, tasti rapidi a 0 € (in prova)
+# @version: v2.0 (2026-11-24) — uscite libere che vanno o attendono, come lavora la sala («vai e attendi»)
 # -*- coding: utf-8 -*-
 """
 Comande — logica. Modulo: comande. [core]
@@ -24,11 +24,23 @@ Dalla v1.1 (come si lavora oggi in cassa, docs/studio_ipratico_comanda.md §2):
                   si cambia dai coperti o si mette in omaggio (prezzo 0)
     tasti rapidi → righe a 0 € che dicono a un reparto di far partire qualcosa
                   («Stuzzico», «Pane»); partono col prossimo «Invia»
+
+Dalla v2.0 — «vai e attendi», copiato da come lavora l'osteria (studio §5 e §8):
+    uscite      → libere e numerate da 1; «Invia comanda» manda TUTTO ai reparti:
+                  la prima uscita nuova va (se prima di lei niente attende), le
+                  altre attendono
+    vai         → «Vai con la preparazione»: l'uscita che attende parte, e il
+                  reparto riceve di nuovo i suoi piatti
+    attendi     → un'uscita andata torna ad attendere
+    sollecita   → avviso al reparto su un'uscita già andata
+    Lo stato sta in comande_uscite. I conti nati prima non ce l'hanno: per loro
+    valgono la vecchia «via» (uscita_corrente) e «Subito» (uscita 0, sempre andata).
 """
 
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from typing import Any, Dict, Iterable, List, Optional
 
 from app.models.comande_db import get_comande_conn
@@ -37,6 +49,7 @@ from app.services import catalogo_vendita, tavoli_sala_service
 FAMIGLIE = ("food", "beverage", "servizio")
 COPERTO, COPERTO_OMAGGIO = "COPERTO", "COPERTO-OMAGGIO"   # articolo_codice della riga del coperto
 GRUPPO_TASTI = "Tasti rapidi"
+USCITA_MAX = 20
 
 
 class ComandaErrore(Exception):
@@ -58,6 +71,17 @@ def _int(v, default: int) -> int:
         return int(v)
     except (TypeError, ValueError):
         return default
+
+
+def _minuti_da(ts: Optional[str]) -> Optional[int]:
+    """Minuti passati da un orario scritto dal DB con datetime('now','localtime'). Si contano qui,
+    con l'orologio del server che l'ha scritto: il telefono può avere un'altra ora."""
+    if not ts:
+        return None
+    try:
+        return max(0, int((datetime.now() - datetime.fromisoformat(ts)).total_seconds() // 60))
+    except ValueError:
+        return None
 
 
 def _reparti(conn, solo_attivi: bool = False) -> List[Dict[str, Any]]:
@@ -90,7 +114,7 @@ def _coperto_cfg(cfg: Dict[str, str]) -> Dict[str, Any]:
 
 
 def _tasti(conn, solo_attivi: bool = False) -> List[Dict[str, Any]]:
-    sql = "SELECT id, nome, reparto_key, ogni_coperti, ordine, attivo FROM comande_tasti_rapidi"
+    sql = "SELECT id, nome, reparto_key, ogni_coperti, ordine, attivo, uscita FROM comande_tasti_rapidi"
     if solo_attivi:
         sql += " WHERE attivo = 1"
     return [dict(r) for r in conn.execute(sql + " ORDER BY ordine, id")]
@@ -124,6 +148,8 @@ def impostazioni() -> Dict[str, Any]:
 
 
 CHIAVI_CONFIG = {
+    # uscite_numero e uscita_<famiglia> servivano alla 1.x (uscite fisse): dalla 2.0 le uscite
+    # sono libere e la pagina non le manda più. Restano accettate per non rompere chi le manda.
     "uscite_numero": "int:1:9",
     "uscita_food": "int:0:9", "uscita_beverage": "int:0:9", "uscita_servizio": "int:0:9",
     "reparto_food": "reparto", "reparto_beverage": "reparto", "reparto_servizio": "reparto",
@@ -204,17 +230,25 @@ def salva_impostazioni(dati: Dict[str, Any]) -> Dict[str, Any]:
             ogni = _int(t.get("ogni_coperti"), 0)
             if not 0 <= ogni <= 20:
                 raise ComandaErrore(f"{nome}: «una ogni N coperti» va da 0 a 20")
-            valori = (nome, key, ogni, _int(t.get("ordine"), i), 1 if t.get("attivo", True) else 0)
+            if "uscita" in t or not t.get("id"):
+                usc = _int(t.get("uscita"), 0) or None
+            else:   # chi salva senza dire l'uscita (una pagina vecchia) non la cancella
+                prima = conn.execute("SELECT uscita FROM comande_tasti_rapidi WHERE id = ?",
+                                     (_int(t["id"], -1),)).fetchone()
+                usc = prima["uscita"] if prima else None
+            if usc is not None and not 1 <= usc <= USCITA_MAX:
+                raise ComandaErrore(f"{nome}: uscita da 1 a {USCITA_MAX}, o nessuna")
+            valori = (nome, key, ogni, _int(t.get("ordine"), i), 1 if t.get("attivo", True) else 0, usc)
             if t.get("id"):
                 fatto = conn.execute(
                     "UPDATE comande_tasti_rapidi SET nome = ?, reparto_key = ?, ogni_coperti = ?, "
-                    "ordine = ?, attivo = ? WHERE id = ?", (*valori, _int(t["id"], -1)))
+                    "ordine = ?, attivo = ?, uscita = ? WHERE id = ?", (*valori, _int(t["id"], -1)))
                 if fatto.rowcount == 0:
                     raise ComandaErrore(f"{nome}: tasto rapido inesistente")
             else:
                 conn.execute(
-                    "INSERT INTO comande_tasti_rapidi (nome, reparto_key, ogni_coperti, ordine, attivo) "
-                    "VALUES (?, ?, ?, ?, ?)", valori)
+                    "INSERT INTO comande_tasti_rapidi (nome, reparto_key, ogni_coperti, ordine, attivo, uscita) "
+                    "VALUES (?, ?, ?, ?, ?, ?)", valori)
         conn.commit()
     finally:
         conn.close()
@@ -228,10 +262,6 @@ def _reparto_per(gruppo: Optional[str], famiglia: str, cfg: Dict[str, str],
     else:
         key = cfg.get(f"reparto_{famiglia}") or None
     return key if key in attivi else None
-
-
-def _uscita_per(famiglia: str, cfg: Dict[str, str]) -> int:
-    return _int(cfg.get(f"uscita_{famiglia}"), 1 if famiglia == "food" else 0)
 
 
 # ── lettura ────────────────────────────────────────────────────────
@@ -272,16 +302,47 @@ def _riepilogo_conti(conn, ids: Iterable[int]) -> Dict[int, Dict[str, Any]]:
     return out
 
 
+def _uscite_stato(conn, c) -> Dict[int, Dict[str, Any]]:
+    """Stato di ogni uscita già inviata di un conto: numero → {stato, andata_at, solleciti…}.
+    Per le uscite senza riga in comande_uscite (conti nati prima della 2.0) si deduce:
+    «Subito» è andata, le altre lo sono fino a uscita_corrente."""
+    out = {r["numero"]: dict(r) for r in conn.execute(
+        "SELECT numero, stato, andata_at, andata_da, solleciti, sollecitata_at "
+        "FROM comande_uscite WHERE conto_id = ?", (c["id"],))}
+    for r in conn.execute(
+        "SELECT DISTINCT uscita FROM comande_righe WHERE conto_id = ? AND stato = 'inviata' "
+        "AND COALESCE(articolo_tipo, '') != 'coperto'", (c["id"],)
+    ):
+        n = r["uscita"]
+        if n not in out:
+            andata = n == 0 or n <= (c["uscita_corrente"] or 0)
+            out[n] = {"numero": n, "stato": "andata" if andata else "attende", "andata_at": None,
+                      "andata_da": None, "solleciti": 0, "sollecitata_at": None}
+    return out
+
+
 def conti_aperti() -> List[Dict[str, Any]]:
     conn = get_comande_conn()
     try:
         conti = [dict(r) for r in conn.execute(
             "SELECT * FROM comande_conti WHERE stato = 'aperto' ORDER BY aperto_at")]
         rie = _riepilogo_conti(conn, [c["id"] for c in conti])
+        for c in conti:
+            c.update(rie.get(c["id"], {"totale": 0.0, "da_inviare": 0, "inviate": 0}))
+            st = _uscite_stato(conn, c)
+            vere = sorted(n for n in st if n > 0)
+            attende = [n for n in vere if st[n]["stato"] == "attende"]
+            andate = [n for n in vere if st[n]["stato"] == "andata"]
+            ultima = st[andate[-1]] if andate else None
+            c["uscite_tot"] = vere[-1] if vere else 0   # la più alta inviata: «Uscita 2 di 5»
+            c["uscita_attende"] = attende[0] if attende else None
+            c["uscita_andata"] = andate[-1] if andate else None
+            c["uscita_andata_at"] = ultima["andata_at"] if ultima else None
+            c["minuti_andata"] = _minuti_da(ultima["andata_at"]) if ultima else None
+            c["minuti_aperto"] = _minuti_da(c["aperto_at"])
+            c["sollecitata"] = bool(ultima and ultima.get("solleciti"))
     finally:
         conn.close()
-    for c in conti:
-        c.update(rie.get(c["id"], {"totale": 0.0, "da_inviare": 0, "inviate": 0}))
     return conti
 
 
@@ -299,7 +360,7 @@ def tavoli() -> Dict[str, Any]:
         indice_sala[zona]["tavoli"].append({**t, "conto": per_tavolo.get(t["id"])})
     noti = {t["id"] for s in sale for t in s["tavoli"]}
     orfani = [c for c in aperti if c["tavolo_id"] not in noti]  # tavolo disattivato a conto aperto
-    return {"sale": sale, "altri_conti": orfani}
+    return {"sale": sale, "altri_conti": orfani, "elementi": tavoli_sala_service.elementi()}
 
 
 def conto(conto_id: int) -> Dict[str, Any]:
@@ -314,8 +375,18 @@ def conto(conto_id: int) -> Dict[str, Any]:
         reparti = {r["key"]: r["nome"] for r in _reparti(conn)}
         uscite_numero = _int(_config(conn).get("uscite_numero"), 4)
         tasti = _tasti(conn, solo_attivi=True)
+        stati = _uscite_stato(conn, c)
     finally:
         conn.close()
+    c["uscite"] = []
+    for n in sorted({r["uscita"] for r in righe if r["articolo_tipo"] != "coperto"}):
+        sue = [r for r in righe if r["uscita"] == n and r["articolo_tipo"] != "coperto"]
+        st = stati.get(n) or {}
+        c["uscite"].append({
+            "numero": n, "stato": st.get("stato") or "nuova",   # nuova = mai inviata
+            "andata_at": st.get("andata_at"), "solleciti": st.get("solleciti") or 0,
+            "da_inviare": sum(r["quantita"] for r in sue if r["stato"] == "da_inviare"),
+        })
     cop = next((r for r in righe if r["articolo_tipo"] == "coperto" and r["stato"] != "stornata"), None)
     c["coperto"] = {
         "riga_id": cop["id"], "nome": cop["nome"], "prezzo": cop["prezzo_unitario"],
@@ -325,6 +396,7 @@ def conto(conto_id: int) -> Dict[str, Any]:
         "id": t["id"], "nome": t["nome"], "codice": _codice_tasto(t["id"]),
         "reparto": t["reparto_key"] if t["reparto_key"] in reparti else None,
         "quantita": _quantita_tasto(t["ogni_coperti"], c["coperti"]),
+        "uscita": t["uscita"],   # None = l'uscita in cui si sta battendo
     } for t in tasti]
     c["righe"] = righe
     c["invii"] = invii
@@ -499,8 +571,8 @@ def aggiungi_righe(conto_id: int, righe: List[Dict[str, Any]], utente: Optional[
                 nome, gruppo, famiglia, tipo, prezzo = tasto["nome"], GRUPPO_TASTI, "servizio", "tasto_rapido", 0.0
                 reparto = tasto["reparto_key"] if tasto["reparto_key"] in attivi else None
                 reparto_fisso = True
-                if r.get("uscita") is None:
-                    r = {**r, "uscita": 0}   # un tasto rapido parte «subito»
+                if tasto["uscita"]:
+                    r = {**r, "uscita": tasto["uscita"]}   # il tasto ha la sua uscita (stuzzico nella 1…)
             elif codice:
                 a = idx.get(codice)
                 if not a:
@@ -528,10 +600,9 @@ def aggiungi_righe(conto_id: int, righe: List[Dict[str, Any]], utente: Optional[
                 gruppo, tipo = "Fuori carta", "libero"
             if prezzo < 0 or prezzo > 10000:
                 raise ComandaErrore(f"{nome}: prezzo non valido")
-            uscita = r.get("uscita")
-            uscita = _uscita_per(famiglia, cfg) if uscita is None else _int(uscita, -1)
-            if uscita < 0 or uscita > 9:
-                raise ComandaErrore("Uscita da 0 a 9")
+            uscita = 1 if r.get("uscita") is None else _int(r.get("uscita"), -1)
+            if uscita < 0 or uscita > USCITA_MAX:
+                raise ComandaErrore(f"Uscita da 1 a {USCITA_MAX}")
             if not reparto_fisso:
                 reparto = _reparto_per(gruppo, famiglia, cfg, mappa, attivi)
             da_scrivere.append((
@@ -576,8 +647,8 @@ def modifica_riga(riga_id: int, dati: Dict[str, Any]) -> Dict[str, Any]:
             campi.append("quantita = ?"); valori.append(q)
         if dati.get("uscita") is not None:
             u = _int(dati["uscita"], -1)
-            if u < 0 or u > 9:
-                raise ComandaErrore("Uscita da 0 a 9")
+            if u < 0 or u > USCITA_MAX:
+                raise ComandaErrore(f"Uscita da 1 a {USCITA_MAX}")
             campi.append("uscita = ?"); valori.append(u)
         if "nota" in dati:
             campi.append("nota = ?"); valori.append((dati.get("nota") or "").strip()[:200] or None)
@@ -615,67 +686,128 @@ def _foto(r) -> Dict[str, Any]:
 
 
 def _nuovo_invio(conn, conto_id: int, tipo: str, reparto: str, righe: List[Dict[str, Any]],
-                 utente: Optional[str], uscita: Optional[int] = None) -> int:
+                 utente: Optional[str], uscita: Optional[int] = None, azione: Optional[str] = None) -> int:
     cur = conn.execute(
-        "INSERT INTO comande_invii (conto_id, tipo, reparto, uscita, righe_json, creato_da) "
-        "VALUES (?, ?, ?, ?, ?, ?)",
-        (conto_id, tipo, reparto, uscita, json.dumps(righe, ensure_ascii=False), utente))
+        "INSERT INTO comande_invii (conto_id, tipo, reparto, uscita, righe_json, creato_da, azione) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (conto_id, tipo, reparto, uscita, json.dumps(righe, ensure_ascii=False), utente, azione))
     return cur.lastrowid
 
 
+def _segna_uscita_corrente(conn, conto_id: int, stati: Dict[int, Dict[str, Any]]) -> None:
+    andate = [n for n, st in stati.items() if st["stato"] == "andata"]
+    conn.execute(
+        "UPDATE comande_conti SET uscita_corrente = ?, aggiornato_at = datetime('now','localtime') "
+        "WHERE id = ?", (max(andate, default=0), conto_id))
+
+
 def invia(conto_id: int, utente: Optional[str]) -> Dict[str, Any]:
+    """«Invia comanda»: tutte le righe nuove partono verso i reparti. Fra le uscite nuove la
+    prima va, se prima di lei non c'è niente che attende; le altre attendono la chiamata.
+    Una riga aggiunta a un'uscita già inviata ne segue lo stato."""
     conn = get_comande_conn()
     try:
-        _aperto(_testata(conn, conto_id))
+        c = dict(_testata(conn, conto_id))
+        _aperto(c)
         righe = conn.execute(
             "SELECT * FROM comande_righe WHERE conto_id = ? AND stato = 'da_inviare' ORDER BY uscita, id",
             (conto_id,)).fetchall()
         if not righe:
             raise ComandaErrore("Niente da inviare")
+        stati = _uscite_stato(conn, c)
+        nuove = sorted({r["uscita"] for r in righe} - set(stati))
+        attesa = [n for n, st in stati.items() if st["stato"] == "attende"]
+        prima = next((n for n in nuove if n > 0), None)
+        for n in nuove:
+            va = n == 0 or (n == prima and not any(a < n for a in attesa))
+            conn.execute(
+                "INSERT INTO comande_uscite (conto_id, numero, stato, andata_at, andata_da) VALUES "
+                "(?, ?, ?, CASE WHEN ? THEN datetime('now','localtime') END, ?)",
+                (conto_id, n, "andata" if va else "attende", 1 if va else 0, utente if va else None))
+            stati[n] = {"stato": "andata" if va else "attende"}
         per_reparto: Dict[Optional[str], List] = {}
         for r in righe:
             per_reparto.setdefault(r["reparto"], []).append(r)
         for reparto, gruppo in per_reparto.items():
             invio_id = None
             if reparto:
-                invio_id = _nuovo_invio(conn, conto_id, "comanda", reparto, [_foto(r) for r in gruppo], utente)
+                foto = [{**_foto(r), "va": stati[r["uscita"]]["stato"] == "andata"} for r in gruppo]
+                invio_id = _nuovo_invio(conn, conto_id, "comanda", reparto, foto, utente)
             conn.executemany(
                 "UPDATE comande_righe SET stato = 'inviata', invio_id = ?, "
                 "aggiornata_at = datetime('now','localtime') WHERE id = ?",
                 [(invio_id, r["id"]) for r in gruppo])
-        conn.execute("UPDATE comande_conti SET aggiornato_at = datetime('now','localtime') WHERE id = ?",
-                     (conto_id,))
+        _segna_uscita_corrente(conn, conto_id, stati)
         conn.commit()
     finally:
         conn.close()
     return conto(conto_id)
 
 
-def via(conto_id: int, uscita: int, utente: Optional[str]) -> Dict[str, Any]:
-    """«Via la 2ª»: avvisa i reparti che hanno righe inviate di quell'uscita."""
+def _chiama(conto_id: int, uscita: int, azione: str, utente: Optional[str]) -> Dict[str, Any]:
+    """vai / attendi / sollecito su un'uscita già inviata: cambia lo stato e avvisa i reparti
+    che hanno righe in quell'uscita, ripetendo i piatti (così il foglio si legge da solo)."""
     uscita = _int(uscita, -1)
-    if uscita < 1 or uscita > 9:
-        raise ComandaErrore("Uscita da 1 a 9")
+    if uscita < 1 or uscita > USCITA_MAX:
+        raise ComandaErrore(f"Uscita da 1 a {USCITA_MAX}")
     conn = get_comande_conn()
     try:
-        _aperto(_testata(conn, conto_id))
+        c = dict(_testata(conn, conto_id))
+        _aperto(c)
+        stati = _uscite_stato(conn, c)
+        st = stati.get(uscita)
+        if not st:
+            raise ComandaErrore(f"L'uscita {uscita} non è ancora stata inviata")
+        if azione == "vai" and st["stato"] == "andata":
+            raise ComandaErrore(f"L'uscita {uscita} è già andata")
+        if azione != "vai" and st["stato"] != "andata":
+            raise ComandaErrore(f"L'uscita {uscita} sta attendendo: prima «Vai con la preparazione»")
         righe = conn.execute(
             "SELECT * FROM comande_righe WHERE conto_id = ? AND uscita = ? AND stato = 'inviata' "
             "AND reparto IS NOT NULL ORDER BY id", (conto_id, uscita)).fetchall()
-        if not righe:
-            raise ComandaErrore(f"Nessuna riga inviata nella {uscita}ª uscita")
         per_reparto: Dict[str, List] = {}
         for r in righe:
             per_reparto.setdefault(r["reparto"], []).append(r)
         for reparto, gruppo in per_reparto.items():
-            _nuovo_invio(conn, conto_id, "via", reparto, [_foto(r) for r in gruppo], utente, uscita)
+            _nuovo_invio(conn, conto_id, "via", reparto, [_foto(r) for r in gruppo], utente, uscita, azione)
         conn.execute(
-            "UPDATE comande_conti SET uscita_corrente = MAX(uscita_corrente, ?), "
-            "aggiornato_at = datetime('now','localtime') WHERE id = ?", (uscita, conto_id))
+            "INSERT OR IGNORE INTO comande_uscite (conto_id, numero, stato) VALUES (?, ?, ?)",
+            (conto_id, uscita, st["stato"]))
+        if azione == "vai":
+            conn.execute(
+                "UPDATE comande_uscite SET stato = 'andata', andata_at = datetime('now','localtime'), "
+                "andata_da = ? WHERE conto_id = ? AND numero = ?", (utente, conto_id, uscita))
+            st["stato"] = "andata"
+        elif azione == "attendi":
+            conn.execute(
+                "UPDATE comande_uscite SET stato = 'attende', andata_at = NULL, andata_da = NULL "
+                "WHERE conto_id = ? AND numero = ?", (conto_id, uscita))
+            st["stato"] = "attende"
+        else:
+            conn.execute(
+                "UPDATE comande_uscite SET solleciti = solleciti + 1, "
+                "sollecitata_at = datetime('now','localtime') WHERE conto_id = ? AND numero = ?",
+                (conto_id, uscita))
+        _segna_uscita_corrente(conn, conto_id, stati)
         conn.commit()
     finally:
         conn.close()
     return conto(conto_id)
+
+
+def vai(conto_id: int, uscita: int, utente: Optional[str]) -> Dict[str, Any]:
+    return _chiama(conto_id, uscita, "vai", utente)
+
+
+def attendi(conto_id: int, uscita: int, utente: Optional[str]) -> Dict[str, Any]:
+    return _chiama(conto_id, uscita, "attendi", utente)
+
+
+def sollecita(conto_id: int, uscita: int, utente: Optional[str]) -> Dict[str, Any]:
+    return _chiama(conto_id, uscita, "sollecito", utente)
+
+
+via = vai   # nome della 1.0, tenuto per l'endpoint vecchio
 
 
 def storna_riga(riga_id: int, motivo: str, utente: Optional[str]) -> Dict[str, Any]:

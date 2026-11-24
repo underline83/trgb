@@ -1,4 +1,4 @@
-// @version: v1.1 — coperto in conto da solo, tasti rapidi a 0 € (2026-11-24)
+// @version: v2.0 — uscite libere (niente più numero fisso), ogni tasto rapido con la sua uscita (2026-11-24)
 // Modulo: comande
 import React, { useEffect, useState } from "react";
 import { Btn, PageLayout, TextInput } from "../../components/ui";
@@ -13,6 +13,8 @@ const FAMIGLIE = [
 ];
 const sel = "border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white";
 // Quantità proposta da un tasto rapido: 0 = una, N = una ogni N coperti (per difetto, almeno una).
+// Uscite fra cui scegliere per un tasto rapido (oltre a «dove si sta battendo»).
+const USCITE_TASTO = [1, 2, 3, 4, 5, 6, 7, 8, 9];
 const QUANTITA_TASTO = [
   { v: 0, label: "una" },
   { v: 1, label: "una a coperto" },
@@ -52,8 +54,7 @@ export default function ComandeImpostazioni() {
         if (g.nome in mappa) gruppiReparto[g.nome] = mappa[g.nome];
         else if (imp.gruppi_reparto && g.nome in imp.gruppi_reparto) gruppiReparto[g.nome] = "__default__";
       });
-      const chiavi = ["uscite_numero", "uscita_food", "uscita_beverage", "uscita_servizio",
-        "reparto_food", "reparto_beverage", "reparto_servizio",
+      const chiavi = ["reparto_food", "reparto_beverage", "reparto_servizio",
         "coperto_attivo", "coperto_nome", "coperto_prezzo"];
       const cfg = {};
       chiavi.forEach((k) => { cfg[k] = config[k] ?? ""; });
@@ -91,8 +92,6 @@ export default function ComandeImpostazioni() {
     </select>
   );
   const cambiaTasto = (i, campi) => setTasti(tasti.map((t, j) => (j === i ? { ...t, ...campi } : t)));
-  const nUscite = Number(config.uscite_numero) || 4;
-  const usciteOpzioni = [0, ...Array.from({ length: nUscite }, (_, i) => i + 1)];
 
   return (
     <PageLayout
@@ -103,23 +102,12 @@ export default function ComandeImpostazioni() {
       {msg && <div className="mb-3 rounded-xl border border-neutral-200 bg-white px-4 py-2 text-sm">{msg}</div>}
 
       <section className="mb-5 rounded-3xl border border-neutral-200 bg-white p-4 shadow-sm">
-        <h2 className="mb-3 font-semibold text-brand-ink">Uscite</h2>
-        <label className="mb-3 flex items-center gap-3 text-sm">
-          Quante uscite propone la sala
-          <select className={sel} value={config.uscite_numero || "4"}
-            onChange={(e) => setConfig({ ...config, uscite_numero: e.target.value })}>
-            {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => <option key={n} value={n}>{n}</option>)}
-          </select>
-        </label>
-        {FAMIGLIE.map((f) => (
-          <label key={f.key} className="mb-2 flex items-center gap-3 text-sm">
-            <span className="w-64">{f.label}: parte nella</span>
-            <select className={sel} value={config[`uscita_${f.key}`] ?? "0"}
-              onChange={(e) => setConfig({ ...config, [`uscita_${f.key}`]: e.target.value })}>
-              {usciteOpzioni.map((u) => <option key={u} value={u}>{u === 0 ? "Subito" : `${u}ª uscita`}</option>)}
-            </select>
-          </label>
-        ))}
+        <h2 className="mb-1 font-semibold text-brand-ink">Uscite</h2>
+        <p className="text-sm text-neutral-600">
+          Le uscite non si impostano: si aprono dal conto, quante ne servono. «Invia comanda» manda tutto
+          ai reparti: la prima uscita va, le altre attendono «Vai con la preparazione».
+          Qui sotto si sceglie solo in quale uscita cade ogni tasto rapido.
+        </p>
       </section>
 
       <section className="mb-5 rounded-3xl border border-neutral-200 bg-white p-4 shadow-sm">
@@ -149,7 +137,7 @@ export default function ComandeImpostazioni() {
         <h2 className="mb-1 font-semibold text-brand-ink">Tasti rapidi</h2>
         <p className="mb-3 text-xs text-neutral-500">
           Tasti in cima al conto, a 0 €: dicono a un reparto di far partire qualcosa (lo stuzzico, il pane).
-          Un tasto non si cancella: si spegne.
+          Un tasto con la sua uscita cade sempre lì, dovunque si stia battendo. Un tasto non si cancella: si spegne.
         </p>
         {tasti.length === 0 && <p className="mb-2 text-sm text-neutral-500">Nessun tasto rapido.</p>}
         {tasti.map((t, i) => (
@@ -166,6 +154,13 @@ export default function ComandeImpostazioni() {
                 <option value={t.ogni_coperti}>una ogni {t.ogni_coperti} coperti</option>
               )}
             </select>
+            <span className="text-sm">nella</span>
+            <select className={sel} value={t.uscita ?? ""} aria-label="Uscita del tasto"
+              onChange={(e) => cambiaTasto(i, { uscita: e.target.value ? Number(e.target.value) : null })}>
+              <option value="">uscita in cui si batte</option>
+              {USCITE_TASTO.map((u) => <option key={u} value={u}>Uscita {u}</option>)}
+              {t.uscita && !USCITE_TASTO.includes(t.uscita) && <option value={t.uscita}>Uscita {t.uscita}</option>}
+            </select>
             <label className="flex items-center gap-1 text-sm">
               <input type="checkbox" checked={t.attivo === undefined ? true : !!t.attivo}
                 onChange={(e) => cambiaTasto(i, { attivo: e.target.checked ? 1 : 0 })} />
@@ -174,7 +169,7 @@ export default function ComandeImpostazioni() {
           </div>
         ))}
         <Btn variant="secondary" size="md"
-          onClick={() => setTasti([...tasti, { nome: "", reparto_key: config.reparto_food || null, ogni_coperti: 0, attivo: 1 }])}>
+          onClick={() => setTasti([...tasti, { nome: "", reparto_key: config.reparto_food || null, ogni_coperti: 0, uscita: null, attivo: 1 }])}>
           ＋ Aggiungi tasto
         </Btn>
       </section>

@@ -1,4 +1,4 @@
-# @version: v1.0 (2026-11-24) — tavoli e sale per chi non è il modulo Prenotazioni
+# @version: v1.1 (2026-11-24) — anche posizioni ed elementi della piantina, per la mappa della Comanda
 # -*- coding: utf-8 -*-
 """
 Tavoli e sale — Modulo: platform — [core]
@@ -11,6 +11,7 @@ modulare): passano da qui.
 Sola lettura. Funzioni:
     elenco_tavoli()        tavoli attivi in ordine di sala e di posizione
     tavolo(tavolo_id)      un tavolo, anche se disattivato (None se non c'è)
+    elementi()             ciò che in piantina non è un tavolo (bancone, colonne…), per sala
 """
 
 from __future__ import annotations
@@ -19,7 +20,8 @@ from typing import Any, Dict, List, Optional
 
 from app.models.clienti_db import get_clienti_conn
 
-_CAMPI = "id, nome, zona, posti_min, posti_max, ordine, attivo"
+_CAMPI = ("id, nome, zona, posti_min, posti_max, ordine, attivo, "
+          "posizione_x, posizione_y, larghezza, altezza, forma")
 
 
 def _tabella_ok(conn) -> bool:
@@ -56,5 +58,21 @@ def tavolo(tavolo_id: int) -> Optional[Dict[str, Any]]:
             return None
         r = conn.execute(f"SELECT {_CAMPI} FROM tavoli WHERE id = ?", (tavolo_id,)).fetchone()
         return dict(r) if r else None
+    finally:
+        conn.close()
+
+
+def elementi() -> List[Dict[str, Any]]:
+    """Elementi non prenotabili della piantina (tabella `tavoli_elementi`). Lista vuota se non c'è."""
+    conn = get_clienti_conn()
+    try:
+        if not conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='tavoli_elementi'"
+        ).fetchone():
+            return []
+        return [dict(r) for r in conn.execute(
+            "SELECT id, zona, forma, posizione_x, posizione_y, larghezza, altezza, colore, etichetta "
+            "FROM tavoli_elementi ORDER BY ordine, id"
+        ).fetchall()]
     finally:
         conn.close()

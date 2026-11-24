@@ -22,7 +22,7 @@ Sottorete **192.168.86.x**, che non è quella di fabbrica del router TIM (sarebb
 | Telecamera Nest | 192.168.86.14 | 18:b4:30:8b:ce:fc | |
 | Telefono IP Cisco | 192.168.86.27 | 54:8a:ba:94:d8:95 | |
 | iPad cassa | 192.168.86.100 | variabile | usa l'indirizzo Wi-Fi privato, cambia da solo |
-| **Stampante fiscale Epson** | 192.168.86.150 | 38:1a:52:08:ba:3c | su cavo, porta 9100 |
+| **Stampante fiscale Epson FP81II** | 192.168.86.150 | 38:1a:52:08:ba:3c | su cavo, porta 9100; modello e firmware 07.02 letti in iPratico › Dispositivi il 24/11/2026 |
 | **Stampante comande SALA** | 192.168.86.153 | 00:2e:74:1f:69:b3 | SOL801, IP statico, porta 9100 |
 | **Stampante comande CUCINA** | 192.168.86.154 | 00:2e:7b:40:69:b3 | SOL801, IP statico, porta 9100 |
 

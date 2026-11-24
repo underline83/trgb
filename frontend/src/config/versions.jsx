@@ -835,6 +835,14 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   comande: {
+    // 2.0 (2026-11-24): «vai e attendi», come lavora l'osteria su iPratico (studio §5 e §8, screen e scontrini mandati
+    //   da Marco): uscite libere numerate da 1; «Invia comanda» manda tutto, la prima uscita va e le altre attendono;
+    //   «Vai con la preparazione», «Attendi» e «Invia sollecito» per uscita (tabella comande_uscite, comande_invii.azione);
+    //   tasti rapidi con la loro uscita (stuzzico 1, pane 2). Conto a ELENCO, scelto da Marco fra le due schermate
+    //   disegnate («la tessera ha senso quando ci sono le foto dei piatti»): catalogo a sinistra, comanda per uscite a
+    //   destra, su telefono si alternano. Tavoli: a che uscita è ogni tavolo e da quanto, «Miei», MAPPA della sala con le
+    //   forme della piantina di Prenotazioni («su iPratico non c'è una mappa, è un limite»), «Sposta» su un altro tavolo.
+    //   Tabella e colonne al boot (solo ADD COLUMN), nessuna migrazione numerata.
     // 1.1 (2026-11-24): come si lavora oggi in cassa (studio docs/studio_ipratico_comanda.md, «sistema quello che
     //   hai già capito» di Marco): il coperto entra in conto da solo all'apertura e segue i coperti, con l'omaggio;
     //   tasti rapidi a 0 € in cima al conto («Stuzzico», «Pane») che avvisano la cucina; i Calici sono le bottiglie
@@ -845,7 +853,7 @@ const MODULE_VERSIONS = {
     //   degustazioni, piatti del giorno, Menù Business, vini a bottiglia e calice, Carta Bevande, menu template),
     //   prezzo libero e fuori carta, invio ai reparti (cucina, sala), «Via la Nª», storno con motivo, pagina Invii
     //   (quello che il ponte stamperà), Impostazioni (uscite, reparti, gruppo → reparto). DB comande.sqlite3 al boot.
-    version: "1.1",
+    version: "2.0",
     label: "Comanda",
     status: "alpha",
     color: "orange",

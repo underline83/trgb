@@ -1,4 +1,4 @@
-# @version: v1.1 (2026-11-24) — coperto automatico e tasti rapidi; seme del locale
+# @version: v2.0 (2026-11-24) — uscite che vanno o attendono («vai e attendi»), tasti rapidi con la loro uscita
 # -*- coding: utf-8 -*-
 """
 Database Comande — TRGB Gestionale. Modulo: comande. [core]
@@ -19,7 +19,10 @@ Contiene:
                              cibo/bevande/servizio non basta
 - comande_config           — impostazioni del modulo (uscite, reparti di default, coperto)
 - comande_tasti_rapidi     — tasti a 0 € che avvisano un reparto («Stuzzico», «Pane»):
-                             non sono articoli, sono segnali (v1.1)
+                             non sono articoli, sono segnali (v1.1); dalla v2.0 ognuno
+                             può avere la sua uscita fissa (stuzzico nella 1, pane nella 2)
+- comande_uscite           — stato di ogni uscita di un conto: attende o è andata,
+                             quando, e quante volte è stata sollecitata (v2.0)
 
 DB separato `comande.sqlite3` nella cartella dati del locale. Niente
 migrazioni numerate: schema al boot (CREATE TABLE IF NOT EXISTS), come
@@ -43,10 +46,12 @@ DB_PATH = locale_data_path("comande.sqlite3")
 
 # Valori iniziali: si cambiano da Impostazioni (comande_config), mai nel codice.
 CONFIG_INIZIALE = {
-    "uscite_numero": "4",        # uscite proposte in sala (1ª … 4ª), oltre a «subito»
-    "uscita_food": "1",          # uscita di partenza per i piatti
-    "uscita_beverage": "0",      # 0 = «subito»: da bere esce appena inviato
-    "uscita_servizio": "0",      # caffè, acqua, coperto: «subito»
+    # Le quattro chiavi delle uscite fisse (1.x) non le legge più nessuno dalla 2.0, dove le
+    # uscite sono libere: restano nel seme per non cambiare i DB già nati.
+    "uscite_numero": "4",
+    "uscita_food": "1",
+    "uscita_beverage": "0",
+    "uscita_servizio": "0",
     "reparto_food": "cucina",    # dove va il cibo se il gruppo non dice altro
     "reparto_beverage": "sala",  # dove vanno le bevande se il gruppo non dice altro
     "reparto_servizio": "sala",  # caffè, acqua, tè (sezione «servizio» della carta)
@@ -81,6 +86,14 @@ def _indice(cur, nome: str, sql: str) -> None:
         cur.execute(sql)
 
 
+def _colonna(cur, tabella: str, colonna: str, tipo: str) -> bool:
+    """Aggiunge una colonna NULLABLE se manca (solo ADD COLUMN, mai NOT NULL). True se l'ha aggiunta."""
+    if colonna in {r[1] for r in cur.execute(f"PRAGMA table_info({tabella})")}:
+        return False
+    cur.execute(f"ALTER TABLE {tabella} ADD COLUMN {colonna} {tipo}")
+    return True
+
+
 def _seme_locale() -> dict:
     """locali/<locale>/seeds/comande.json, se c'è: {config: {...}, tasti_rapidi: [...]}."""
     try:
@@ -92,6 +105,14 @@ def _seme_locale() -> dict:
     except Exception as e:  # un seme rotto non ferma l'avvio
         logger.warning("Seme comande del locale non leggibile: %s", e)
         return {}
+
+
+def _uscita_seme(t) -> "int | None":
+    try:
+        n = int((t or {}).get("uscita"))
+    except (TypeError, ValueError):
+        return None
+    return n if 1 <= n <= 20 else None
 
 
 def init_comande_db() -> None:
@@ -209,6 +230,24 @@ def init_comande_db() -> None:
             )
         """)
 
+        # v2.0 — «vai e attendi»: un'uscita inviata o è andata o attende la chiamata.
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS comande_uscite (
+                conto_id        INTEGER NOT NULL REFERENCES comande_conti(id) ON DELETE CASCADE,
+                numero          INTEGER NOT NULL,
+                stato           TEXT NOT NULL DEFAULT 'attende' CHECK (stato IN ('attende','andata')),
+                andata_at       TEXT,
+                andata_da       TEXT,
+                solleciti       INTEGER NOT NULL DEFAULT 0,
+                sollecitata_at  TEXT,
+                PRIMARY KEY (conto_id, numero)
+            )
+        """)
+        # Gli invii di tipo «via» dicono cosa chiedono: vai, attendi, sollecito (NULL sugli altri).
+        _colonna(cur, "comande_invii", "azione", "TEXT")
+        # Uscita fissa di un tasto rapido (NULL = l'uscita in cui si sta battendo).
+        tasti_senza_uscita = _colonna(cur, "comande_tasti_rapidi", "uscita", "INTEGER")
+
         if not cur.execute("SELECT 1 FROM comande_reparti LIMIT 1").fetchone():
             cur.executemany(
                 "INSERT INTO comande_reparti (key, nome, ordine) VALUES (?, ?, ?)", REPARTI_INIZIALI
@@ -232,10 +271,19 @@ def init_comande_db() -> None:
                 except (TypeError, ValueError):
                     ogni = 0
                 cur.execute(
-                    "INSERT INTO comande_tasti_rapidi (nome, reparto_key, ogni_coperti, ordine) "
-                    "VALUES (?, ?, ?, ?)",
-                    (nome[:60], (str(t.get("reparto") or "").strip().lower() or None), ogni, i),
+                    "INSERT INTO comande_tasti_rapidi (nome, reparto_key, ogni_coperti, ordine, uscita) "
+                    "VALUES (?, ?, ?, ?, ?)",
+                    (nome[:60], (str(t.get("reparto") or "").strip().lower() or None), ogni, i,
+                     _uscita_seme(t)),
                 )
+        elif tasti_senza_uscita:
+            # Tasti nati con la 1.1, prima che esistesse l'uscita fissa: la prendono dal seme, per nome.
+            for t in seme.get("tasti_rapidi") or []:
+                if _uscita_seme(t) is not None:
+                    cur.execute(
+                        "UPDATE comande_tasti_rapidi SET uscita = ? WHERE nome = ? AND uscita IS NULL",
+                        (_uscita_seme(t), " ".join(str(t.get("nome") or "").split())[:60]),
+                    )
 
         for chiave, valore in CONFIG_INIZIALE.items():
             cur.execute(

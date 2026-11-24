@@ -1,5 +1,7 @@
-// @version: v1.1 — coperto in conto da solo (con omaggio), tasti rapidi a 0 € (2026-11-24)
+// @version: v2.0 — conto a elenco con le uscite che vanno o attendono, come lavora la sala (2026-11-24)
 // Modulo: comande
+// A sinistra il catalogo a elenco (categorie in colonna, voci in lista), a destra la comanda divisa
+// per uscite. Su telefono le due metà si alternano («＋ Aggiungi» / «Fatto»).
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Btn, Modal, PageLayout, TextInput } from "../../components/ui";
@@ -7,19 +9,30 @@ import TrgbLoader from "../../components/TrgbLoader";
 import ComandeNav, { BannerProva } from "./ComandeNav";
 import { api, euro, nomeUscita } from "./comandeApi";
 
-const STATO = {
+const STATO_RIGA = {
   da_inviare: { label: "da inviare", cls: "bg-amber-100 text-amber-900 border-amber-200" },
   inviata: { label: "inviata", cls: "bg-emerald-100 text-emerald-900 border-emerald-200" },
   stornata: { label: "stornata", cls: "bg-neutral-100 text-neutral-500 border-neutral-200 line-through" },
 };
-// Il coperto non è una riga da inviare: segue i coperti e si cambia da lì.
-const eCoperto = (r) => r.articolo_tipo === "coperto";
-const BADGE_COPERTO = "bg-rose-50 text-rose-900 border-rose-200";
 const FAMIGLIE_FUORI_CARTA = [
   { key: "food", label: "Cucina" },
   { key: "beverage", label: "Da bere" },
   { key: "servizio", label: "Servizio" },
 ];
+// Un'uscita inviata o è andata o attende la chiamata; «nuova» = non ancora inviata.
+const TESTA_USCITA = {
+  andata: "bg-emerald-50 text-emerald-900",
+  attende: "bg-blue-50 text-blue-900",
+  nuova: "bg-neutral-100 text-neutral-800",
+};
+const eCoperto = (r) => r.articolo_tipo === "coperto";
+const ora = (ts) => (ts ? String(ts).slice(11, 16) : "");
+const numero = (v) => Number(String(v).replace(",", "."));
+const pill = (on) =>
+  `min-h-[44px] rounded-full border px-4 text-sm font-semibold ${
+    on ? "border-brand-ink bg-brand-ink text-white" : "border-neutral-300 bg-white text-brand-ink"
+  }`;
+const AZ = "min-h-[44px] rounded-lg border border-current px-2.5 text-xs font-semibold disabled:opacity-50";
 
 export default function ComandeConto() {
   const { id } = useParams();
@@ -31,20 +44,22 @@ export default function ComandeConto() {
   const [toast, setToast] = useState(null);
   const [busy, setBusy] = useState(false);
 
-  const [catAperto, setCatAperto] = useState(false);
-  const [uscitaScelta, setUscitaScelta] = useState(null); // null = quella proposta per il tipo di articolo
+  const [vista, setVista] = useState("conto"); // su telefono: "conto" o "catalogo"
+  const [uscitaScelta, setUscitaScelta] = useState(null); // null = la propone la pagina
   const [cerca, setCerca] = useState("");
   const [gruppo, setGruppo] = useState(null);
 
   const [prezzoPer, setPrezzoPer] = useState(null); // articolo a prezzo libero
   const [prezzo, setPrezzo] = useState("");
   const [fuoriCarta, setFuoriCarta] = useState(null); // {nome, prezzo, famiglia}
-  const [rigaAperta, setRigaAperta] = useState(null); // riga da modificare o stornare
+  const [rigaAperta, setRigaAperta] = useState(null);
   const [notaRiga, setNotaRiga] = useState("");
   const [motivo, setMotivo] = useState("");
   const [copertiEdit, setCopertiEdit] = useState(null);
   const [omaggioEdit, setOmaggioEdit] = useState(false);
   const [chiudi, setChiudi] = useState(false);
+  const [sposta, setSposta] = useState(null); // sale coi tavoli liberi, mentre si sceglie dove spostare
+  const [azioniDi, setAzioniDi] = useState(null); // uscita andata di cui si vedono le azioni (⋯)
 
   const mostra = (msg) => {
     setToast(msg);
@@ -63,18 +78,13 @@ export default function ComandeConto() {
   useEffect(() => {
     carica();
     api("/comande/impostazioni/").then(setImp).catch(() => setImp(null));
+    api("/comande/catalogo/")
+      .then((c) => {
+        setCatalogo(c);
+        setGruppo((g) => g || (c.gruppi[0] && c.gruppi[0].nome) || null);
+      })
+      .catch((e) => setErrore(e.message));
   }, [carica]);
-
-  const apriCatalogo = async () => {
-    setCatAperto(true);
-    if (!catalogo) {
-      try {
-        setCatalogo(await api("/comande/catalogo/"));
-      } catch (e) {
-        setErrore(e.message);
-      }
-    }
-  };
 
   const esegui = async (fn, okMsg) => {
     setBusy(true);
@@ -92,20 +102,66 @@ export default function ComandeConto() {
     }
   };
 
-  const uscitaPer = (a) => {
-    if (uscitaScelta !== null) return uscitaScelta;
-    const v = imp && imp.config ? Number(imp.config[`uscita_${a.famiglia}`]) : NaN;
-    return Number.isFinite(v) ? v : a.famiglia === "food" ? 1 : 0;
-  };
+  const articoli = useMemo(() => {
+    if (!catalogo) return [];
+    const q = cerca.trim().toLowerCase();
+    return catalogo.articoli.filter((a) =>
+      q ? `${a.nome} ${a.dettaglio} ${a.codice}`.toLowerCase().includes(q) : !gruppo || a.gruppo === gruppo
+    );
+  }, [catalogo, cerca, gruppo]);
+
+  if (!conto) {
+    return (
+      <PageLayout nav={<ComandeNav current="tavoli" />} title="Conto">
+        {errore ? <div className="text-sm text-red-700">{errore}</div> : <TrgbLoader />}
+      </PageLayout>
+    );
+  }
+
+  const aperto = conto.stato === "aperto";
+  const tasti = conto.tasti_rapidi || [];
+  const uscite = conto.uscite || [];
+  const maxUscita = uscite.reduce((m, u) => Math.max(m, u.numero), 0);
+  // Le uscite tenute dai tasti rapidi (lo stuzzico nella 1, il pane nella 2): un tasto battuto
+  // lì non sposta il punto in cui si batte, e «Nuova uscita» le salta.
+  const fissi = new Set(tasti.filter((t) => t.uscita).map((t) => `${t.codice}@${t.uscita}`));
+  const maxRiservata = tasti.reduce((m, t) => Math.max(m, t.uscita || 0), 0);
+  // Dove si batte: l'ultima uscita nuova che ha già un piatto; se non ce n'è, la 1 a tavolo
+  // appena aperto, una nuova dopo le inviate quando la comanda è già partita.
+  const conPiatti = uscite.filter(
+    (u) =>
+      u.stato === "nuova" &&
+      conto.righe.some(
+        (r) => r.uscita === u.numero && r.stato === "da_inviare" && !eCoperto(r) && !fissi.has(`${r.articolo_codice}@${r.uscita}`)
+      )
+  );
+  const inviate = uscite.filter((u) => u.stato !== "nuova");
+  const proposta = conPiatti.length
+    ? Math.max(...conPiatti.map((u) => u.numero))
+    : inviate.length
+      ? Math.max(...inviate.map((u) => u.numero)) + 1
+      : 1;
+  const battuta = uscitaScelta ?? proposta;
+  const prossimaUscita = Math.max(maxUscita, battuta, maxRiservata) + 1;
+  const daMostrare = uscite.some((u) => u.numero === battuta) || !aperto
+    ? uscite
+    : [...uscite, { numero: battuta, stato: "nuova", da_inviare: 0, solleciti: 0 }].sort((a, b) => a.numero - b.numero);
+  const primaInAttesa = uscite.find((u) => u.stato === "attende");
+  const scelteUscita = Array.from({ length: Math.max(maxUscita, battuta) + 1 }, (_, i) => i + 1);
+  // Prezzo del coperto a prezzo pieno: quello della riga, o delle Impostazioni se ora è in omaggio.
+  const prezzoCoperto = !conto.coperto
+    ? null
+    : !conto.coperto.omaggio
+      ? conto.coperto.prezzo
+      : imp && imp.coperto ? imp.coperto.prezzo : null;
+  const rigaCoperto = conto.righe.find((r) => eCoperto(r) && r.stato !== "stornata");
 
   const aggiungi = (a, prezzoLibero) => {
-    const uscita = uscitaPer(a);
-    // stesso articolo, stessa uscita, senza note: si alza la quantità invece di fare una riga nuova
     const uguale =
       !a.prezzo_libero &&
       conto.righe.find(
         (r) =>
-          r.stato === "da_inviare" && r.articolo_codice === a.codice && r.uscita === uscita &&
+          r.stato === "da_inviare" && r.articolo_codice === a.codice && r.uscita === battuta &&
           !r.nota && (!r.varianti || r.varianti.length === 0)
       );
     if (uguale) {
@@ -114,18 +170,28 @@ export default function ComandeConto() {
         `${a.nome} ×${uguale.quantita + 1}`
       );
     }
-    const riga = { codice: a.codice, quantita: 1, uscita };
-    if (a.prezzo_libero) riga.prezzo = prezzoLibero;
+    const nuova = { codice: a.codice, quantita: 1, uscita: battuta };
+    if (a.prezzo_libero) nuova.prezzo = prezzoLibero;
     return esegui(
-      () => api(`/comande/conti/${id}/righe`, { method: "POST", body: { righe: [riga] } }),
-      `+ ${a.nome}`
+      () => api(`/comande/conti/${id}/righe`, { method: "POST", body: { righe: [nuova] } }),
+      `+ ${a.nome} · ${nomeUscita(battuta)}`
     );
   };
 
-  // Tasto rapido («Stuzzico», «Pane»): 0 €, quantità proposta dai coperti; un secondo tocco ne aggiunge uno.
+  const tocca = (a) => {
+    if (a.prezzo_libero) {
+      setPrezzo(a.prezzo ? String(a.prezzo) : "");
+      setPrezzoPer(a);
+    } else {
+      aggiungi(a);
+    }
+  };
+
+  // Tasto rapido («Stuzzico», «Pane»): 0 €, nella sua uscita se ne ha una, se no dove si batte.
   const toccaTasto = (t) => {
+    const u = t.uscita || battuta;
     const uguale = conto.righe.find(
-      (r) => r.stato === "da_inviare" && r.articolo_codice === t.codice && !r.nota
+      (r) => r.stato === "da_inviare" && r.articolo_codice === t.codice && r.uscita === u && !r.nota
     );
     if (uguale) {
       return esegui(
@@ -134,9 +200,42 @@ export default function ComandeConto() {
       );
     }
     return esegui(
-      () => api(`/comande/conti/${id}/righe`, { method: "POST", body: { righe: [{ tasto: t.id }] } }),
-      `+ ${t.nome} ×${t.quantita}`
+      () => api(`/comande/conti/${id}/righe`, { method: "POST", body: { righe: [{ tasto: t.id, uscita: u }] } }),
+      `+ ${t.nome} ×${t.quantita} · ${nomeUscita(u)}`
     );
+  };
+
+  const chiama = async (u, azione, msg) => {
+    const ok = await esegui(() => api(`/comande/conti/${id}/uscite/${u}/${azione}`, { method: "POST" }), msg);
+    if (ok) setAzioniDi(null);
+  };
+
+  const invia = async () => {
+    const ok = await esegui(() => api(`/comande/conti/${id}/invia`, { method: "POST" }), "Comanda inviata");
+    if (ok) setUscitaScelta(null);
+  };
+
+  // «Sposta su un altro tavolo»: si sceglie fra i tavoli senza conto aperto.
+  const apriSposta = async () => {
+    try {
+      const d = await api("/comande/tavoli/");
+      setSposta(
+        d.sale
+          .map((s) => ({ zona: s.zona, tavoli: s.tavoli.filter((t) => !t.conto) }))
+          .filter((s) => s.tavoli.length > 0)
+      );
+      setErrore(null);
+    } catch (e) {
+      setErrore(e.message);
+    }
+  };
+
+  const spostaSu = async (t) => {
+    const ok = await esegui(
+      () => api(`/comande/conti/${id}`, { method: "PATCH", body: { tavolo_id: t.id } }),
+      `Spostato al tavolo ${t.nome}`
+    );
+    if (ok) setSposta(null);
   };
 
   const apriCoperti = () => {
@@ -158,288 +257,288 @@ export default function ComandeConto() {
     if (ok) setCopertiEdit(null);
   };
 
-  const tocca = (a) => {
-    if (a.prezzo_libero) {
-      setPrezzo(a.prezzo ? String(a.prezzo) : "");
-      setPrezzoPer(a);
-    } else {
-      aggiungi(a);
-    }
-  };
-
-  const articoli = useMemo(() => {
-    if (!catalogo) return [];
-    const q = cerca.trim().toLowerCase();
-    return catalogo.articoli.filter((a) => {
-      if (q) return `${a.nome} ${a.dettaglio} ${a.codice}`.toLowerCase().includes(q);
-      return !gruppo || a.gruppo === gruppo;
-    });
-  }, [catalogo, cerca, gruppo]);
-
-  if (!conto) {
-    return (
-      <PageLayout nav={<ComandeNav current="tavoli" />} title="Conto">
-        {errore ? <div className="text-sm text-red-700">{errore}</div> : <TrgbLoader />}
-      </PageLayout>
-    );
-  }
-
-  const aperto = conto.stato === "aperto";
-  const tasti = conto.tasti_rapidi || [];
-  // Prezzo del coperto a prezzo pieno: quello della riga, o delle Impostazioni se ora è in omaggio.
-  const prezzoCoperto = !conto.coperto
-    ? null
-    : !conto.coperto.omaggio
-      ? conto.coperto.prezzo
-      : imp && imp.coperto ? imp.coperto.prezzo : null;
-  const uscite = Array.from(new Set(conto.righe.map((r) => r.uscita))).sort((a, b) => a - b);
-  const usciteVia = Array.from(
-    new Set(conto.righe.filter((r) => r.stato === "inviata" && r.uscita >= 1 && r.reparto).map((r) => r.uscita))
-  ).sort((a, b) => a - b);
-  const sceltaUscite = [0, ...Array.from({ length: conto.uscite_numero || 4 }, (_, i) => i + 1)];
+  const rigaConto = (r, uscitaNuova) => (
+    <div key={r.id} className="flex items-center gap-2 border-t border-neutral-100 px-3 py-2">
+      {r.stato === "da_inviare" && aperto ? (
+        <div className="flex items-center gap-1">
+          <button
+            aria-label="Uno in meno"
+            className="h-11 w-11 rounded-lg border border-neutral-300 text-lg"
+            onClick={() =>
+              r.quantita > 1
+                ? esegui(() => api(`/comande/righe/${r.id}`, { method: "PATCH", body: { quantita: r.quantita - 1 } }))
+                : esegui(() => api(`/comande/righe/${r.id}`, { method: "DELETE" }), "Tolta")
+            }
+          >
+            −
+          </button>
+          <span className="w-6 text-center font-semibold tabular-nums">{r.quantita}</span>
+          <button
+            aria-label="Uno in più"
+            className="h-11 w-11 rounded-lg border border-neutral-300 text-lg"
+            onClick={() => esegui(() => api(`/comande/righe/${r.id}`, { method: "PATCH", body: { quantita: r.quantita + 1 } }))}
+          >
+            +
+          </button>
+        </div>
+      ) : (
+        <span className="w-8 text-right font-semibold tabular-nums">{r.quantita}</span>
+      )}
+      <button
+        className="min-w-0 flex-1 py-1 text-left"
+        disabled={!aperto || r.stato === "stornata"}
+        onClick={() => {
+          setNotaRiga(r.nota || "");
+          setMotivo("");
+          setRigaAperta(r);
+        }}
+      >
+        <div className={`text-sm font-medium ${r.stato === "stornata" ? "text-neutral-400 line-through" : "text-brand-ink"}`}>
+          {r.nome}
+        </div>
+        <div className="truncate text-xs text-neutral-500">
+          {r.nota ? `📝 ${r.nota} · ` : ""}
+          {r.reparto ? conto.reparti[r.reparto] || r.reparto : "nessun reparto"}
+          {r.stato === "stornata" && r.motivo_storno ? ` · ${r.motivo_storno}` : ""}
+        </div>
+      </button>
+      {(r.stato === "stornata" || (r.stato === "da_inviare" && !uscitaNuova)) && (
+        <span className={`rounded-full border px-1.5 text-[10px] ${STATO_RIGA[r.stato].cls}`}>{STATO_RIGA[r.stato].label}</span>
+      )}
+    </div>
+  );
 
   return (
     <PageLayout
+      wide
       nav={<ComandeNav current="tavoli" />}
       title={`Tavolo ${conto.tavolo}`}
-      subtitle={`${conto.zona || ""} · aperto alle ${String(conto.aperto_at).slice(11, 16)}${
-        conto.aperto_da ? ` da ${conto.aperto_da}` : ""
-      }${aperto ? "" : ` · ${conto.stato}`}`}
-      actions={<Btn variant="secondary" onClick={() => navigate("/comande")}>← Tavoli</Btn>}
+      subtitle={`${conto.zona || ""} · aperto alle ${ora(conto.aperto_at)}${conto.aperto_da ? ` da ${conto.aperto_da}` : ""}${
+        aperto ? "" : ` · ${conto.stato}`
+      }`}
+      actions={
+        <>
+          {aperto && <Btn variant="secondary" onClick={apriSposta}>Sposta</Btn>}
+          {aperto && <Btn variant="secondary" onClick={() => setChiudi(true)}>Chiudi tavolo</Btn>}
+          <Btn variant="secondary" onClick={() => navigate("/comande")}>← Tavoli</Btn>
+        </>
+      }
     >
       <BannerProva />
       {errore && (
         <div className="mb-3 rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-800">{errore}</div>
       )}
 
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <button
-          disabled={!aperto}
-          onClick={apriCoperti}
-          className="min-h-[44px] rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-900"
-        >
-          👤 {conto.coperti} coperti{conto.coperto && conto.coperto.omaggio ? " · coperto omaggio" : ""}
-        </button>
-        <span className="rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm font-semibold text-brand-ink">
-          Totale {euro(conto.totale)}
-        </span>
-        {conto.uscita_corrente > 0 && (
-          <span className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
-            Via fino alla {conto.uscita_corrente}ª
-          </span>
-        )}
-      </div>
-
-      {aperto && tasti.length > 0 && (
-        <div className="mb-4 flex flex-wrap items-center gap-2">
-          {tasti.map((t) => (
-            <button
-              key={t.id}
-              disabled={busy}
-              onClick={() => toccaTasto(t)}
-              className="min-h-[44px] rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900 active:scale-[0.98] disabled:opacity-50"
-            >
-              {t.nome} <span className="font-normal opacity-70">×{t.quantita}</span>
-            </button>
-          ))}
-          <span className="text-xs text-neutral-500">a 0 €, partono col prossimo «Invia»</span>
-        </div>
-      )}
-
-      {conto.righe.length === 0 && (
-        <div className="mb-4 rounded-2xl border border-dashed border-neutral-300 bg-white p-6 text-center text-sm text-neutral-500">
-          Ancora niente. Tocca «＋ Aggiungi».
-        </div>
-      )}
-
-      {uscite.map((u) => (
-        <section key={u} className="mb-4">
-          <h2 className="mb-1.5 text-sm font-semibold uppercase tracking-wide text-neutral-500">{nomeUscita(u)}</h2>
-          <div className="divide-y divide-neutral-100 overflow-hidden rounded-2xl border border-neutral-200 bg-white">
-            {conto.righe
-              .filter((r) => r.uscita === u)
-              .map((r) => (
-                <div key={r.id} className="flex items-center gap-2 px-3 py-2.5">
-                  {r.stato === "da_inviare" && aperto ? (
-                    <div className="flex items-center gap-1">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_420px]">
+        {/* Catalogo a elenco */}
+        {aperto && (
+          <section className={`min-w-0 ${vista === "catalogo" ? "" : "hidden lg:block"}`}>
+            <TextInput value={cerca} onChange={setCerca} placeholder="Cerca un piatto, un vino, un codice…" />
+            <div className="my-3 flex flex-wrap items-center gap-2">
+              <span className="text-xs text-neutral-600">Si batte in</span>
+              <span className="rounded-full bg-brand-ink px-3 py-1 text-xs font-bold text-white">{nomeUscita(battuta)}</span>
+              {tasti.map((t) => (
+                <button
+                  key={t.id}
+                  disabled={busy}
+                  onClick={() => toccaTasto(t)}
+                  className="min-h-[44px] rounded-xl border border-amber-300 bg-amber-50 px-3 text-sm font-semibold text-amber-900 active:scale-[0.98] disabled:opacity-50"
+                >
+                  {t.nome} <span className="font-normal">×{t.quantita}</span>
+                </button>
+              ))}
+            </div>
+            {catalogo && catalogo.avvisi && catalogo.avvisi.length > 0 && (
+              <div className="mb-2 text-xs text-amber-800">{catalogo.avvisi.join(" · ")}</div>
+            )}
+            {!catalogo ? (
+              <TrgbLoader />
+            ) : (
+              <div className="flex flex-col gap-3 lg:flex-row">
+                {!cerca && (
+                  <div className="flex shrink-0 gap-1 overflow-x-auto pb-1 lg:max-h-[64vh] lg:w-44 lg:flex-col lg:overflow-y-auto lg:overflow-x-hidden lg:pb-0">
+                    {catalogo.gruppi.map((g) => (
                       <button
-                        className="h-9 w-9 rounded-lg border border-neutral-300 text-lg"
-                        onClick={() =>
-                          r.quantita > 1
-                            ? esegui(() => api(`/comande/righe/${r.id}`, { method: "PATCH", body: { quantita: r.quantita - 1 } }))
-                            : esegui(() => api(`/comande/righe/${r.id}`, { method: "DELETE" }), "Tolta")
-                        }
+                        key={g.nome}
+                        onClick={() => setGruppo(g.nome)}
+                        className={`min-h-[44px] shrink-0 rounded-xl px-3 text-left text-sm font-semibold ${
+                          gruppo === g.nome ? "bg-brand-ink text-white" : "text-brand-ink hover:bg-white"
+                        }`}
                       >
-                        −
+                        {g.nome} <span className="text-xs font-normal opacity-60">{g.n}</span>
                       </button>
-                      <span className="w-6 text-center font-semibold tabular-nums">{r.quantita}</span>
+                    ))}
+                    <button
+                      onClick={() => setFuoriCarta({ nome: "", prezzo: "", famiglia: "food" })}
+                      className="min-h-[44px] shrink-0 rounded-xl border border-dashed border-neutral-400 px-3 text-left text-sm"
+                    >
+                      ＋ Fuori carta
+                    </button>
+                  </div>
+                )}
+                <div className="min-w-0 flex-1 overflow-hidden rounded-2xl border border-neutral-200 bg-white">
+                  <div className="max-h-[64vh] divide-y divide-neutral-100 overflow-y-auto">
+                    {articoli.slice(0, 300).map((a) => (
                       <button
-                        className="h-9 w-9 rounded-lg border border-neutral-300 text-lg"
-                        onClick={() => esegui(() => api(`/comande/righe/${r.id}`, { method: "PATCH", body: { quantita: r.quantita + 1 } }))}
+                        key={a.codice}
+                        disabled={busy}
+                        onClick={() => tocca(a)}
+                        className="flex min-h-[54px] w-full items-center gap-3 px-4 py-2 text-left hover:bg-rose-50 active:bg-rose-100"
                       >
-                        +
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-[15px] font-semibold text-brand-ink">{a.nome}</span>
+                          {(a.dettaglio || cerca) && (
+                            <span className="block truncate text-xs text-neutral-500">
+                              {cerca ? `${a.gruppo}${a.dettaglio ? " · " : ""}` : ""}
+                              {a.dettaglio}
+                            </span>
+                          )}
+                        </span>
+                        <span className="shrink-0 text-[15px] font-bold tabular-nums">
+                          {a.prezzo_libero ? "prezzo?" : euro(a.prezzo)}
+                        </span>
                       </button>
-                    </div>
-                  ) : (
-                    <span className="w-[5.5rem] text-center font-semibold tabular-nums">{r.quantita}×</span>
-                  )}
-                  <button
-                    className="min-w-0 flex-1 text-left"
-                    disabled={!aperto || r.stato === "stornata"}
-                    onClick={() => {
-                      if (eCoperto(r)) return apriCoperti();
-                      setNotaRiga(r.nota || "");
-                      setMotivo("");
-                      setRigaAperta(r);
-                    }}
-                  >
-                    <div className={`truncate text-sm font-medium ${r.stato === "stornata" ? "text-neutral-400 line-through" : "text-brand-ink"}`}>
-                      {r.nome}
-                    </div>
-                    <div className="truncate text-xs text-neutral-500">
-                      {r.nota ? `📝 ${r.nota} · ` : ""}
-                      {eCoperto(r)
-                        ? "segue i coperti · tocca per cambiarli"
-                        : r.reparto ? (conto.reparti[r.reparto] || r.reparto) : "nessun reparto"}
-                      {r.stato === "stornata" && r.motivo_storno ? ` · ${r.motivo_storno}` : ""}
-                    </div>
-                  </button>
-                  <div className="text-right">
-                    <div className="text-sm tabular-nums">{euro(r.totale)}</div>
-                    {eCoperto(r) && r.stato !== "stornata" ? (
-                      <span className={`rounded-full border px-1.5 text-[10px] ${BADGE_COPERTO}`}>coperto</span>
-                    ) : (
-                      <span className={`rounded-full border px-1.5 text-[10px] ${STATO[r.stato].cls}`}>{STATO[r.stato].label}</span>
-                    )}
+                    ))}
+                    {articoli.length === 0 && <div className="p-4 text-center text-sm text-neutral-500">Niente trovato</div>}
                   </div>
                 </div>
-              ))}
-          </div>
-        </section>
-      ))}
-
-      {conto.invii.length > 0 && (
-        <p className="mb-2 text-xs text-neutral-500">
-          {conto.invii.length} {conto.invii.length === 1 ? "invio" : "invii"} ai reparti · la stampa sulle comande arriva col ponte
-        </p>
-      )}
-
-      {aperto && <div className="h-28" aria-hidden="true" />}
-
-      {aperto && (
-        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-neutral-200 bg-white/95 px-3 py-2 backdrop-blur">
-          <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-2">
-            <Btn variant="secondary" size="lg" onClick={apriCatalogo}>＋ Aggiungi</Btn>
-            <Btn
-              variant="success"
-              size="lg"
-              disabled={!conto.da_inviare || busy}
-              onClick={() => esegui(() => api(`/comande/conti/${id}/invia`, { method: "POST" }), "Inviata")}
-            >
-              Invia{conto.da_inviare ? ` (${conto.da_inviare})` : ""}
-            </Btn>
-            {usciteVia.map((u) => (
-              <Btn
-                key={u}
-                variant={u === conto.uscita_corrente + 1 ? "primary" : "secondary"}
-                size="lg"
-                disabled={busy}
-                onClick={() => esegui(() => api(`/comande/conti/${id}/via`, { method: "POST", body: { uscita: u } }), `Via la ${u}ª`)}
-              >
-                Via la {u}ª
+              </div>
+            )}
+            <div className="sticky bottom-2 mt-3 lg:hidden">
+              <Btn size="lg" className="w-full shadow-lg" onClick={() => setVista("conto")}>
+                Fatto{conto.da_inviare ? ` · ${conto.da_inviare} da inviare` : ""}
               </Btn>
-            ))}
-            <Btn variant="ghost" size="lg" className="ml-auto" onClick={() => setChiudi(true)}>Chiudi tavolo</Btn>
+            </div>
+          </section>
+        )}
+
+        {/* La comanda, per uscite. Su schermo largo sta tutta nello schermo (intestazione compresa)
+            e scorre per conto suo, così «Invia comanda» si vede senza scorrere la pagina. */}
+        <section
+          className={`min-w-0 lg:sticky lg:top-3 lg:max-h-[calc(100vh-13rem)] lg:self-start lg:overflow-y-auto ${
+            vista === "conto" || !aperto ? "" : "hidden lg:block"
+          }`}
+        >
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <button
+              disabled={!aperto}
+              onClick={apriCoperti}
+              className="min-h-[44px] rounded-xl border border-rose-200 bg-rose-50 px-3 text-sm font-semibold text-rose-900"
+            >
+              👤 {conto.coperti} coperti{conto.coperto && conto.coperto.omaggio ? " · omaggio" : ""}
+            </button>
+            <span className="rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-sm font-bold text-brand-ink">
+              {euro(conto.totale)}
+            </span>
+            {rigaCoperto && (
+              <span className="text-xs text-neutral-600">
+                di cui {rigaCoperto.quantita} × {rigaCoperto.nome} {euro(rigaCoperto.totale)}
+              </span>
+            )}
           </div>
-        </div>
-      )}
+
+          <div className="space-y-2">
+            {daMostrare.length === 0 && (
+              <div className="rounded-2xl border border-dashed border-neutral-300 bg-white p-6 text-center text-sm text-neutral-500">
+                Conto vuoto.
+              </div>
+            )}
+            {daMostrare.map((u) => {
+              const sue = conto.righe.filter((r) => r.uscita === u.numero && !eCoperto(r));
+              const qui = aperto && u.numero === battuta;
+              const prima = primaInAttesa && u.numero === primaInAttesa.numero;
+              return (
+                <div
+                  key={u.numero}
+                  className={`overflow-hidden rounded-2xl border bg-white ${
+                    qui ? "border-2 border-brand-ink" : prima ? "border-blue-600" : "border-neutral-200"
+                  }`}
+                >
+                  <div className={`flex flex-wrap items-center gap-2 px-3 py-2 text-sm font-bold ${TESTA_USCITA[u.stato]}`}>
+                    <span className="flex-1">
+                      {nomeUscita(u.numero)}
+                      <span className="font-normal">
+                        {u.stato === "andata" && ` · andata${u.andata_at ? ` ${ora(u.andata_at)}` : ""}`}
+                        {u.stato === "attende" && " · attende"}
+                        {u.stato === "nuova" && (sue.length ? " · da inviare" : " · vuota")}
+                        {u.stato !== "nuova" && u.da_inviare > 0 && ` · ${u.da_inviare} da inviare`}
+                        {u.solleciti > 0 && ` · sollecitata ${u.solleciti}×`}
+                        {qui && " · si batte qui"}
+                      </span>
+                    </span>
+                    {aperto && !qui && u.stato !== "andata" && (
+                      <button className={AZ} onClick={() => setUscitaScelta(u.numero)}>Batti qui</button>
+                    )}
+                    {aperto && u.stato === "andata" && (
+                      <button
+                        className={`${AZ} min-w-[44px] text-base`}
+                        aria-label={`Azioni su ${nomeUscita(u.numero)}`}
+                        aria-expanded={azioniDi === u.numero}
+                        onClick={() => setAzioniDi(azioniDi === u.numero ? null : u.numero)}
+                      >
+                        ⋯
+                      </button>
+                    )}
+                  </div>
+                  {aperto && u.stato === "andata" && azioniDi === u.numero && (
+                    <div className="flex flex-wrap gap-2 border-t border-emerald-100 bg-emerald-50/60 px-3 py-2 text-emerald-900">
+                      {!qui && (
+                        <button className={AZ} onClick={() => { setUscitaScelta(u.numero); setAzioniDi(null); }}>Batti qui</button>
+                      )}
+                      {u.numero > 0 && (
+                        <>
+                          <button disabled={busy} className={AZ} onClick={() => chiama(u.numero, "sollecita", `${nomeUscita(u.numero)} sollecitata`)}>
+                            Invia sollecito
+                          </button>
+                          <button disabled={busy} className={AZ} onClick={() => chiama(u.numero, "attendi", `${nomeUscita(u.numero)} attende`)}>
+                            Attendi
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                  {sue.map((r) => rigaConto(r, u.stato === "nuova"))}
+                  {aperto && u.stato === "attende" && (
+                    <div className="border-t border-neutral-100 p-2">
+                      <Btn
+                        variant={prima ? "primary" : "secondary"}
+                        size="lg"
+                        className="w-full"
+                        disabled={busy}
+                        onClick={() => chiama(u.numero, "vai", `${nomeUscita(u.numero)}: vai`)}
+                      >
+                        Vai con la preparazione
+                      </Btn>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {conto.invii.length > 0 && (
+            <p className="mt-2 text-xs text-neutral-500">
+              {conto.invii.length} {conto.invii.length === 1 ? "foglio" : "fogli"} ai reparti · la stampa arriva col ponte
+            </p>
+          )}
+
+          {aperto && (
+            <div className="sticky bottom-2 mt-3 flex flex-wrap gap-2 rounded-2xl border border-neutral-200 bg-white/95 p-2 shadow-lg backdrop-blur">
+              <Btn variant="secondary" size="lg" className="flex-1 lg:hidden" onClick={() => setVista("catalogo")}>＋ Aggiungi</Btn>
+              <Btn variant="secondary" size="lg" className="flex-1 whitespace-nowrap lg:flex-none" onClick={() => setUscitaScelta(prossimaUscita)}>＋ Nuova uscita</Btn>
+              <Btn variant="success" size="lg" className="w-full lg:w-auto lg:flex-1" disabled={!conto.da_inviare || busy} onClick={invia}>
+                Invia comanda{conto.da_inviare ? ` · ${conto.da_inviare}` : ""}
+              </Btn>
+            </div>
+          )}
+        </section>
+      </div>
 
       {toast && (
-        <div className="fixed bottom-20 left-1/2 z-50 -translate-x-1/2 rounded-full bg-brand-ink px-4 py-2 text-sm text-white shadow-lg">
+        <div className="fixed bottom-24 left-1/2 z-50 -translate-x-1/2 rounded-full bg-brand-ink px-4 py-2 text-sm text-white shadow-lg">
           {toast}
         </div>
       )}
-
-      {/* Catalogo */}
-      <Modal open={catAperto} onClose={() => setCatAperto(false)} title="Aggiungi" tone="rose" size="xl"
-        subtitle={catalogo && catalogo.carta ? `Carta ${catalogo.carta}` : ""}>
-        <div className="mb-2 flex flex-wrap gap-1.5">
-          <span className="self-center text-xs text-neutral-500">Uscita:</span>
-          <button
-            onClick={() => setUscitaScelta(null)}
-            className={`rounded-full border px-3 py-1.5 text-xs ${uscitaScelta === null ? "border-rose-300 bg-rose-100 text-rose-900" : "border-neutral-200 bg-white"}`}
-          >
-            Automatica
-          </button>
-          {sceltaUscite.map((u) => (
-            <button
-              key={u}
-              onClick={() => setUscitaScelta(u)}
-              className={`rounded-full border px-3 py-1.5 text-xs ${uscitaScelta === u ? "border-rose-300 bg-rose-100 text-rose-900" : "border-neutral-200 bg-white"}`}
-            >
-              {u === 0 ? "Subito" : `${u}ª`}
-            </button>
-          ))}
-        </div>
-        <TextInput value={cerca} onChange={setCerca} placeholder="Cerca un piatto, un vino, un codice…" />
-        {catalogo && catalogo.avvisi && catalogo.avvisi.length > 0 && (
-          <div className="mt-2 text-xs text-amber-800">{catalogo.avvisi.join(" · ")}</div>
-        )}
-        {!catalogo ? (
-          <TrgbLoader />
-        ) : (
-          <>
-            {!cerca && (
-              <div className="my-2 flex gap-1.5 overflow-x-auto pb-1">
-                <button
-                  onClick={() => setGruppo(null)}
-                  className={`shrink-0 rounded-full border px-3 py-1.5 text-xs ${!gruppo ? "border-brand-ink bg-brand-ink text-white" : "border-neutral-200 bg-white"}`}
-                >
-                  Tutto
-                </button>
-                {catalogo.gruppi.map((g) => (
-                  <button
-                    key={g.nome}
-                    onClick={() => setGruppo(g.nome)}
-                    className={`shrink-0 rounded-full border px-3 py-1.5 text-xs ${gruppo === g.nome ? "border-brand-ink bg-brand-ink text-white" : "border-neutral-200 bg-white"}`}
-                  >
-                    {g.nome} <span className="opacity-60">{g.n}</span>
-                  </button>
-                ))}
-                <button
-                  onClick={() => setFuoriCarta({ nome: "", prezzo: "", famiglia: "food" })}
-                  className="shrink-0 rounded-full border border-dashed border-neutral-400 px-3 py-1.5 text-xs"
-                >
-                  ＋ Fuori carta
-                </button>
-              </div>
-            )}
-            <div className="mt-2 max-h-[55vh] divide-y divide-neutral-100 overflow-y-auto rounded-xl border border-neutral-200">
-              {articoli.slice(0, 200).map((a) => (
-                <button
-                  key={a.codice}
-                  disabled={busy}
-                  onClick={() => tocca(a)}
-                  className="flex w-full items-center gap-3 px-3 py-2.5 text-left hover:bg-rose-50 active:bg-rose-100"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium text-brand-ink">{a.nome}</div>
-                    <div className="truncate text-xs text-neutral-500">
-                      {cerca || !gruppo ? `${a.gruppo}` : ""}
-                      {a.dettaglio ? `${cerca || !gruppo ? " · " : ""}${a.dettaglio}` : ""}
-                    </div>
-                  </div>
-                  <span className="text-sm tabular-nums text-neutral-700">
-                    {a.prezzo_libero ? "prezzo?" : euro(a.prezzo)}
-                  </span>
-                  <span className="text-lg text-rose-700">＋</span>
-                </button>
-              ))}
-              {articoli.length === 0 && <div className="p-4 text-center text-sm text-neutral-500">Niente trovato</div>}
-            </div>
-          </>
-        )}
-      </Modal>
 
       {/* Prezzo per gli articoli a voce */}
       <Modal
@@ -452,10 +551,9 @@ export default function ComandeConto() {
           <>
             <Btn variant="secondary" onClick={() => setPrezzoPer(null)}>Annulla</Btn>
             <Btn
-              disabled={!(Number(String(prezzo).replace(",", ".")) >= 0) || prezzo === ""}
+              disabled={prezzo === "" || !(numero(prezzo) >= 0)}
               onClick={async () => {
-                const ok = await aggiungi(prezzoPer, Number(String(prezzo).replace(",", ".")));
-                if (ok) setPrezzoPer(null);
+                if (await aggiungi(prezzoPer, numero(prezzo))) setPrezzoPer(null);
               }}
             >
               Aggiungi
@@ -471,6 +569,7 @@ export default function ComandeConto() {
         open={!!fuoriCarta}
         onClose={() => setFuoriCarta(null)}
         title="Fuori carta"
+        subtitle={nomeUscita(battuta)}
         size="sm"
         footer={
           <>
@@ -479,12 +578,10 @@ export default function ComandeConto() {
               disabled={!fuoriCarta || !fuoriCarta.nome.trim() || fuoriCarta.prezzo === ""}
               onClick={async () => {
                 const f = fuoriCarta;
-                const p = Number(String(f.prezzo).replace(",", "."));
-                const u = uscitaPer({ famiglia: f.famiglia });
                 const ok = await esegui(
                   () => api(`/comande/conti/${id}/righe`, {
                     method: "POST",
-                    body: { righe: [{ nome: f.nome.trim(), prezzo: p, famiglia: f.famiglia, quantita: 1, uscita: u }] },
+                    body: { righe: [{ nome: f.nome.trim(), prezzo: numero(f.prezzo), famiglia: f.famiglia, quantita: 1, uscita: battuta }] },
                   }),
                   `+ ${f.nome.trim()}`
                 );
@@ -500,13 +597,9 @@ export default function ComandeConto() {
           <div className="space-y-3">
             <TextInput value={fuoriCarta.nome} onChange={(v) => setFuoriCarta({ ...fuoriCarta, nome: v })} placeholder="Nome" />
             <TextInput value={fuoriCarta.prezzo} onChange={(v) => setFuoriCarta({ ...fuoriCarta, prezzo: v })} placeholder="Prezzo in euro" inputMode="decimal" />
-            <div className="flex gap-1.5">
+            <div className="flex gap-2">
               {FAMIGLIE_FUORI_CARTA.map((f) => (
-                <button
-                  key={f.key}
-                  onClick={() => setFuoriCarta({ ...fuoriCarta, famiglia: f.key })}
-                  className={`rounded-full border px-3 py-1.5 text-xs ${fuoriCarta.famiglia === f.key ? "border-rose-300 bg-rose-100 text-rose-900" : "border-neutral-200 bg-white"}`}
-                >
+                <button key={f.key} onClick={() => setFuoriCarta({ ...fuoriCarta, famiglia: f.key })} className={pill(fuoriCarta.famiglia === f.key)}>
                   {f.label}
                 </button>
               ))}
@@ -515,12 +608,12 @@ export default function ComandeConto() {
         )}
       </Modal>
 
-      {/* Riga: modifica (non inviata) o storno (inviata) */}
+      {/* Riga: nota e uscita (non inviata) o storno (inviata) */}
       <Modal
         open={!!rigaAperta}
         onClose={() => setRigaAperta(null)}
         title={rigaAperta ? rigaAperta.nome : ""}
-        subtitle={rigaAperta ? `${nomeUscita(rigaAperta.uscita)} · ${STATO[rigaAperta.stato].label}` : ""}
+        subtitle={rigaAperta ? `${nomeUscita(rigaAperta.uscita)} · ${STATO_RIGA[rigaAperta.stato].label}` : ""}
         size="sm"
         footer={
           rigaAperta && rigaAperta.stato === "inviata" ? (
@@ -530,10 +623,7 @@ export default function ComandeConto() {
                 variant="danger"
                 disabled={!motivo.trim()}
                 onClick={async () => {
-                  const ok = await esegui(
-                    () => api(`/comande/righe/${rigaAperta.id}/storna`, { method: "POST", body: { motivo } }),
-                    "Stornata"
-                  );
+                  const ok = await esegui(() => api(`/comande/righe/${rigaAperta.id}/storna`, { method: "POST", body: { motivo } }), "Stornata");
                   if (ok) setRigaAperta(null);
                 }}
               >
@@ -571,20 +661,20 @@ export default function ComandeConto() {
         )}
         {rigaAperta && rigaAperta.stato === "da_inviare" && (
           <div className="space-y-3">
-            <TextInput value={notaRiga} onChange={setNotaRiga} placeholder="Nota per il reparto (es. ben cotta)" />
+            <TextInput value={notaRiga} onChange={setNotaRiga} placeholder="Nota per il reparto (es. ben cotta, divisa in due)" />
             <div>
-              <div className="mb-1 text-xs text-neutral-500">Uscita</div>
-              <div className="flex flex-wrap gap-1.5">
-                {sceltaUscite.map((u) => (
+              <div className="mb-1 text-xs text-neutral-600">Uscita</div>
+              <div className="flex flex-wrap gap-2">
+                {scelteUscita.map((u) => (
                   <button
                     key={u}
                     onClick={async () => {
                       const ok = await esegui(() => api(`/comande/righe/${rigaAperta.id}`, { method: "PATCH", body: { uscita: u } }));
                       if (ok) setRigaAperta({ ...rigaAperta, uscita: u });
                     }}
-                    className={`rounded-full border px-3 py-1.5 text-xs ${rigaAperta.uscita === u ? "border-rose-300 bg-rose-100 text-rose-900" : "border-neutral-200 bg-white"}`}
+                    className={pill(rigaAperta.uscita === u)}
                   >
-                    {u === 0 ? "Subito" : `${u}ª`}
+                    {u}
                   </button>
                 ))}
               </div>
@@ -613,12 +703,7 @@ export default function ComandeConto() {
         </div>
         {conto.coperto && copertiEdit > 0 && (
           <label className="mt-3 flex min-h-[44px] cursor-pointer items-center gap-3 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm">
-            <input
-              type="checkbox"
-              className="h-5 w-5"
-              checked={omaggioEdit}
-              onChange={(e) => setOmaggioEdit(e.target.checked)}
-            />
+            <input type="checkbox" className="h-5 w-5" checked={omaggioEdit} onChange={(e) => setOmaggioEdit(e.target.checked)} />
             <span>
               Coperto in omaggio
               <span className="block text-xs text-neutral-500">
@@ -631,6 +716,35 @@ export default function ComandeConto() {
             </span>
           </label>
         )}
+      </Modal>
+
+      {/* Sposta su un altro tavolo */}
+      <Modal
+        open={!!sposta}
+        onClose={() => setSposta(null)}
+        title={`Sposta il tavolo ${conto.tavolo}`}
+        subtitle="Il conto passa intero al tavolo che scegli"
+        size="md"
+        footer={<Btn variant="secondary" onClick={() => setSposta(null)}>Annulla</Btn>}
+      >
+        {sposta && sposta.length === 0 && <p className="text-sm text-neutral-600">Non ci sono tavoli liberi.</p>}
+        {(sposta || []).map((s) => (
+          <div key={s.zona} className="mb-3">
+            <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-neutral-500">{s.zona}</div>
+            <div className="flex flex-wrap gap-2">
+              {s.tavoli.map((t) => (
+                <button
+                  key={t.id}
+                  disabled={busy}
+                  onClick={() => spostaSu(t)}
+                  className="min-h-[48px] min-w-[56px] rounded-xl border border-neutral-300 bg-white px-3 text-base font-bold text-brand-ink hover:bg-neutral-50 disabled:opacity-50"
+                >
+                  {t.nome}
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
       </Modal>
 
       {/* Chiudi */}

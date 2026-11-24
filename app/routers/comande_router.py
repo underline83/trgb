@@ -1,15 +1,16 @@
 # -*- coding: utf-8 -*-
-# @version: v1.1 — coperto in conto da solo (con omaggio), tasti rapidi a 0 €; tutto in prova (2026-11-24)
+# @version: v2.0 — uscite che vanno o attendono: vai, attendi, sollecita; tutto in prova (2026-11-24)
 """
 Modulo: comande — comande prese in sala da TRGB. Doc: docs/modulo_comande.md.
 
 Manifesto (core/moduli/comande/module.json):
-    id: comande · nome: Comanda · versione: 1.1
+    id: comande · nome: Comanda · versione: 2.0
     dipendenze platform: auth, permessi, ui_primitives, catalogo_vendita, tavoli_sala
     dipendenze opzionali: menu_carta, ricette, vini, clienti, prenotazioni (solo lettura,
                           via i servizi platform catalogo_vendita e tavoli_sala_service)
     router: comande_router · tabelle: comande_conti, comande_righe, comande_invii,
-            comande_reparti, comande_gruppi_reparto, comande_config, comande_tasti_rapidi
+            comande_reparti, comande_gruppi_reparto, comande_config, comande_tasti_rapidi,
+            comande_uscite
     DB: comande.sqlite3 · route FE: /comande · menu key: comande
 
 Finché non c'è la Cassa ogni conto è di prova: in servizio resta iPratico
@@ -25,8 +26,11 @@ le impostazioni solo admin):
     PATCH  /comande/conti/{id}                coperti (il coperto in conto li segue), nota, cambio tavolo
     POST   /comande/conti/{id}/coperto        coperto in omaggio o di nuovo a prezzo {omaggio}
     POST   /comande/conti/{id}/righe          aggiunge righe (prezzo dal catalogo) o un tasto rapido {tasto}
-    POST   /comande/conti/{id}/invia          manda le righe nuove ai reparti
-    POST   /comande/conti/{id}/via            «via la Nª» {uscita}
+    POST   /comande/conti/{id}/invia          «Invia comanda»: tutto ai reparti, la prima uscita va, le altre attendono
+    POST   /comande/conti/{id}/uscite/{n}/vai        «Vai con la preparazione»
+    POST   /comande/conti/{id}/uscite/{n}/attendi    un'uscita andata torna ad attendere
+    POST   /comande/conti/{id}/uscite/{n}/sollecita  sollecito al reparto
+    POST   /comande/conti/{id}/via            come …/uscite/{n}/vai (nome della 1.0) {uscita}
     POST   /comande/conti/{id}/chiudi         libera il tavolo {annulla}
     PATCH  /comande/righe/{id}                quantità, uscita, nota, varianti (solo non inviate)
     DELETE /comande/righe/{id}                toglie una riga non inviata
@@ -176,7 +180,22 @@ def post_invia(conto_id: int, user=Depends(richiede_ruoli(*RUOLI_COMANDE))):
 
 @router.post("/conti/{conto_id}/via")
 def post_via(conto_id: int, body: Via, user=Depends(richiede_ruoli(*RUOLI_COMANDE))):
-    return _errori(svc.via, conto_id, body.uscita, _utente(user))
+    return _errori(svc.vai, conto_id, body.uscita, _utente(user))
+
+
+@router.post("/conti/{conto_id}/uscite/{uscita}/vai")
+def post_uscita_vai(conto_id: int, uscita: int, user=Depends(richiede_ruoli(*RUOLI_COMANDE))):
+    return _errori(svc.vai, conto_id, uscita, _utente(user))
+
+
+@router.post("/conti/{conto_id}/uscite/{uscita}/attendi")
+def post_uscita_attendi(conto_id: int, uscita: int, user=Depends(richiede_ruoli(*RUOLI_COMANDE))):
+    return _errori(svc.attendi, conto_id, uscita, _utente(user))
+
+
+@router.post("/conti/{conto_id}/uscite/{uscita}/sollecita")
+def post_uscita_sollecita(conto_id: int, uscita: int, user=Depends(richiede_ruoli(*RUOLI_COMANDE))):
+    return _errori(svc.sollecita, conto_id, uscita, _utente(user))
 
 
 @router.post("/conti/{conto_id}/chiudi")

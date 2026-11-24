@@ -6,8 +6,8 @@
     "coperto_prezzo": "5"
   },
   "tasti_rapidi": [
-    {"nome": "Stuzzico", "reparto": "cucina", "ogni_coperti": 1},
-    {"nome": "Pane e Grissini", "reparto": "cucina", "ogni_coperti": 2},
+    {"nome": "Stuzzico", "reparto": "cucina", "ogni_coperti": 1, "uscita": 1},
+    {"nome": "Pane e Grissini", "reparto": "cucina", "ogni_coperti": 2, "uscita": 2},
     {"nome": "Pane senza glutine", "reparto": "cucina", "ogni_coperti": 0},
     {"nome": "Rimpiazzo Pane", "reparto": "cucina", "ogni_coperti": 0}
   ]
