@@ -1,10 +1,10 @@
 {
   "id": "comande",
   "nome": "Comanda",
-  "versione": "2.0",
-  "descrizione": "Comande prese in sala: tavoli in elenco o in mappa, aperti con coperti; coperto messo in conto da solo, tasti rapidi a 0 € per i reparti; conto a elenco con uscite libere che vanno o attendono (Invia comanda, Vai con la preparazione, Attendi, Sollecito); invio ai reparti (cucina, sala), storni, sposta tavolo. In prova finché non c'è la Cassa",
+  "versione": "2.1",
+  "descrizione": "Comande prese in sala: tavoli in elenco o in mappa, aperti con coperti; coperto messo in conto da solo, tasti rapidi a 0 € per i reparti; conto a elenco con uscite libere che vanno o attendono (Invia comanda, Vai con la preparazione, Attendi, Sollecito); invio ai reparti (cucina, sala), storni, sposta tavolo; il tavolo si lega alla prenotazione del giorno (chi è seduto, allergie, note). In prova finché non c'è la Cassa",
   "vendibile": true,
-  "dipendenze_platform": ["auth", "permessi", "ui_primitives", "catalogo_vendita", "tavoli_sala"],
+  "dipendenze_platform": ["auth", "permessi", "ui_primitives", "catalogo_vendita", "tavoli_sala", "prenotazioni_giorno"],
   "dipendenze_opzionali": ["menu_carta", "ricette", "vini", "clienti", "prenotazioni"],
   "router_files": [
     "comande_router"

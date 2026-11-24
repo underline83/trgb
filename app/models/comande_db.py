@@ -1,4 +1,4 @@
-# @version: v2.0 (2026-11-24) — uscite che vanno o attendono («vai e attendi»), tasti rapidi con la loro uscita
+# @version: v2.1 (2026-11-24) — nome dell'ospite sul conto (prenotazione legata); 2.0: uscite che vanno o attendono, tasti rapidi con la loro uscita
 # -*- coding: utf-8 -*-
 """
 Database Comande — TRGB Gestionale. Modulo: comande. [core]
@@ -245,6 +245,10 @@ def init_comande_db() -> None:
         """)
         # Gli invii di tipo «via» dicono cosa chiedono: vai, attendi, sollecito (NULL sugli altri).
         _colonna(cur, "comande_invii", "azione", "TEXT")
+        # Chi è al tavolo (2.1): il nome della prenotazione legata al conto, scritto al momento
+        # del collegamento così resta anche se la prenotazione poi cambia. prenotazione_id e
+        # cliente_id ci sono dalla 1.0.
+        _colonna(cur, "comande_conti", "ospite", "TEXT")
         # Uscita fissa di un tasto rapido (NULL = l'uscita in cui si sta battendo).
         tasti_senza_uscita = _colonna(cur, "comande_tasti_rapidi", "uscita", "INTEGER")
 

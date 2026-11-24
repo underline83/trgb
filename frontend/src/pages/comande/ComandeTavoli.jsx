@@ -1,4 +1,4 @@
-// @version: v2.0 — a che uscita è ogni tavolo, «Miei», mappa della sala (2026-11-24)
+// @version: v2.1 — i tavoli prenotati e chi c'è seduto; all'apertura si lega la prenotazione (2026-11-24)
 // Modulo: comande
 // La mappa riusa le forme della piantina di Prenotazioni: stessi tavoli, stesso disegno
 // (li disegna l'Editor Tavoli; qui si leggono dal servizio platform tavoli_sala_service).
@@ -8,6 +8,7 @@ import { Btn, EmptyState, Modal, PageLayout } from "../../components/ui";
 import TrgbLoader from "../../components/TrgbLoader";
 import { CANVAS_W, CANVAS_H, FormaElemento, FormaTavolo, SchedeSale } from "../prenotazioni/components/Piantina";
 import ComandeNav, { BannerProva } from "./ComandeNav";
+import { ScegliPrenotazione, etichettaPrenotazione } from "./ComandePrenotazione";
 import { api, durata, euro, utenteCorrente } from "./comandeApi";
 
 const AGGIORNA_OGNI_MS = 20000;
@@ -17,16 +18,36 @@ const CHIAVE_VISTA = "comande.tavoli.vista";
 // tutto quello che è stato inviato è andato (verde). Gli stessi colori del conto.
 const TINTE = {
   libero: { card: "border-neutral-200 bg-white hover:bg-neutral-50", fill: "#ffffff", stroke: "#d4d4d4", ink: "#525252" },
+  // libero ma con una prenotazione del turno scritta sopra: indaco, il colore di Prenotazioni
+  prenotato: { card: "border-indigo-300 bg-white hover:bg-indigo-50", fill: "#ffffff", stroke: "#6366f1", ink: "#3730a3" },
   aperto: { card: "border-rose-300 bg-rose-50 text-rose-900", fill: "#ffe4e6", stroke: "#fb7185", ink: "#881337" },
   attende: { card: "border-blue-300 bg-blue-50 text-blue-900", fill: "#dbeafe", stroke: "#2E7BE8", ink: "#1e3a8a" },
   andata: { card: "border-emerald-300 bg-emerald-50 text-emerald-900", fill: "#d1fae5", stroke: "#2EB872", ink: "#064e3b" },
 };
 const LEGENDA = [
+  { key: "prenotato", label: "prenotato" },
   { key: "aperto", label: "aperto, niente partito" },
   { key: "attende", label: "un'uscita attende" },
   { key: "andata", label: "tutto andato" },
 ];
 const statoTavolo = (c) => (!c ? "libero" : c.uscita_attende ? "attende" : c.uscita_andata ? "andata" : "aperto");
+
+// Di un tavolo libero: la prenotazione del turno più vicina a adesso fra quelle non ancora sedute
+// (`prossima`), quante altre ce ne sono e — se sono tutte già a un altro tavolo, cioè tavoli
+// uniti — con chi sta (`unita`). I minuti li conta il server (tra_minuti).
+function prenotato(t) {
+  const tutte = t.prenotazioni || [];
+  const libere = tutte
+    .filter((p) => !p.conto)
+    .sort((a, b) => Math.abs(a.tra_minuti ?? 0) - Math.abs(b.tra_minuti ?? 0));
+  return {
+    prossima: libere[0] || null,
+    altre: Math.max(0, libere.length - 1),
+    unita: libere.length ? null : tutte[0] || null,
+  };
+}
+const statoDi = (t) => (t.conto ? statoTavolo(t.conto) : prenotato(t).prossima ? "prenotato" : "libero");
+const corto = (testo, n) => (String(testo || "").length > n ? `${String(testo).slice(0, n - 1)}…` : String(testo || ""));
 
 // «Uscita 2 di 5 · 12 min»: l'ultima andata, la più alta inviata, da quanto è partita.
 function rigaUscite(c) {
@@ -83,17 +104,29 @@ function Mappa({ sala, elementi, onTocca, spento }) {
           ))}
           {disegnati.map((t) => {
             const c = t.conto;
-            const tinta = TINTE[statoTavolo(c)];
+            const pr = c ? null : prenotato(t);
+            const tinta = TINTE[statoDi(t)];
             const cx = t.posizione_x + t.larghezza / 2;
             const cy = t.posizione_y + t.altezza / 2;
-            // in un rombo piccolo la riga delle uscite non ci sta: va sotto il tavolo
+            // in un rombo piccolo la seconda riga non ci sta: va sotto il tavolo
             const dentro = t.forma !== "diamond" || t.larghezza >= 60;
+            // seconda riga: a che uscita è (aperto), a che ora è prenotato, o con che tavolo è unito
+            const riga2 = c ? rigaUsciteCorta(c) : pr.prossima ? pr.prossima.ora : pr.unita ? `con ${pr.unita.conto.tavolo}` : "";
+            // sotto il tavolo: chi c'è seduto, o chi lo ha prenotato
+            const chi = c ? c.ospite : pr.prossima ? pr.prossima.nome : "";
+            const sotto = t.posizione_y + t.altezza + 9;
             return (
               <g
                 key={t.id}
                 role="button"
                 tabIndex={0}
-                aria-label={`Tavolo ${t.nome}${c ? `, ${rigaUscite(c) || "aperto"}` : ", libero"}`}
+                aria-label={`Tavolo ${t.nome}${
+                  c
+                    ? `, ${rigaUscite(c) || "aperto"}${c.ospite ? `, ${c.ospite}` : ""}`
+                    : pr.prossima
+                      ? `, prenotato alle ${pr.prossima.ora} da ${pr.prossima.nome}`
+                      : ", libero"
+                }`}
                 onClick={() => onTocca(t)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") onTocca(t);
@@ -102,16 +135,23 @@ function Mappa({ sala, elementi, onTocca, spento }) {
                 style={{ cursor: "pointer" }}
               >
                 <FormaTavolo t={t} fill={tinta.fill} stroke={tinta.stroke} strokeWidth={c ? 2.5 : 1.5} />
-                <text x={cx} y={c && dentro ? cy - 6 : cy} textAnchor="middle" dominantBaseline="middle" fontSize="13"
+                <text x={cx} y={riga2 && dentro ? cy - 6 : cy} textAnchor="middle" dominantBaseline="middle" fontSize="13"
                   fontWeight="bold" fill={tinta.ink} className="pointer-events-none select-none">
                   {t.nome}
                 </text>
-                {c && (
-                  <text x={cx} y={dentro ? cy + 9 : t.posizione_y + t.altezza + 9} textAnchor="middle"
+                {riga2 && (
+                  <text x={cx} y={dentro ? cy + 9 : sotto} textAnchor="middle"
                     dominantBaseline="middle" fontSize={dentro ? "8.5" : "9.5"} fill={tinta.ink}
                     stroke="#fafafa" strokeWidth={dentro ? 0 : 3} paintOrder="stroke"
                     className="pointer-events-none select-none">
-                    {rigaUsciteCorta(c)}
+                    {riga2}
+                  </text>
+                )}
+                {chi && (
+                  <text x={cx} y={dentro ? sotto : sotto + 11} textAnchor="middle" dominantBaseline="middle"
+                    fontSize="9.5" fontWeight="600" fill={tinta.ink} stroke="#fafafa" strokeWidth="3"
+                    paintOrder="stroke" className="pointer-events-none select-none">
+                    {corto(chi, 12)}
                   </text>
                 )}
                 {c && c.da_inviare > 0 && (
@@ -145,6 +185,8 @@ export default function ComandeTavoli() {
   const [daAprire, setDaAprire] = useState(null); // tavolo
   const [coperti, setCoperti] = useState(2);
   const [apro, setApro] = useState(false);
+  const [prenScelta, setPrenScelta] = useState(null); // prenotazione da legare all'apertura
+  const [altra, setAltra] = useState(false); // elenco di tutte le prenotazioni del giorno
 
   const carica = useCallback(async () => {
     try {
@@ -172,14 +214,28 @@ export default function ComandeTavoli() {
 
   const tocca = (t) => {
     if (t.conto) return navigate(`/comande/conto/${t.conto.id}`);
-    setCoperti(Math.max(1, t.posti_min || 2));
+    // Una sola prenotazione possibile su questo tavolo: la propongo già scelta, coi suoi coperti.
+    // Se sono di più (o nessuna) non indovino: sceglie chi apre.
+    const possibili = (t.prenotazioni || []).filter((p) => !p.conto);
+    const sola = possibili.length === 1 ? possibili[0] : null;
+    setPrenScelta(sola);
+    setAltra(false);
+    setCoperti(sola && sola.pax > 0 ? sola.pax : Math.max(1, t.posti_min || 2));
     setDaAprire(t);
+  };
+
+  const scegliPren = (p) => {
+    setPrenScelta(p);
+    setAltra(false);
+    if (p && p.pax > 0) setCoperti(p.pax);
   };
 
   const apri = async () => {
     setApro(true);
     try {
-      const c = await api("/comande/conti/", { method: "POST", body: { tavolo_id: daAprire.id, coperti } });
+      const body = { tavolo_id: daAprire.id, coperti };
+      if (prenScelta) body.prenotazione_id = prenScelta.id;
+      const c = await api("/comande/conti/", { method: "POST", body });
       navigate(`/comande/conto/${c.id}`);
     } catch (e) {
       setErrore(e.message);
@@ -268,11 +324,12 @@ export default function ComandeTavoli() {
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-6">
               {s.tavoli.map((t) => {
                 const c = t.conto;
+                const pr = c ? null : prenotato(t);
                 return (
                   <button
                     key={t.id}
                     onClick={() => tocca(t)}
-                    className={`min-h-[96px] rounded-2xl border p-2.5 text-left shadow-sm transition active:scale-[0.98] ${TINTE[statoTavolo(c)].card}`}
+                    className={`min-h-[96px] rounded-2xl border p-2.5 text-left shadow-sm transition active:scale-[0.98] ${TINTE[statoDi(t)].card}`}
                   >
                     <div className="flex items-start justify-between">
                       <span className="text-lg font-bold text-brand-ink">{t.nome}</span>
@@ -284,12 +341,27 @@ export default function ComandeTavoli() {
                     </div>
                     {c ? (
                       <div className="mt-1 text-xs leading-snug">
+                        {c.ospite && <div className="truncate font-semibold text-brand-ink">{c.ospite}</div>}
                         <div>👤 {c.coperti} · {durata(c.minuti_aperto)}</div>
                         <div className="font-semibold">{rigaUscite(c) || "aperto"}</div>
                         <div className="flex items-center justify-between">
                           <span>{euro(c.totale)}</span>
                           {c.sollecitata && <span className="font-semibold text-amber-800">sollecitata</span>}
                         </div>
+                      </div>
+                    ) : pr.prossima ? (
+                      <div className="mt-1 text-xs leading-snug text-indigo-950">
+                        <div className="truncate font-semibold">{pr.prossima.ora} · {pr.prossima.nome}</div>
+                        <div>
+                          {pr.prossima.pax} {pr.prossima.pax === 1 ? "persona" : "persone"}
+                          {pr.prossima.allergie ? " · ⚠ allergie" : ""}
+                        </div>
+                        {pr.altre > 0 && <div className="text-indigo-700">+{pr.altre} dopo</div>}
+                      </div>
+                    ) : pr.unita ? (
+                      <div className="mt-1 text-xs leading-snug text-neutral-500">
+                        <div className="truncate">{pr.unita.nome}</div>
+                        <div>con il tavolo {pr.unita.conto.tavolo}</div>
                       </div>
                     ) : (
                       <div className="mt-1 text-xs text-neutral-400">{t.posti_min}–{t.posti_max} posti</div>
@@ -320,7 +392,7 @@ export default function ComandeTavoli() {
         title={daAprire ? `Apri il tavolo ${daAprire.nome}` : ""}
         subtitle={daAprire ? daAprire.zona : ""}
         tone="rose"
-        size="sm"
+        size="md"
         footer={
           <>
             <Btn variant="secondary" onClick={() => setDaAprire(null)}>Annulla</Btn>
@@ -336,6 +408,36 @@ export default function ComandeTavoli() {
             <Btn variant="secondary" size="lg" onClick={() => setCoperti((n) => Math.min(200, n + 1))}>+</Btn>
           </div>
         </div>
+        {daAprire && (
+          <div className="mt-3 border-t border-neutral-100 pt-3">
+            <div className="mb-2 text-sm text-neutral-600">Chi è al tavolo</div>
+            <div className="flex flex-wrap gap-2">
+              {[
+                ...(daAprire.prenotazioni || []),
+                ...(prenScelta && !(daAprire.prenotazioni || []).some((p) => p.id === prenScelta.id) ? [prenScelta] : []),
+              ].map((p) => (
+                <button key={p.id} className={pill(!!prenScelta && prenScelta.id === p.id)} onClick={() => scegliPren(p)}>
+                  {etichettaPrenotazione(p)}
+                  {p.conto ? ` (al tavolo ${p.conto.tavolo})` : ""}
+                </button>
+              ))}
+              <button className={pill(!prenScelta)} onClick={() => scegliPren(null)}>Senza prenotazione</button>
+              <button className={pill(false)} aria-expanded={altra} onClick={() => setAltra((v) => !v)}>
+                Un'altra…
+              </button>
+            </div>
+            {prenScelta && prenScelta.allergie && (
+              <div className="mt-2 rounded-lg bg-red-100 px-2 py-1 text-sm font-semibold text-red-900">
+                ⚠ Allergie: {prenScelta.allergie}
+              </div>
+            )}
+            {altra && (
+              <div className="mt-3">
+                <ScegliPrenotazione tavolo={daAprire.nome} scelta={prenScelta ? prenScelta.id : null} onScegli={scegliPren} />
+              </div>
+            )}
+          </div>
+        )}
       </Modal>
     </PageLayout>
   );

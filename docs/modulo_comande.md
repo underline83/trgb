@@ -1,7 +1,7 @@
 # Modulo Comanda — TRGB Gestionale
 
-> **Tipo:** 📄 pagina wiki · **Stato:** attuale — nato il 2026-11-24 (comande 1.0, sistema 6.8), oggi comande 2.0, **in prova** · **Ultima verifica:** 2026-11-24
-> **Vedi anche:** [modulo_vendite.md](modulo_vendite.md) (modulo `cassa`: conti iPratico, chiusure), [analisi_ipratico_cloud.md](analisi_ipratico_cloud.md), [modulo_prenotazioni.md](modulo_prenotazioni.md) (tavoli), [studio_ipratico_comanda.md](studio_ipratico_comanda.md) (come si lavora oggi in cassa e i concorrenti), [modulo_menu_carta.md](modulo_menu_carta.md), [operativo/rete.md](operativo/rete.md) (stampanti in osteria), [architettura_mattoni.md](architettura_mattoni.md)
+> **Tipo:** 📄 pagina wiki · **Stato:** attuale — nato il 2026-11-24 (comande 1.0, sistema 6.8), oggi comande 2.1, **in prova** · **Ultima verifica:** 2026-11-24
+> **Vedi anche:** [modulo_vendite.md](modulo_vendite.md) (modulo `cassa`: conti iPratico, chiusure), [analisi_ipratico_cloud.md](analisi_ipratico_cloud.md), [modulo_prenotazioni.md](modulo_prenotazioni.md) (tavoli, prenotazioni del giorno), [studio_ipratico_comanda.md](studio_ipratico_comanda.md) (come si lavora oggi in cassa e i concorrenti), [modulo_menu_carta.md](modulo_menu_carta.md), [operativo/rete.md](operativo/rete.md) (stampanti in osteria), [architettura_mattoni.md](architettura_mattoni.md)
 
 **Classificazione:** `[core]`. Ogni ristorante prende comande; reparti, uscite, coperto e tasti rapidi sono impostazioni del locale. I valori dell'osteria (nome e prezzo del coperto, «Stuzzico», «Pane») stanno nel seme `locali/tregobbi/seeds/comande.json` `[locale:tregobbi]`, non nel codice.
 **Modulo:** `comande`, nuovo e vendibile. Manifesto in `core/moduli/comande/module.json`.
@@ -21,12 +21,15 @@
 8. **«Vai e attendi», copiato da come lavora l'osteria** → comande 2.0. Gli 83 screen e i 5 scontrini di iPratico (24/11) hanno mostrato che la sala manda la comanda intera divisa per uscite e poi chiama ogni uscita ([studio](studio_ipratico_comanda.md) §5 e §8).
 9. **Conto a elenco, non a tessere.** Fra le due [schermate disegnate](https://claude.ai/artifact/BqLwPeqGhBusqkLEuxS3Y2) Marco ha scelto l'elenco: «la tessera ha senso quando ci sono le foto dei piatti (ma io non la uso)».
 10. **La mappa dei tavoli serve.** «Su iPratico non c'è una mappa, è un limite»: in TRGB i tavoli si vedono anche sulla piantina, quella già disegnata in Prenotazioni.
+11. **Il tavolo si lega alla prenotazione** (24/11) → comande 2.1: «sul tavolo posso linkare la persona che ha la prenotazione». La Comanda legge soltanto: stato e tavolo della prenotazione restano quelli che sono.
 
 ## 2. Come gira un tavolo
 
 1. **Tavoli** (`/comande`): i tavoli attivi di Prenotazioni, in **Elenco** (per sala) o in **Mappa** (2.0: la piantina dell'Editor Tavoli, una scheda per sala; la scelta resta sul dispositivo). Un tavolo aperto dice a che punto è: «Uscita 2 di 5 · 12 min» (l'ultima andata, la più alta inviata, da quanto è partita), da quanto è aperto, totale, righe da inviare, «sollecitata». Tre colori, gli stessi del conto: rosa = aperto e niente partito, blu = un'uscita attende, verde = tutto andato. «Miei» lascia in elenco solo i tavoli aperti da chi guarda, in mappa spegne quelli aperti da altri. Tavolo libero → coperti → «Apri». Un tavolo ha al massimo un conto aperto.
+   - **Prenotazioni** (2.1): un tavolo libero che nel turno in corso ha una prenotazione scritta sopra è bordato d'indaco e dice ora, nome e coperti (la più vicina a adesso; «+1 dopo» se ce ne sono altre); in mappa l'ora sta nel tavolo e il nome sotto. Un tavolo aperto e legato mostra chi c'è seduto. Aprendo si sceglie **chi è al tavolo**: se su quel tavolo c'è una sola prenotazione possibile è già proposta, coi suoi coperti; se sono di più, o nessuna, sceglie chi apre (regola dell'abbinamento conti: TRGB non indovina da solo). «Senza prenotazione» per i passanti, «Un'altra…» per pescare fra tutte quelle del giorno. Le prenotazioni «Completata» e quelle che oggi hanno già avuto un conto chiuso non si propongono più.
    - **Coperto** (1.1): all'apertura entra in conto da solo una riga col nome e il prezzo delle Impostazioni, quantità = coperti. Segue i coperti se cambiano (a 0 sparisce), non va a nessun reparto, non entra in «Invia» e non blocca la chiusura. Non si toglie né si storna: dal tasto dei coperti si mette **in omaggio** (prezzo 0, «- omaggio» nel nome, chi l'ha messo in nota) o si rimette a prezzo.
 2. **Conto** (`/comande/conto/:id`), **a elenco** (2.0). A sinistra il catalogo: ricerca, gruppi in colonna, voci in lista (nome, dettaglio, prezzo); un tocco aggiunge 1 pezzo nell'uscita in cui si sta battendo («Si batte in Uscita 3»), lo stesso articolo nella stessa uscita alza la quantità. A destra la comanda divisa per uscite, sempre a vista. Su telefono le due metà si alternano («＋ Aggiungi» / «Fatto»). Articoli «a voce» chiedono il prezzo; «＋ Fuori carta» crea una riga libera con nome, prezzo e famiglia.
+   - **Chi è al tavolo** (2.1): sopra le uscite la scheda della prenotazione legata — nome, ora, coperti prenotati, **allergie in evidenza** (quelle dette alla prenotazione più quelle della scheda cliente), note, occasione, seggioloni. «Cambia» o «＋ Prenotazione» aprono le prenotazioni del giorno (prima quelle di questo tavolo, poi il turno in corso, poi l'altro) con la ricerca; «Togli il collegamento» lo scioglie. Legare non tocca i coperti del conto e non scrive niente in Prenotazioni.
    - **Tasti rapidi** (1.1) in cima al catalogo — «Stuzzico ×4», «Pane e Grissini ×2» — righe a 0 € che dicono a un reparto di far partire qualcosa; la quantità la propone il tasto dai coperti, un secondo tocco ne aggiunge una. Dalla 2.0 ogni tasto può avere **la sua uscita** (stuzzico nella 1, pane nella 2): cade lì dovunque si stia battendo. Partono col prossimo «Invia comanda».
    - **Uscite libere** (2.0): numerate da 1, quante ne servono. «＋ Nuova uscita» apre la successiva e salta quelle tenute dai tasti rapidi (con stuzzico 1 e pane 2 i piatti cominciano dalla 3). «Batti qui» riporta su un'uscita il punto in cui si batte, anche su una già inviata. La pagina propone: a tavolo appena aperto la 1; poi l'ultima uscita nuova che ha già un piatto; a comanda partita, una nuova dopo le inviate.
 3. **Invia comanda**: parte tutto verso i reparti, un invio per reparto con la fotografia delle righe divise per uscita e, per ognuna, «va» o «attende». Fra le uscite nuove **la prima va** (se prima di lei niente sta attendendo), **le altre attendono**. Una riga aggiunta a un'uscita già inviata ne segue lo stato (il pane in più va subito). Una riga partita non si modifica più.
@@ -76,7 +79,7 @@ Reparti iniziali: **cucina** e **sala**, come le due stampanti comande dell'oste
 
 | Tabella | Cosa tiene |
 |---|---|
-| `comande_conti` | tavolo (id + nome e sala al momento), coperti, stato `aperto/chiuso/annullato`, `prova`, `uscita_corrente`, nota, prenotazione/cliente (per dopo), chi e quando |
+| `comande_conti` | tavolo (id + nome e sala al momento), coperti, stato `aperto/chiuso/annullato`, `prova`, `uscita_corrente`, nota, `prenotazione_id` / `cliente_id` / `ospite` (2.1: la prenotazione legata e il nome scritto al momento del collegamento), chi e quando |
 | `comande_righe` | codice e tipo articolo, nome, gruppo, famiglia, reparto, prezzo unitario (deciso dal server), quantità, uscita, varianti (JSON), nota, stato `da_inviare/inviata/stornata`, invio, storno con motivo |
 | `comande_invii` | tipo `comanda/via/storno`, reparto, uscita, `azione` (2.0, per il tipo `via`: `vai/attendi/sollecito`), `righe_json` (fotografia per la stampa; nelle comande ogni riga ha `va` vero/falso), `stampato_at`/`stampa_esito` (li scriverà il ponte) |
 | `comande_reparti` | chiave, nome, ordine, attivo |
@@ -89,6 +92,8 @@ Il coperto e i tasti sono righe di `comande_righe` come le altre: `articolo_tipo
 
 Un indice unico parziale impedisce due conti aperti sullo stesso tavolo.
 
+**La prenotazione legata** (2.1) si rilegge a ogni apertura del conto (`conto.prenotazione`): allergie e note possono cambiare. Se la prenotazione non c'è più resta `ospite`. `comande_conti.ospite` è una colonna aggiunta al boot (ADD COLUMN, senza NOT NULL).
+
 **Da 1.1 a 2.0** non c'è una migrazione numerata: `init_comande_db()` crea `comande_uscite` e aggiunge `comande_invii.azione` e `comande_tasti_rapidi.uscita` (solo ADD COLUMN, senza NOT NULL). L'uscita dei tasti già presenti si riempie una volta dal seme, per nome. Provato su una copia del DB di produzione.
 
 ## 6. Codice
@@ -98,11 +103,12 @@ Un indice unico parziale impedisce due conti aperti sullo stesso tavolo.
 | Router (solo HTTP ⇄ service) | `app/routers/comande_router.py`, montato in `main.py` (`_mount("comande_router")`) |
 | Logica | `app/services/comande_service.py` |
 | Catalogo (platform) | `app/services/catalogo_vendita.py` |
+| Prenotazioni del giorno (platform, 2.1) | `app/services/prenotazioni_giorno_service.py` — sola lettura di `clienti_prenotazioni`: ora, nome, coperti, tavoli, stato, allergie, note; niente telefono né email. Stati da `prenotazioni_stati`, nomi dei tavoli («3C+3») e soglia pranzo/cena come l'abbinamento conti della Cassa |
 | Tavoli (platform) | `app/services/tavoli_sala_service.py` (1.1: anche posizione e forma dei tavoli, ed `elementi()` della piantina, per la mappa) |
 | DB | `app/models/comande_db.py` |
 | Seme dell'osteria `[locale:tregobbi]` | `locali/tregobbi/seeds/comande.json` |
 | Permessi menu | `modules_router.DEFAULT_MODULES` + `MODULI_DA_AGGIUNGERE` (il seed `modules.json` non si tocca: cambiarlo riscrive i permessi scelti da UI) |
-| Pagine | `frontend/src/pages/comande/` — `ComandeTavoli`, `ComandeConto`, `ComandeInvii`, `ComandeImpostazioni`, `ComandeNav` (con `BannerProva`), `comandeApi.js`. La mappa importa le forme da `pages/prenotazioni/components/Piantina.jsx` (`FormaTavolo`, `FormaElemento`, `SchedeSale`): è un componente condiviso che oggi vive sotto Prenotazioni, da portare in platform con R8 |
+| Pagine | `frontend/src/pages/comande/` — `ComandeTavoli`, `ComandeConto`, `ComandeInvii`, `ComandeImpostazioni`, `ComandePrenotazione` (2.1: elenco fra cui scegliere e scheda di chi è al tavolo), `ComandeNav` (con `BannerProva`), `comandeApi.js`. La mappa importa le forme da `pages/prenotazioni/components/Piantina.jsx` (`FormaTavolo`, `FormaElemento`, `SchedeSale`): è un componente condiviso che oggi vive sotto Prenotazioni, da portare in platform con R8 |
 
 ## 7. Capability
 
@@ -122,13 +128,15 @@ Un indice unico parziale impedisce due conti aperti sullo stesso tavolo.
 | C-CO-012 | Coperto messo in conto da solo all'apertura, quantità = coperti; omaggio e ritorno a prezzo dal tasto dei coperti | `post_coperto`, `comande_service._sincronizza_coperto`, `coperto_omaggio`, `ComandeConto.jsx` | sala, capo sala, sommelier, admin | ✅ |
 | C-CO-013 | Tasti rapidi a 0 € in cima al conto («Stuzzico», «Pane») che avvisano un reparto, quantità proposta dai coperti, ognuno nella sua uscita o in quella in cui si batte | `post_righe` (`tasto`), `comande_service.aggiungi_righe`, `ComandeConto.jsx` | idem | ✅ |
 | C-CO-014 | Mappa della sala: i tavoli sulla piantina disegnata in Prenotazioni, una scheda per sala, colorati per stato; un tocco apre il tavolo o il suo conto | `ComandeTavoli.jsx` (`Mappa`), `tavoli_sala_service.elementi`, `prenotazioni/components/Piantina.jsx` | idem | ✅ |
+| C-CO-015 | Il tavolo si lega alla prenotazione del giorno: tavoli prenotati in vista (ora, nome, coperti), scelta di chi è al tavolo all'apertura o dal conto, scheda con allergie e note, cambio e scollegamento. Sola lettura sul modulo Prenotazioni | `get_prenotazioni`, `post_conto` / `patch_conto` (`prenotazione_id`), `comande_service._lega_prenotazione`, `prenotazioni_giorno_service`, `ComandePrenotazione.jsx`, `ComandeTavoli.jsx`, `ComandeConto.jsx` | idem | ✅ |
 
 ## 8. Cosa manca (in ordine)
 
 1. **Ponte locale e stampa** (mattone nuovo): programma sul Raspberry Pi che prende gli invii non stampati e li manda in ESC/POS alle SOL801 (porta 9100), scrivendo `stampato_at`. Lo stesso ponte, più avanti, parlerà con l'Epson RT per la Cassa.
 2. **Prova sul campo** a locale chiuso, poi un tavolo: raccogliere le correzioni della sala. La 2.0 è stata guardata in un'anteprima coi dati veri, non ancora sul server né su un iPad.
 3. **Dal «⋮» del tavolo di iPratico** (screen del 24/11, [studio](studio_ipratico_comanda.md) §8.4): «Sposta ordine su altro tavolo» e «Libera tavolo» ci sono (Sposta, Chiudi tavolo / Annulla conto). Mancano **Unisci ordine** e il cambio di **cameriere**; **preconto** e **acconti** arrivano con la Cassa. Da decidere con Marco quali servono.
-4. Da confermare con Marco: le uscite di una **seconda comanda** (oggi la prima nuova va da sola solo se niente sta attendendo); come si batte il **pranzo** (oggi: Menù Business N portate + piatti a 0 €; in iPratico «Piatto pranzo» con variante) e l'omaggio del coperto col menù pranzo; chi può mettere il **coperto in omaggio** (oggi: chiunque prenda comande).
+4. **Prenotazione legata: cosa far succedere dall'altra parte.** Oggi niente. Da decidere con Marco se aprire il tavolo deve segnare la prenotazione «Seduto» e chiuderlo «Completata» (TheFork compreso), e se le allergie del tavolo vanno stampate sul foglio di cucina. Con la Cassa il collegamento servirà anche all'abbinamento conti ↔ clienti che oggi si fa a fine servizio sui conti iPratico.
+4b. Da confermare con Marco: le uscite di una **seconda comanda** (oggi la prima nuova va da sola solo se niente sta attendendo); come si batte il **pranzo** (oggi: Menù Business N portate + piatti a 0 €; in iPratico «Piatto pranzo» con variante) e l'omaggio del coperto col menù pranzo; chi può mettere il **coperto in omaggio** (oggi: chiunque prenda comande).
 5. **Varianti a gruppi** (in iPratico: allergeni, cottura, divisa in piatti, formato pasta…; oggi solo nota libera, il campo `varianti` c'è già) e **nome corto per la cucina** ([studio](studio_ipratico_comanda.md) §6 e §8.8).
 6. Schermo cucina, se serve.
 7. Poi i moduli **Cassa** (conto, scontrino, collegamento al conto iPratico che oggi scarica `cassa_conti`) e **Fatture in uscita**.

@@ -835,6 +835,12 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   comande: {
+    // 2.1 (2026-11-24): il tavolo si lega alla prenotazione (Marco: «sul tavolo posso linkare la persona che ha la
+    //   prenotazione»). Tavoli: quelli prenotati nel turno dicono ora, nome e coperti (elenco e mappa); all'apertura
+    //   si sceglie chi è al tavolo (una sola prenotazione possibile = già proposta, coi suoi coperti). Conto: scheda
+    //   con nome, ora, allergie in evidenza e note; «Cambia» / «Togli il collegamento». Le prenotazioni si leggono dal
+    //   servizio platform nuovo prenotazioni_giorno_service: in Prenotazioni NON si scrive niente (stato invariato).
+    //   Colonna comande_conti.ospite al boot (solo ADD COLUMN), nessuna migrazione numerata.
     // 2.0 (2026-11-24): «vai e attendi», come lavora l'osteria su iPratico (studio §5 e §8, screen e scontrini mandati
     //   da Marco): uscite libere numerate da 1; «Invia comanda» manda tutto, la prima uscita va e le altre attendono;
     //   «Vai con la preparazione», «Attendi» e «Invia sollecito» per uscita (tabella comande_uscite, comande_invii.azione);
@@ -853,7 +859,7 @@ const MODULE_VERSIONS = {
     //   degustazioni, piatti del giorno, Menù Business, vini a bottiglia e calice, Carta Bevande, menu template),
     //   prezzo libero e fuori carta, invio ai reparti (cucina, sala), «Via la Nª», storno con motivo, pagina Invii
     //   (quello che il ponte stamperà), Impostazioni (uscite, reparti, gruppo → reparto). DB comande.sqlite3 al boot.
-    version: "2.0",
+    version: "2.1",
     label: "Comanda",
     status: "alpha",
     color: "orange",

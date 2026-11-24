@@ -1,4 +1,4 @@
-// @version: v2.0 — conto a elenco con le uscite che vanno o attendono, come lavora la sala (2026-11-24)
+// @version: v2.1 — chi è al tavolo: il conto si lega a una prenotazione del giorno (allergie e note in vista) (2026-11-24)
 // Modulo: comande
 // A sinistra il catalogo a elenco (categorie in colonna, voci in lista), a destra la comanda divisa
 // per uscite. Su telefono le due metà si alternano («＋ Aggiungi» / «Fatto»).
@@ -7,6 +7,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Btn, Modal, PageLayout, TextInput } from "../../components/ui";
 import TrgbLoader from "../../components/TrgbLoader";
 import ComandeNav, { BannerProva } from "./ComandeNav";
+import { ScegliPrenotazione, SchedaPrenotazione } from "./ComandePrenotazione";
 import { api, euro, nomeUscita } from "./comandeApi";
 
 const STATO_RIGA = {
@@ -60,6 +61,7 @@ export default function ComandeConto() {
   const [chiudi, setChiudi] = useState(false);
   const [sposta, setSposta] = useState(null); // sale coi tavoli liberi, mentre si sceglie dove spostare
   const [azioniDi, setAzioniDi] = useState(null); // uscita andata di cui si vedono le azioni (⋯)
+  const [legame, setLegame] = useState(false); // finestra «Chi è al tavolo» (prenotazioni del giorno)
 
   const mostra = (msg) => {
     setToast(msg);
@@ -236,6 +238,16 @@ export default function ComandeConto() {
       `Spostato al tavolo ${t.nome}`
     );
     if (ok) setSposta(null);
+  };
+
+  // Chi è al tavolo: lega il conto a una prenotazione del giorno (null = togli il collegamento).
+  // In Prenotazioni non cambia niente: né stato né tavolo.
+  const lega = async (prenotazioneId, msg) => {
+    const ok = await esegui(
+      () => api(`/comande/conti/${id}`, { method: "PATCH", body: { prenotazione_id: prenotazioneId } }),
+      msg
+    );
+    if (ok) setLegame(false);
   };
 
   const apriCoperti = () => {
@@ -430,12 +442,25 @@ export default function ComandeConto() {
             <span className="rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-sm font-bold text-brand-ink">
               {euro(conto.totale)}
             </span>
+            {aperto && !conto.ospite && (
+              <button
+                onClick={() => setLegame(true)}
+                className="min-h-[44px] rounded-xl border border-indigo-200 bg-indigo-50 px-3 text-sm font-semibold text-indigo-900"
+              >
+                ＋ Prenotazione
+              </button>
+            )}
             {rigaCoperto && (
               <span className="text-xs text-neutral-600">
                 di cui {rigaCoperto.quantita} × {rigaCoperto.nome} {euro(rigaCoperto.totale)}
               </span>
             )}
           </div>
+          <SchedaPrenotazione
+            p={conto.prenotazione}
+            ospite={conto.ospite}
+            onApri={aperto ? () => setLegame(true) : null}
+          />
 
           <div className="space-y-2">
             {daMostrare.length === 0 && (
@@ -715,6 +740,34 @@ export default function ComandeConto() {
               </span>
             </span>
           </label>
+        )}
+      </Modal>
+
+      {/* Chi è al tavolo */}
+      <Modal
+        open={legame}
+        onClose={() => setLegame(false)}
+        title={`Chi è al tavolo ${conto.tavolo}`}
+        subtitle="Le prenotazioni del giorno. Legarne una non cambia niente in Prenotazioni"
+        size="md"
+        footer={
+          <>
+            {conto.prenotazione_id && (
+              <Btn variant="secondary" disabled={busy} onClick={() => lega(null, "Collegamento tolto")}>
+                Togli il collegamento
+              </Btn>
+            )}
+            <Btn variant="secondary" onClick={() => setLegame(false)}>Chiudi</Btn>
+          </>
+        }
+      >
+        {legame && (
+          <ScegliPrenotazione
+            data={String(conto.aperto_at || "").slice(0, 10)}
+            tavolo={conto.tavolo}
+            scelta={conto.prenotazione_id}
+            onScegli={(pr) => lega(pr.id, `Al tavolo: ${pr.nome}`)}
+          />
         )}
       </Modal>
 

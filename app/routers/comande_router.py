@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# @version: v2.0 — uscite che vanno o attendono: vai, attendi, sollecita; tutto in prova (2026-11-24)
+# @version: v2.1 — prenotazioni del giorno e conto legato alla prenotazione; 2.0: vai, attendi, sollecita; tutto in prova (2026-11-24)
 """
 Modulo: comande — comande prese in sala da TRGB. Doc: docs/modulo_comande.md.
 
@@ -19,11 +19,12 @@ Finché non c'è la Cassa ogni conto è di prova: in servizio resta iPratico
 Endpoint (admin, capo_sala, sala, sommelier — decisione di Marco del 24/11/2026;
 le impostazioni solo admin):
     GET    /comande/catalogo/                 gruppi e articoli vendibili (catalogo_vendita)
-    GET    /comande/tavoli/                   tavoli per sala col conto aperto
+    GET    /comande/tavoli/                   tavoli per sala col conto aperto e le prenotazioni del turno
+    GET    /comande/prenotazioni/             prenotazioni del giorno (?data=AAAA-MM-GG) fra cui scegliere chi è al tavolo
     GET    /comande/conti/                    conti aperti
-    POST   /comande/conti/                    apre un tavolo {tavolo_id, coperti, nota}
+    POST   /comande/conti/                    apre un tavolo {tavolo_id, coperti, nota, prenotazione_id}
     GET    /comande/conti/{id}                conto con righe e invii
-    PATCH  /comande/conti/{id}                coperti (il coperto in conto li segue), nota, cambio tavolo
+    PATCH  /comande/conti/{id}                coperti (il coperto in conto li segue), nota, cambio tavolo, prenotazione_id (null = slega)
     POST   /comande/conti/{id}/coperto        coperto in omaggio o di nuovo a prezzo {omaggio}
     POST   /comande/conti/{id}/righe          aggiunge righe (prezzo dal catalogo) o un tasto rapido {tasto}
     POST   /comande/conti/{id}/invia          «Invia comanda»: tutto ai reparti, la prima uscita va, le altre attendono
@@ -81,12 +82,14 @@ class ApriConto(BaseModel):
     tavolo_id: int
     coperti: int = 0
     nota: Optional[str] = None
+    prenotazione_id: Optional[int] = None    # chi è al tavolo (prenotazione del giorno)
 
 
 class AggiornaConto(BaseModel):
     coperti: Optional[int] = None
     nota: Optional[str] = None
     tavolo_id: Optional[int] = None
+    prenotazione_id: Optional[int] = None    # mandato a null = togli il collegamento
 
 
 class Riga(BaseModel):
@@ -140,6 +143,13 @@ def get_tavoli():
     return svc.tavoli()
 
 
+@router.get("/prenotazioni/")
+def get_prenotazioni(data: Optional[str] = None):
+    """Prenotazioni del giorno fra cui scegliere chi è al tavolo. Stessi ruoli delle comande
+    (già del Planning di Prenotazioni); niente telefono né email."""
+    return _errori(svc.prenotazioni, data)
+
+
 # ── conti ──────────────────────────────────────────────────────────
 
 @router.get("/conti/")
@@ -149,7 +159,7 @@ def get_conti():
 
 @router.post("/conti/")
 def post_conto(body: ApriConto, user=Depends(richiede_ruoli(*RUOLI_COMANDE))):
-    return _errori(svc.apri_conto, body.tavolo_id, body.coperti, body.nota, _utente(user))
+    return _errori(svc.apri_conto, body.tavolo_id, body.coperti, body.nota, _utente(user), body.prenotazione_id)
 
 
 @router.get("/conti/{conto_id}")

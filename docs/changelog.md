@@ -3,6 +3,24 @@
 
 ---
 
+## 2026-11-24 — Comanda 2.1: il tavolo si lega alla prenotazione `[core]`
+Marco, dopo aver pushato la 2.0: «aggiungi già il collegamento con le prenotazioni, quindi sul tavolo posso linkare la persona che ha la prenotazione». Sempre in prova.
+
+**Aggiunto**
+- **Tavoli prenotati in vista**: un tavolo libero con una prenotazione del turno scritta sopra dice ora, nome e coperti, in elenco e in mappa (bordo indaco). Un tavolo aperto e legato mostra chi c'è seduto.
+- **Chi è al tavolo**: aprendo un tavolo si sceglie la prenotazione. Se su quel tavolo ce n'è una sola possibile è già proposta, coi suoi coperti; se no sceglie chi apre. «Senza prenotazione» per i passanti, «Un'altra…» per pescare fra tutte quelle del giorno.
+- **Scheda sul conto**: nome, ora, coperti prenotati, allergie in evidenza (prenotazione + scheda cliente), note, occasione, seggioloni. «Cambia» e «Togli il collegamento».
+- `GET /comande/prenotazioni/` (`?data=`), `prenotazione_id` in `POST` e `PATCH /comande/conti/`, colonna `comande_conti.ospite`.
+- Servizio platform `prenotazioni_giorno_service` (sola lettura): la Comanda non importa niente dal modulo Prenotazioni.
+
+**Note**
+- In Prenotazioni **non si scrive niente**: stato e tavolo della prenotazione restano quelli. Se legare deve segnare «Seduto» lo decide Marco.
+- Stessi ruoli delle comande, che sono già quelli del Planning; niente telefono né email in queste risposte.
+- Nessuna migrazione numerata (una colonna al boot, solo ADD COLUMN). Versione di sistema invariata, comande 2.1.
+- Provato: router col TestClient (lega all'apertura, cambia, slega, prenotazione inesistente o cancellata, sposta, chiusura); scenario sulle 13 prenotazioni vere del 24/11 con una copia del DB comande (DB clienti solo letto, DB veri intatti); pagine in anteprima con un browser a 1180 e 390 px, coi nomi cambiati. **Non provato:** server vero, iPad vero.
+
+---
+
 ## 2026-11-24 — Comanda 2.0: «vai e attendi», conto a elenco, mappa dei tavoli `[mixed]`
 Marco ha mandato 83 screen di iPratico e 5 foto degli scontrini di cucina: l'osteria lavora a «vai e attendi» (la comanda parte intera, divisa per uscite, e ogni uscita si chiama). Fra le due schermate disegnate ha scelto il conto a elenco: «la tessera ha senso quando ci sono le foto dei piatti (ma io non la uso)». E: «su iPratico non c'è una mappa, è un limite». Sempre in prova.
 
