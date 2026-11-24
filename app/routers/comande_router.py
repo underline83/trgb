@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# @version: v2.3 — ristampa di un invio (ponte di stampa); 2.2: chi è al tavolo, ricerca clienti; 2.1: prenotazioni del giorno; 2.0: vai, attendi, sollecito
+# @version: v2.4 — schermo di cucina (foglietti dei tavoli aperti per reparto, sola lettura); v2.3 — ristampa di un invio (ponte di stampa); 2.2: chi è al tavolo, ricerca clienti; 2.1: prenotazioni del giorno; 2.0: vai, attendi, sollecito
 """
 Modulo: comande — comande prese in sala da TRGB. Doc: docs/modulo_comande.md.
 
@@ -39,6 +39,7 @@ le impostazioni solo admin):
     POST   /comande/righe/{id}/storna         storna una riga inviata {motivo}
     GET    /comande/invii/                    ultimi invii ai reparti (?reparto=cucina), con lo stato di stampa
     POST   /comande/invii/{id}/ristampa       rimanda un invio alla stampante del suo reparto
+    GET    /comande/schermo/                  schermo di cucina: un foglietto per tavolo aperto (?reparto=cucina)
     GET    /comande/impostazioni/ · PUT       uscite, reparti, gruppo → reparto, coperto, tasti rapidi
                                               (PUT solo admin)
 
@@ -53,6 +54,7 @@ from pydantic import BaseModel
 
 from app.models.comande_db import init_comande_db
 from app.services import catalogo_vendita
+from app.services import comande_schermo
 from app.services import comande_service as svc
 from app.services.permessi import richiede_ruoli, solo_admin
 
@@ -268,6 +270,12 @@ def get_invii(reparto: Optional[str] = None, limite: int = 50):
 @router.post("/invii/{invio_id}/ristampa")
 def post_ristampa(invio_id: int, user=Depends(richiede_ruoli(*RUOLI_COMANDE))):
     return _errori(svc.ristampa_invio, invio_id)
+
+
+@router.get("/schermo/")
+def get_schermo(reparto: Optional[str] = None):
+    """Schermo di cucina: sola lettura, stessi ruoli del modulo (dal router)."""
+    return _errori(comande_schermo.foglietti, reparto)
 
 
 @router.get("/impostazioni/")

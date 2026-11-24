@@ -1,8 +1,8 @@
 {
   "id": "comande",
   "nome": "Comanda",
-  "versione": "2.3",
-  "descrizione": "Comande prese in sala: tavoli in elenco o in mappa, aperti con coperti; coperto messo in conto da solo, tasti rapidi a 0 € per i reparti; conto a elenco con uscite libere che vanno o attendono (Invia comanda, Vai con la preparazione, Attendi, Sollecito); invio ai reparti (cucina, sala), storni, sposta tavolo; chi è al tavolo (un prenotato, un walk-in, un cliente o un cliente nuovo: allergie, note) e Prenotazioni che segue il conto; gli invii escono sulle stampanti del locale tramite il ponte di stampa (foglio di cucina, ristampa). In prova finché non c'è la Cassa",
+  "versione": "2.4",
+  "descrizione": "Comande prese in sala: tavoli in elenco o in mappa, aperti con coperti; coperto messo in conto da solo, tasti rapidi a 0 € per i reparti; conto a elenco con uscite libere che vanno o attendono (Invia comanda, Vai con la preparazione, Attendi, Sollecito); invio ai reparti (cucina, sala), storni, sposta tavolo; chi è al tavolo (un prenotato, un walk-in, un cliente o un cliente nuovo: allergie, note) e Prenotazioni che segue il conto; gli invii escono sulle stampanti del locale tramite il ponte di stampa (foglio di cucina, ristampa); schermo di cucina a foglietti, in sola lettura. In prova finché non c'è la Cassa",
   "vendibile": true,
   "dipendenze_platform": ["auth", "permessi", "ui_primitives", "catalogo_vendita", "tavoli_sala", "prenotazioni_giorno", "ponte_stampa"],
   "dipendenze_opzionali": ["menu_carta", "ricette", "vini", "clienti", "prenotazioni"],

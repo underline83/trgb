@@ -1,4 +1,5 @@
-// @version: v1.1 (2026-11-24) — riquadro «Notifiche su questo dispositivo» (push, NotifichePush) sopra il piede; v1.0-notifiche-panel
+// @version: v1.2 (2026-11-24) — altezza massima che toglie le zone sicure di iPhone/iPad (il piede e il riquadro push restano a vista)
+// v1.1 (2026-11-24) — riquadro «Notifiche su questo dispositivo» (push, NotifichePush) sopra il piede; v1.0-notifiche-panel
 // Pannello dropdown notifiche + comunicazioni — Header campanello
 // Mattone M.A — componente condiviso
 
@@ -74,7 +75,8 @@ export default function NotifichePanel({
   return (
     <div
       ref={panelRef}
-      className="absolute right-0 top-full mt-2 w-80 sm:w-96 max-h-[calc(100dvh-80px)] bg-white rounded-2xl shadow-2xl border border-neutral-200 z-[100] overflow-hidden flex flex-col"
+      className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-neutral-200 z-[100] overflow-hidden flex flex-col"
+      style={{ maxHeight: "calc(100dvh - 80px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))" }}
     >
       {/* ── Header pannello ── */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-neutral-100">

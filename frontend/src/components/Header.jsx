@@ -1,5 +1,7 @@
 // FILE: frontend/src/components/Header.jsx
-// @version: v6.2 — 👁 «Vedi come» del superadmin (2026-11-06)
+// @version: v6.3 — iPhone/iPad dall'icona sulla Home: la testata scende sotto orologio e isola (zona sicura),
+//   prima restava coperta e campanello e menu non si toccavano; menu alto quanto lo schermo utile (2026-11-24)
+// v6.2 — 👁 «Vedi come» del superadmin (2026-11-06)
 // v6.1 — iPhone: colonna centrale minmax(0,1fr) + titolo troncato, destra non si restringe;
 //   «Esci (logout)» anche in fondo al menu moduli (2026-10-03)
 // v6.0 — dropdown M1: lista accordion sempre aperta + ricerca live
@@ -164,7 +166,16 @@ export default function Header({ onLogout }) {
   const noResults = q && totalResults === 0 && !pinMatches;
 
   return (
-    <header className="sticky top-0 z-50 bg-brand-cream border-b border-neutral-200 shadow-sm" style={{ top: "var(--vedi-come-h, 0px)" }}>
+    <header
+      className="sticky top-0 z-50 bg-brand-cream border-b border-neutral-200 shadow-sm"
+      style={{
+        top: "var(--vedi-come-h, 0px)",
+        // iPhone/iPad dall'icona sulla Home: la pagina arriva fin sotto l'orologio e l'isola
+        // (viewport-fit=cover + barra di stato trasparente), quindi la testata scende della
+        // zona sicura. Se sopra c'è la striscia «Vedi come», la zona sicura la prende lei.
+        paddingTop: "max(0px, calc(env(safe-area-inset-top, 0px) - var(--vedi-come-h, 0px)))",
+      }}
+    >
       {isViewer && (
         <div className="bg-amber-50 border-b border-amber-200 text-center py-1">
           <span className="text-xs text-amber-700 font-medium">
@@ -250,7 +261,10 @@ export default function Header({ onLogout }) {
               </div>
 
               {/* Lista scrollabile */}
-              <div className="max-h-[calc(100dvh-160px)] overflow-y-auto overscroll-contain py-1.5">
+              <div
+                className="overflow-y-auto overscroll-contain py-1.5"
+                style={{ maxHeight: "calc(100dvh - 160px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px))" }}
+              >
                 {/* Home */}
                 {homeMatches && (
                   <button

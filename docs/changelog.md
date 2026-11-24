@@ -3,6 +3,27 @@
 
 ---
 
+## 2026-11-24 — Comanda 2.4: schermo cucina in prova `[core]`
+Marco: «ipotizziamo uno schermo touch per la cucina»; fra tre prove ha scelto i foglietti («deve ricordare molto il foglietto per avere una visione di tutto») e ha chiesto una modalità da provare su un iPad entrando da TRGB.
+
+**Aggiunto**
+- **Comanda › 🖥️ Schermo cucina** (`/comande/schermo`): pagina a tutto schermo con un foglietto per tavolo aperto, scritto come il foglio stampato; si aggiorna da sola, segnala «NUOVO»/«CAMBIATO» e i solleciti. Sola lettura: non segna «pronta».
+- `app/services/comande_schermo.py`, `GET /comande/schermo/` (?reparto=), `tests/test_comande_schermo.py`. Nessuna tabella nuova.
+
+---
+
+## 2026-11-24 — Testata fuori da sotto l'orologio su iPhone e iPad (Header 6.3) `[core]`
+Marco, provando le notifiche dall'iPhone: «questo è un problema noto, la parte alta resta sotto la zona dell'isola dinamica/orologio e non è accessibile». Aprendo TRGB dall'icona sulla Home la pagina arriva fin sotto la barra di stato (`viewport-fit=cover` + barra trasparente) e la testata, attaccata in cima, ci finiva sotto: campanello, menu e utente non si toccavano. Solo frontend.
+
+**Corretto**
+- `Header.jsx` 6.3: la testata scende della zona sicura in alto (`env(safe-area-inset-top)`); in Safari normale e su computer non cambia niente. Il menu dei moduli e il pannello delle notifiche (`NotifichePanel.jsx` 1.2) si fermano prima del bordo utile dello schermo, così il piede e il riquadro delle push restano a vista.
+- `VediCome.jsx`: con la striscia «Vedi come» accesa la zona sicura la prende la striscia, e «Torna a me» si tocca.
+
+**Resta**
+- Le pagine che calcolano la propria altezza togliendo i 56 px della testata (Dashboard Sala, Home su schermo largo, elenchi fatture) su iPhone dalla Home possono risultare più alte dello schermo di quanto è alta la zona dell'orologio. Da guardare sul telefono.
+
+---
+
 ## 2026-11-24 — Notifiche push sui dispositivi, fase 1 (mattone M.A) `[core]`
 Marco, dal giro mail: «queste notifiche potrebbero arrivare anche sull'app?». Il campanello c'è ma non avvisa sul telefono. Tre strade proposte, scelta: «Lavoriamo la A; ma ricordiamoci che l'obiettivo è sempre C» (push dalla PWA adesso, app nativa come obiettivo); struttura approvata sul mockup. Spec: [spec_notifiche_push.md](spec_notifiche_push.md). Nessuna migrazione numerata (tabelle al boot), sistema invariato (6.10). Il backend è uscito dentro il push 85878008; il frontend è da pushare.
 

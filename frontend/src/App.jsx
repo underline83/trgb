@@ -111,6 +111,7 @@ const PraticaScheda = lazy(() => import("./pages/pratiche/PraticaScheda"));
 const ComandeTavoli = lazy(() => import("./pages/comande/ComandeTavoli"));
 const ComandeConto = lazy(() => import("./pages/comande/ComandeConto"));
 const ComandeInvii = lazy(() => import("./pages/comande/ComandeInvii"));
+const ComandeSchermo = lazy(() => import("./pages/comande/ComandeSchermo"));
 const ComandeImpostazioni = lazy(() => import("./pages/comande/ComandeImpostazioni"));
 const GestioneReparti = lazy(() => import("./pages/dipendenti/GestioneReparti"));
 const DipendentiImpostazioni = lazy(() => import("./pages/dipendenti/DipendentiImpostazioni"));
@@ -580,6 +581,7 @@ export default function App() {
         <Route path="/comande" element={<ProtectedRoute module="comande" sub="tavoli"><ComandeTavoli /></ProtectedRoute>} />
         <Route path="/comande/conto/:id" element={<ProtectedRoute module="comande" sub="tavoli"><ComandeConto /></ProtectedRoute>} />
         <Route path="/comande/invii" element={<ProtectedRoute module="comande" sub="invii"><ComandeInvii /></ProtectedRoute>} />
+        <Route path="/comande/schermo" element={<ProtectedRoute module="comande" sub="invii"><ComandeSchermo /></ProtectedRoute>} />
         <Route path="/comande/impostazioni" element={<ProtectedRoute module="comande" sub="impostazioni" roles={["admin"]}><ComandeImpostazioni /></ProtectedRoute>} />
 
         {/* --- GESTIONE CLIENTI CRM --- */}

@@ -54,7 +54,12 @@ export function VediComeStriscia() {
   const chi = stato.username ? stato.nome : (NOME_RUOLO[stato.ruolo] || stato.ruolo);
   const ruolo = NOME_RUOLO[stato.ruolo] || stato.ruolo;
   return (
-    <div ref={ref} className="sticky top-0 z-[60] bg-amber-400 text-amber-950 text-sm px-4 py-2 flex items-center justify-center gap-3 flex-wrap shadow">
+    <div
+      ref={ref}
+      className="sticky top-0 z-[60] bg-amber-400 text-amber-950 text-sm px-4 py-2 flex items-center justify-center gap-3 flex-wrap shadow"
+      // iPhone/iPad dall'icona sulla Home: sotto orologio e isola non si tocca niente (2026-11-24)
+      style={{ paddingTop: "calc(8px + env(safe-area-inset-top, 0px))" }}
+    >
       <span>
         👁 Stai vedendo come <strong>{chi}</strong>
         {stato.username ? <> ({ruolo.toLowerCase()})</> : <> (ruolo vuoto, senza dipendente)</>}

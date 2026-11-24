@@ -1,4 +1,4 @@
-// @version: v1.1 — Tavoli · Invii · Impostazioni; avviso «in prova» su una riga (2026-11-24)
+// @version: v1.2 — voce «Schermo cucina» (2026-11-24); v1.1 — Tavoli · Invii · Impostazioni; avviso «in prova» su una riga (2026-11-24)
 // Modulo: comande
 import React from "react";
 import { useLocation } from "react-router-dom";
@@ -7,6 +7,7 @@ import { ModuleNav } from "../../components/ui";
 const TABS = [
   { key: "tavoli", label: "Tavoli", path: "/comande", icon: "🍽️" },
   { key: "invii", label: "Invii", path: "/comande/invii", icon: "🧾" },
+  { key: "schermo", label: "Schermo cucina", path: "/comande/schermo", icon: "🖥️" },
   { key: "impostazioni", label: "Impostazioni", path: "/comande/impostazioni", icon: "⚙️", roles: ["superadmin", "admin"] },
 ];
 
@@ -18,6 +19,7 @@ export default function ComandeNav({ current }) {
   );
   const isActive = (t) => {
     if (t.key === "invii") return location.pathname.startsWith("/comande/invii");
+    if (t.key === "schermo") return location.pathname.startsWith("/comande/schermo");
     if (t.key === "impostazioni") return location.pathname.startsWith("/comande/impostazioni");
     if (t.key === "tavoli")
       return location.pathname === "/comande" || location.pathname.startsWith("/comande/conto");

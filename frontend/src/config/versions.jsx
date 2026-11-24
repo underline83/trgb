@@ -845,6 +845,11 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   comande: {
+    // 2.4 (2026-11-24): SCHERMO CUCINA in prova (/comande/schermo, voce «🖥️ Schermo cucina»): pagina a tutto schermo
+    //   per un iPad in cucina, un foglietto per tavolo aperto scritto come il foglio stampato (tavolo, coperti, allergie,
+    //   «VA ADESSO», «attende», sollecito, ANNULLA), scelta di Marco fra tre prove («deve ricordare molto il foglietto»).
+    //   Sola lettura: niente «pronta» (da decidere). Rilegge ogni 10 s, «NUOVO»/«CAMBIATO» finché non si tocca.
+    //   Servizio comande_schermo, GET /comande/schermo/. Nessuna tabella nuova.
     // 2.3 (2026-11-24): le comande ESCONO SULLE STAMPANTI (ponte di stampa, mattone M.M). Foglio di cucina scelto da Marco
     //   sulle tavole (ossatura di iPratico + «PROVA - NON PREPARARE», coperti in testa, allergie del tavolo, fascia nera
     //   sull'uscita che va, nome tagliato alla virgola; sulle chiamate «ANNULLA» al posto di «STORNO»), provato su carta.
@@ -884,7 +889,7 @@ const MODULE_VERSIONS = {
     //   degustazioni, piatti del giorno, Menù Business, vini a bottiglia e calice, Carta Bevande, menu template),
     //   prezzo libero e fuori carta, invio ai reparti (cucina, sala), «Via la Nª», storno con motivo, pagina Invii
     //   (quello che il ponte stamperà), Impostazioni (uscite, reparti, gruppo → reparto). DB comande.sqlite3 al boot.
-    version: "2.3",
+    version: "2.4",
     label: "Comanda",
     status: "alpha",
     color: "orange",
