@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# @version: v2.1 — prenotazioni del giorno e conto legato alla prenotazione; 2.0: vai, attendi, sollecita; tutto in prova (2026-11-24)
+# @version: v2.2 — chi è al tavolo (prenotazione, walk-in, cliente, cliente nuovo), ricerca clienti; 2.1: prenotazioni del giorno; 2.0: vai, attendi, sollecita (2026-11-24)
 """
 Modulo: comande — comande prese in sala da TRGB. Doc: docs/modulo_comande.md.
 
@@ -21,10 +21,11 @@ le impostazioni solo admin):
     GET    /comande/catalogo/                 gruppi e articoli vendibili (catalogo_vendita)
     GET    /comande/tavoli/                   tavoli per sala col conto aperto e le prenotazioni del turno
     GET    /comande/prenotazioni/             prenotazioni del giorno (?data=AAAA-MM-GG) fra cui scegliere chi è al tavolo
+    GET    /comande/clienti/?q=               clienti fra cui scegliere chi è al tavolo
     GET    /comande/conti/                    conti aperti
-    POST   /comande/conti/                    apre un tavolo {tavolo_id, coperti, nota, prenotazione_id}
+    POST   /comande/conti/                    apre un tavolo {tavolo_id, coperti, nota, ospite: {tipo, …}}
     GET    /comande/conti/{id}                conto con righe e invii
-    PATCH  /comande/conti/{id}                coperti (il coperto in conto li segue), nota, cambio tavolo, prenotazione_id (null = slega)
+    PATCH  /comande/conti/{id}                coperti (il coperto in conto li segue), nota, cambio tavolo, ospite (null = nessuno)
     POST   /comande/conti/{id}/coperto        coperto in omaggio o di nuovo a prezzo {omaggio}
     POST   /comande/conti/{id}/righe          aggiunge righe (prezzo dal catalogo) o un tasto rapido {tasto}
     POST   /comande/conti/{id}/invia          «Invia comanda»: tutto ai reparti, la prima uscita va, le altre attendono
@@ -78,18 +79,37 @@ def _utente(user) -> Optional[str]:
     return (user or {}).get("username")
 
 
+def _chi(user) -> dict:
+    """Chi fa la cosa, per le scritture in Prenotazioni (che controlla i suoi ruoli)."""
+    return {"username": (user or {}).get("username"), "role": (user or {}).get("role")}
+
+
+class Ospite(BaseModel):
+    """Chi è al tavolo. tipo: prenotazione (prenotazione_id) · walkin · cliente (cliente_id) ·
+    nuovo (cognome, nome, telefono)."""
+    tipo: str
+    prenotazione_id: Optional[int] = None
+    cliente_id: Optional[int] = None
+    nome: Optional[str] = None
+    cognome: Optional[str] = None
+    telefono: Optional[str] = None
+    etichetta: Optional[str] = None          # nome da scrivere sul conto per un cliente scelto
+
+
 class ApriConto(BaseModel):
     tavolo_id: int
     coperti: int = 0
     nota: Optional[str] = None
-    prenotazione_id: Optional[int] = None    # chi è al tavolo (prenotazione del giorno)
+    prenotazione_id: Optional[int] = None    # forma corta della 2.1 per «una prenotazione»
+    ospite: Optional[Ospite] = None          # chi è al tavolo
 
 
 class AggiornaConto(BaseModel):
     coperti: Optional[int] = None
     nota: Optional[str] = None
     tavolo_id: Optional[int] = None
-    prenotazione_id: Optional[int] = None    # mandato a null = togli il collegamento
+    prenotazione_id: Optional[int] = None    # 2.1: mandato a null = nessuno al tavolo
+    ospite: Optional[Ospite] = None          # mandato a null = nessuno al tavolo
 
 
 class Riga(BaseModel):
@@ -150,6 +170,12 @@ def get_prenotazioni(data: Optional[str] = None):
     return _errori(svc.prenotazioni, data)
 
 
+@router.get("/clienti/")
+def get_clienti(q: str = "", user=Depends(richiede_ruoli(*RUOLI_COMANDE))):
+    """Clienti fra cui scegliere chi è al tavolo: nome, ultime quattro cifre del telefono, visite."""
+    return _errori(svc.clienti, q, _chi(user))
+
+
 # ── conti ──────────────────────────────────────────────────────────
 
 @router.get("/conti/")
@@ -159,7 +185,8 @@ def get_conti():
 
 @router.post("/conti/")
 def post_conto(body: ApriConto, user=Depends(richiede_ruoli(*RUOLI_COMANDE))):
-    return _errori(svc.apri_conto, body.tavolo_id, body.coperti, body.nota, _utente(user), body.prenotazione_id)
+    return _errori(svc.apri_conto, body.tavolo_id, body.coperti, body.nota, _utente(user), body.prenotazione_id,
+                   body.ospite.model_dump() if body.ospite else None, _chi(user))
 
 
 @router.get("/conti/{conto_id}")
@@ -169,7 +196,7 @@ def get_conto(conto_id: int):
 
 @router.patch("/conti/{conto_id}")
 def patch_conto(conto_id: int, body: AggiornaConto, user=Depends(richiede_ruoli(*RUOLI_COMANDE))):
-    return _errori(svc.aggiorna_conto, conto_id, body.model_dump(exclude_unset=True), _utente(user))
+    return _errori(svc.aggiorna_conto, conto_id, body.model_dump(exclude_unset=True), _utente(user), _chi(user))
 
 
 @router.post("/conti/{conto_id}/coperto")
@@ -210,7 +237,7 @@ def post_uscita_sollecita(conto_id: int, uscita: int, user=Depends(richiede_ruol
 
 @router.post("/conti/{conto_id}/chiudi")
 def post_chiudi(conto_id: int, body: Chiudi, user=Depends(richiede_ruoli(*RUOLI_COMANDE))):
-    return _errori(svc.chiudi_conto, conto_id, _utente(user), body.annulla)
+    return _errori(svc.chiudi_conto, conto_id, _utente(user), body.annulla, _chi(user))
 
 
 # ── righe ──────────────────────────────────────────────────────────

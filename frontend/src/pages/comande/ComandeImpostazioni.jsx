@@ -1,4 +1,4 @@
-// @version: v2.0 — uscite libere (niente più numero fisso), ogni tasto rapido con la sua uscita (2026-11-24)
+// @version: v2.2 — «Aggiorna Prenotazioni» quando un tavolo si lega a qualcuno; 2.0: uscite libere, tasto rapido con la sua uscita (2026-11-24)
 // Modulo: comande
 import React, { useEffect, useState } from "react";
 import { Btn, PageLayout, TextInput } from "../../components/ui";
@@ -55,7 +55,7 @@ export default function ComandeImpostazioni() {
         else if (imp.gruppi_reparto && g.nome in imp.gruppi_reparto) gruppiReparto[g.nome] = "__default__";
       });
       const chiavi = ["reparto_food", "reparto_beverage", "reparto_servizio",
-        "coperto_attivo", "coperto_nome", "coperto_prezzo"];
+        "coperto_attivo", "coperto_nome", "coperto_prezzo", "prenotazioni_aggiorna"];
       const cfg = {};
       chiavi.forEach((k) => { cfg[k] = config[k] ?? ""; });
       // i tasti nuovi lasciati senza nome non si salvano; l'ordine è quello della lista
@@ -131,6 +131,21 @@ export default function ComandeImpostazioni() {
             <TextInput value={config.coperto_prezzo ?? ""} onChange={(v) => setConfig({ ...config, coperto_prezzo: v })} placeholder="0" inputMode="decimal" />
           </div>
         </div>
+      </section>
+
+      <section className="mb-5 rounded-3xl border border-neutral-200 bg-white p-4 shadow-sm">
+        <h2 className="mb-1 font-semibold text-brand-ink">Chi è al tavolo e Prenotazioni</h2>
+        <p className="mb-3 text-xs text-neutral-500">
+          Quando a un tavolo si lega qualcuno, Prenotazioni segue: la prenotazione passa a «Seduto» sul tavolo del conto,
+          per un walk-in o un cliente senza prenotazione ne nasce una («Walk-in», di oggi), alla chiusura diventa
+          «Completata». «Annulla conto» e «Nessuno al tavolo» rimettono tutto com'era. Al cliente non parte mai niente.
+          Vale anche per i conti di prova: sono prenotazioni vere.
+        </p>
+        <label className="flex min-h-[44px] items-center gap-2 text-sm">
+          <input type="checkbox" className="h-5 w-5" checked={(config.prenotazioni_aggiorna ?? "1") === "1"}
+            onChange={(e) => setConfig({ ...config, prenotazioni_aggiorna: e.target.checked ? "1" : "0" })} />
+          Aggiorna Prenotazioni (spento: il nome resta solo sul conto)
+        </label>
       </section>
 
       <section className="mb-5 rounded-3xl border border-neutral-200 bg-white p-4 shadow-sm">

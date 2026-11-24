@@ -1,7 +1,7 @@
 # Modulo Prenotazioni — TRGB Gestionale
 
 > **Tipo:** 📄 pagina wiki · **Stato:** attuale · **Ultima verifica:** 2026-11-13
-> **Vedi anche:** [modulo_preventivi.md](modulo_preventivi.md), [modulo_clienti_crm.md](modulo_clienti_crm.md), [architettura_mattoni.md](architettura_mattoni.md), [modulo_comande.md](modulo_comande.md) (la Comanda lega il tavolo alla prenotazione del giorno: la legge da `prenotazioni_giorno_service`, non scrive niente qui)
+> **Vedi anche:** [modulo_preventivi.md](modulo_preventivi.md), [modulo_clienti_crm.md](modulo_clienti_crm.md), [architettura_mattoni.md](architettura_mattoni.md), [modulo_comande.md](modulo_comande.md) (la Comanda lega il tavolo a chi è seduto: legge da `prenotazioni_giorno_service` e, dalla 2.2, **scrive** con le funzioni del Planning — «Seduto» sul tavolo del conto, prenotazione «Walk-in» di oggi per chi non ha prenotato, «Completata» alla chiusura; interruttore in Comanda › Impostazioni)
 
 **Versione modulo (`versions.jsx`):** prenotazioni v2.34
 **Sezione top-level:** `/prenotazioni` (menu moduli: 📅 Prenotazioni)

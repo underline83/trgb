@@ -1,4 +1,4 @@
-# @version: v2.1 (2026-11-24) — il tavolo si lega alla prenotazione (chi è seduto, allergie, note)
+# @version: v2.2 (2026-11-24) — chi è al tavolo anche senza prenotazione (walk-in, cliente, cliente nuovo) e Prenotazioni che segue il conto
 # -*- coding: utf-8 -*-
 """
 Comande — logica. Modulo: comande. [core]
@@ -40,8 +40,21 @@ Dalla v2.1 — il tavolo si lega alla prenotazione (Marco, 24/11/2026):
     prenotazioni → quelle del giorno, lette dal servizio platform
                   prenotazioni_giorno_service (la Comanda non tocca il modulo Prenotazioni)
     lega        → all'apertura o dal conto: sul conto restano prenotazione_id,
-                  cliente_id e il nome (ospite). Solo lettura dall'altra parte:
-                  lo stato della prenotazione NON cambia.
+                  cliente_id e il nome (ospite).
+
+Dalla v2.2 — chi è al tavolo anche senza prenotazione, e Prenotazioni che segue
+(Marco, 24/11/2026: «dammi la possibilità di inserirla come walk-in, oppure di scegliere
+altro cliente, oppure di creare nuovo cliente, oppure di selezionarne uno tra gli altri
+prenotati; in ogni caso dovresti sistemare la cosa anche sulle prenotazioni»):
+    ospite      → {tipo: prenotazione | walkin | cliente | nuovo}. Una prenotazione
+                  che c'è passa a «Seduto» sul tavolo del conto; per gli altri tre nasce
+                  una prenotazione «Walk-in» di oggi, già seduta
+    il conto    → spostato: la prenotazione cambia tavolo; coperti corretti: li segue
+                  la prenotazione nata dal conto; chiuso: «Completata»; annullato o
+                  collegamento tolto: tutto torna com'era (il walk-in nato dal conto sparisce)
+    Le scritture le fa prenotazioni_giorno_service con le funzioni del Planning.
+    Se Prenotazioni dice di no (turno chiuso…) il conto va avanti lo stesso e lo dice
+    (campo `avviso`). Si spegne da Impostazioni (prenotazioni_aggiorna).
 """
 
 from __future__ import annotations
@@ -148,6 +161,7 @@ def impostazioni() -> Dict[str, Any]:
             "reparti": _reparti(conn),
             "gruppi_reparto": _mappa_gruppi(conn),
             "coperto": _coperto_cfg(cfg),
+            "prenotazioni_aggiorna": cfg.get("prenotazioni_aggiorna", "1") == "1",
             "tasti_rapidi": _tasti(conn),
         }
     finally:
@@ -161,6 +175,7 @@ CHIAVI_CONFIG = {
     "uscita_food": "int:0:9", "uscita_beverage": "int:0:9", "uscita_servizio": "int:0:9",
     "reparto_food": "reparto", "reparto_beverage": "reparto", "reparto_servizio": "reparto",
     "coperto_attivo": "bool", "coperto_nome": "testo", "coperto_prezzo": "prezzo",
+    "prenotazioni_aggiorna": "bool",
 }
 
 
@@ -387,7 +402,12 @@ def prenotazioni(data: Optional[str] = None) -> Dict[str, Any]:
             raise ComandaErrore("Data non valida (AAAA-MM-GG)")
     else:
         data = date.today().isoformat()
-    return {"data": data, "turno": prenotazioni_giorno_service.turno_adesso(),
+    conn = get_comande_conn()
+    try:
+        aggiorna = _config(conn).get("prenotazioni_aggiorna", "1") == "1"
+    finally:
+        conn.close()
+    return {"data": data, "turno": prenotazioni_giorno_service.turno_adesso(), "aggiorna": aggiorna,
             "prenotazioni": _prenotazioni_con_conto(data, conti_aperti())}
 
 
@@ -502,25 +522,137 @@ def _non_coperto(r) -> None:
         raise ComandaErrore("Il coperto segue i coperti: cambia quelli, o mettilo in omaggio")
 
 
-def _lega_prenotazione(conn, conto_id: int, pren_id: Optional[int]) -> None:
-    """Lega il conto a una prenotazione (o lo slega con None). Dalla parte delle prenotazioni
-    non si scrive niente: stato e tavolo restano quelli che sono."""
-    if pren_id is None:
-        conn.execute("UPDATE comande_conti SET prenotazione_id = NULL, cliente_id = NULL, ospite = NULL, "
-                     "aggiornato_at = datetime('now','localtime') WHERE id = ?", (conto_id,))
+TIPI_OSPITE = ("prenotazione", "walkin", "cliente", "nuovo")
+WALKIN = "Walk-in"
+
+
+def _scrive_prenotazioni(conn, chi: Optional[Dict[str, Any]]) -> bool:
+    """Vero se ciò che succede al conto va riportato in Prenotazioni: impostazione accesa
+    e un utente vero che lo fa (i ruoli li controlla Prenotazioni)."""
+    return bool(chi) and _config(conn).get("prenotazioni_aggiorna", "1") == "1"
+
+
+def _con_avviso(c: Dict[str, Any], avvisi: List[str]) -> Dict[str, Any]:
+    c["avviso"] = " · ".join(dict.fromkeys(avvisi)) or None
+    return c
+
+
+def _sciogli(conn, c, chi: Optional[Dict[str, Any]], avvisi: List[str]) -> None:
+    """Toglie chi è al tavolo. In Prenotazioni rimette com'era: il walk-in nato da questo conto
+    sparisce, una prenotazione che c'era già riprende lo stato e il tavolo di prima."""
+    if not (c["prenotazione_id"] or c["cliente_id"] or c["ospite"]):
         return
-    p = prenotazioni_giorno_service.una(_int(pren_id, -1))
-    if not p:
-        raise ComandaErrore("Prenotazione inesistente")
-    if not p["tiene_il_tavolo"]:
-        raise ComandaErrore(f"La prenotazione di {p['nome']} è «{p['stato_etichetta']}»: non si lega a un tavolo")
-    conn.execute("UPDATE comande_conti SET prenotazione_id = ?, cliente_id = ?, ospite = ?, "
-                 "aggiornato_at = datetime('now','localtime') WHERE id = ?",
-                 (p["id"], p["cliente_id"], p["nome"], conto_id))
+    if c["prenotazione_id"] and _scrive_prenotazioni(conn, chi):
+        try:
+            if c["pren_creata"]:
+                prenotazioni_giorno_service.togli_creata(c["prenotazione_id"])
+            elif c["pren_stato_prima"]:
+                prenotazioni_giorno_service.rimetti(
+                    c["prenotazione_id"], c["pren_stato_prima"], c["pren_tavolo_prima"], chi)
+        except prenotazioni_giorno_service.PrenotazioneErrore as e:
+            avvisi.append(f"Prenotazioni non aggiornata: {e}")
+    conn.execute(
+        "UPDATE comande_conti SET prenotazione_id = NULL, cliente_id = NULL, ospite = NULL, "
+        "pren_creata = NULL, pren_stato_prima = NULL, pren_tavolo_prima = NULL, "
+        "aggiornato_at = datetime('now','localtime') WHERE id = ?", (c["id"],))
+
+
+def _metti_al_tavolo(conn, conto_id: int, ospite: Optional[Dict[str, Any]],
+                     chi: Optional[Dict[str, Any]], avvisi: List[str]) -> None:
+    """Chi è al tavolo. `ospite` None = nessuno; se no {tipo, …}:
+        prenotazione  {prenotazione_id}            una prenotazione del giorno
+        walkin        {}                           entrato senza prenotare, senza nome
+        cliente       {cliente_id}                 un cliente che c'è già, senza prenotazione
+        nuovo         {cognome, nome?, telefono?}  un cliente nuovo
+    L'ordine conta: prima si controlla e si scrive il nuovo, poi si scioglie quello che c'era
+    (che in Prenotazioni torna com'era). Così un errore non lascia il tavolo senza nessuno."""
+    c = _testata(conn, conto_id)
+    if not ospite:
+        _sciogli(conn, c, chi, avvisi)
+        return
+    tipo = ospite.get("tipo")
+    if tipo not in TIPI_OSPITE:
+        raise ComandaErrore("Chi è al tavolo: prenotazione, walkin, cliente o nuovo")
+    scrive = _scrive_prenotazioni(conn, chi)
+    pg = prenotazioni_giorno_service
+
+    def salva(pren_id, cliente_id, nome, creata=None, stato_prima=None, tavolo_prima=None):
+        _sciogli(conn, c, chi, avvisi)     # solo adesso, col nuovo già a posto
+        conn.execute(
+            "UPDATE comande_conti SET prenotazione_id = ?, cliente_id = ?, ospite = ?, pren_creata = ?, "
+            "pren_stato_prima = ?, pren_tavolo_prima = ?, aggiornato_at = datetime('now','localtime') "
+            "WHERE id = ?", (pren_id, cliente_id, nome, creata, stato_prima, tavolo_prima, conto_id))
+
+    if tipo == "prenotazione":
+        p = pg.una(_int(ospite.get("prenotazione_id"), -1))
+        if not p:
+            raise ComandaErrore("Prenotazione inesistente")
+        if p["id"] == c["prenotazione_id"]:
+            return                          # è già lei
+        altro = conn.execute(
+            "SELECT tavolo FROM comande_conti WHERE stato = 'aperto' AND prenotazione_id = ? AND id != ?",
+            (p["id"], conto_id)).fetchone()
+        if altro:
+            raise ComandaErrore(f"{p['nome']} è già al tavolo {altro['tavolo']}: sposta quel conto, "
+                                "o qui metti un walk-in")
+        if not p["tiene_il_tavolo"]:
+            raise ComandaErrore(f"La prenotazione di {p['nome']} è «{p['stato_etichetta']}»: non si lega a un tavolo")
+        nome = WALKIN if p["nome"] == "senza nome" else p["nome"]
+        if not scrive:
+            salva(p["id"], p["cliente_id"], nome)
+            return
+        try:
+            pg.siedi(p["id"], chi, c["tavolo"])
+        except pg.PrenotazioneErrore as e:
+            avvisi.append(f"Prenotazioni non aggiornata: {e}")
+        salva(p["id"], p["cliente_id"], nome, 0, p["stato"], p["tavolo"])
+        return
+
+    cliente_id, cognome = None, None
+    if tipo == "cliente":
+        cliente_id = _int(ospite.get("cliente_id"), -1)
+        if cliente_id < 1:
+            raise ComandaErrore("Quale cliente?")
+    if tipo == "nuovo":
+        cognome = " ".join(str(ospite.get("cognome") or "").split())
+        if not cognome:
+            raise ComandaErrore("Per un cliente nuovo serve almeno il cognome")
+        if not scrive:
+            raise ComandaErrore("Un cliente nuovo si crea con Prenotazioni: accendi «Aggiorna Prenotazioni» "
+                                "in Impostazioni, o crealo da Clienti")
+    etichetta = WALKIN if tipo == "walkin" else " ".join(
+        str(ospite.get("etichetta") or f"{cognome or ''} {ospite.get('nome') or ''}").split())[:80] or "Cliente"
+    if not scrive:
+        salva(None, cliente_id, etichetta)
+        return
+    try:
+        p = pg.crea_al_tavolo(c["tavolo"], c["coperti"], chi, cliente_id=cliente_id,
+                              nome=ospite.get("nome"), cognome=cognome, telefono=ospite.get("telefono"))
+    except pg.PrenotazioneErrore as e:
+        if tipo == "nuovo":
+            raise ComandaErrore(f"Cliente non creato: {e}")
+        avvisi.append(f"Prenotazioni non aggiornata: {e}")
+        salva(None, cliente_id, etichetta)
+        return
+    salva(p["id"], p["cliente_id"], WALKIN if p["nome"] == "senza nome" else p["nome"], 1)
+
+
+def clienti(q: str, chi: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Clienti fra cui scegliere chi è al tavolo (nome, ultime cifre del telefono, visite)."""
+    try:
+        return prenotazioni_giorno_service.cerca_clienti(q, chi)
+    except prenotazioni_giorno_service.PrenotazioneErrore as e:
+        raise ComandaErrore(str(e))
 
 
 def apri_conto(tavolo_id: int, coperti: int, nota: Optional[str], utente: Optional[str],
-               prenotazione_id: Optional[int] = None) -> Dict[str, Any]:
+               prenotazione_id: Optional[int] = None, ospite: Optional[Dict[str, Any]] = None,
+               chi: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Apre un tavolo. `ospite` dice chi c'è seduto (vedi _metti_al_tavolo); `prenotazione_id`
+    è la forma corta della 2.1 per «una prenotazione»."""
+    if ospite is None and prenotazione_id is not None:
+        ospite = {"tipo": "prenotazione", "prenotazione_id": prenotazione_id}
+    avvisi: List[str] = []
     t = tavoli_sala_service.tavolo(tavolo_id)
     if not t or not t.get("attivo"):
         raise ComandaErrore("Tavolo inesistente o non attivo")
@@ -539,21 +671,29 @@ def apri_conto(tavolo_id: int, coperti: int, nota: Optional[str], utente: Option
             (tavolo_id, t["nome"], t.get("zona"), coperti, (nota or "").strip() or None, utente))
         nuovo = cur.lastrowid
         _sincronizza_coperto(conn, nuovo, coperti, utente)
-        if prenotazione_id is not None:
-            _lega_prenotazione(conn, nuovo, prenotazione_id)
+        if ospite:
+            _metti_al_tavolo(conn, nuovo, ospite, chi, avvisi)
         conn.commit()
     finally:
         conn.close()
-    return conto(nuovo)
+    return _con_avviso(conto(nuovo), avvisi)
 
 
-def aggiorna_conto(conto_id: int, dati: Dict[str, Any], utente: Optional[str]) -> Dict[str, Any]:
+def aggiorna_conto(conto_id: int, dati: Dict[str, Any], utente: Optional[str],
+                   chi: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Coperti, nota, tavolo e chi è al tavolo di un conto aperto. `ospite` presente e None
+    (o `prenotazione_id` None, forma della 2.1) = nessuno."""
+    avvisi: List[str] = []
+    if "ospite" not in dati and "prenotazione_id" in dati:
+        dati = {**dati, "ospite": None if dati["prenotazione_id"] is None else
+                {"tipo": "prenotazione", "prenotazione_id": dati["prenotazione_id"]}}
     conn = get_comande_conn()
     try:
         c = _testata(conn, conto_id)
         _aperto(c)
         campi, valori = [], []
         nuovi_coperti = None
+        nuovo_tavolo = None
         if "coperti" in dati and dati["coperti"] is not None:
             n = _int(dati["coperti"], -1)
             if n < 0 or n > 200:
@@ -571,18 +711,27 @@ def aggiorna_conto(conto_id: int, dati: Dict[str, Any], utente: Optional[str]) -
                 raise ComandaErrore(f"Il tavolo {t['nome']} ha già un conto aperto")
             campi += ["tavolo_id = ?", "tavolo = ?", "zona = ?"]
             valori += [t["id"], t["nome"], t.get("zona")]
+            nuovo_tavolo = t["nome"]
         if campi:
             campi.append("aggiornato_at = datetime('now','localtime')")
             conn.execute(f"UPDATE comande_conti SET {', '.join(campi)} WHERE id = ?", (*valori, conto_id))
             if nuovi_coperti is not None and nuovi_coperti != c["coperti"]:
                 _sincronizza_coperto(conn, conto_id, nuovi_coperti, utente)
-        if "prenotazione_id" in dati:   # presente e None = togli il collegamento
-            _lega_prenotazione(conn, conto_id, dati["prenotazione_id"])
-        if campi or "prenotazione_id" in dati:
+        if "ospite" in dati:   # presente e None = nessuno al tavolo
+            _metti_al_tavolo(conn, conto_id, dati["ospite"], chi, avvisi)
+        elif c["prenotazione_id"] and _scrive_prenotazioni(conn, chi):
+            # la prenotazione segue il conto: tavolo spostato; coperti, se è nata da questo conto
+            try:
+                prenotazioni_giorno_service.cambia(
+                    c["prenotazione_id"], chi, tavolo=nuovo_tavolo,
+                    pax=nuovi_coperti if c["pren_creata"] and nuovi_coperti else None)
+            except prenotazioni_giorno_service.PrenotazioneErrore as e:
+                avvisi.append(f"Prenotazioni non aggiornata: {e}")
+        if campi or "ospite" in dati:
             conn.commit()
     finally:
         conn.close()
-    return conto(conto_id)
+    return _con_avviso(conto(conto_id), avvisi)
 
 
 def coperto_omaggio(conto_id: int, omaggio: bool, utente: Optional[str]) -> Dict[str, Any]:
@@ -913,7 +1062,11 @@ def storna_riga(riga_id: int, motivo: str, utente: Optional[str]) -> Dict[str, A
     return conto(conto_id)
 
 
-def chiudi_conto(conto_id: int, utente: Optional[str], annulla: bool = False) -> Dict[str, Any]:
+def chiudi_conto(conto_id: int, utente: Optional[str], annulla: bool = False,
+                 chi: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Chiude il tavolo. Con una prenotazione legata: chiuso = «Completata»; annullato = in
+    Prenotazioni tutto torna com'era (un walk-in nato da questo conto sparisce)."""
+    avvisi: List[str] = []
     conn = get_comande_conn()
     try:
         c = _testata(conn, conto_id)
@@ -922,6 +1075,13 @@ def chiudi_conto(conto_id: int, utente: Optional[str], annulla: bool = False) ->
             "SELECT 1 FROM comande_righe WHERE conto_id = ? AND stato = 'da_inviare'", (conto_id,)
         ).fetchone():
             raise ComandaErrore("Ci sono righe non inviate: inviale o toglile prima di chiudere")
+        if annulla:
+            _sciogli(conn, c, chi, avvisi)
+        elif c["prenotazione_id"] and _scrive_prenotazioni(conn, chi):
+            try:
+                prenotazioni_giorno_service.completa(c["prenotazione_id"], chi)
+            except prenotazioni_giorno_service.PrenotazioneErrore as e:
+                avvisi.append(f"Prenotazioni non aggiornata: {e}")
         conn.execute(
             "UPDATE comande_conti SET stato = ?, chiuso_at = datetime('now','localtime'), chiuso_da = ?, "
             "aggiornato_at = datetime('now','localtime') WHERE id = ?",
@@ -929,7 +1089,7 @@ def chiudi_conto(conto_id: int, utente: Optional[str], annulla: bool = False) ->
         conn.commit()
     finally:
         conn.close()
-    return conto(conto_id)
+    return _con_avviso(conto(conto_id), avvisi)
 
 
 def invii(reparto: Optional[str] = None, limite: int = 50) -> List[Dict[str, Any]]:

@@ -1,14 +1,15 @@
-// @version: v2.1 — chi è al tavolo: il conto si lega a una prenotazione del giorno (allergie e note in vista) (2026-11-24)
+// @version: v2.2 — tutto lo schermo ai due pannelli (iPad) e a un pannello per volta (telefono); «⋯» sulle uscite; chi è al tavolo anche senza prenotazione (2026-11-24)
 // Modulo: comande
-// A sinistra il catalogo a elenco (categorie in colonna, voci in lista), a destra la comanda divisa
-// per uscite. Su telefono le due metà si alternano («＋ Aggiungi» / «Fatto»).
+// Schermo largo (iPad, computer): a sinistra il catalogo a elenco, a destra la comanda divisa per
+// uscite; i due pannelli riempiono lo schermo e scorrono ognuno per conto suo, «Invia comanda»
+// resta sempre in vista. Telefono: un pannello per volta («＋ Aggiungi» / «Fatto»), scorre la pagina.
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { Btn, Modal, PageLayout, TextInput } from "../../components/ui";
 import TrgbLoader from "../../components/TrgbLoader";
-import ComandeNav, { BannerProva } from "./ComandeNav";
-import { ScegliPrenotazione, SchedaPrenotazione } from "./ComandePrenotazione";
-import { api, euro, nomeUscita } from "./comandeApi";
+import ComandeNav, { ProvaPill } from "./ComandeNav";
+import { ScegliOspite, SchedaOspite } from "./ComandePrenotazione";
+import { api, euro, nomeUscita, useAltezzaRestante, useSchermoLargo } from "./comandeApi";
 
 const STATO_RIGA = {
   da_inviare: { label: "da inviare", cls: "bg-amber-100 text-amber-900 border-amber-200" },
@@ -34,11 +35,20 @@ const pill = (on) =>
     on ? "border-brand-ink bg-brand-ink text-white" : "border-neutral-300 bg-white text-brand-ink"
   }`;
 const AZ = "min-h-[44px] rounded-lg border border-current px-2.5 text-xs font-semibold disabled:opacity-50";
+// Tasti della barra in fondo e della testata: 48 e 44 px, da dito.
+const BARRA = "min-h-[48px] rounded-xl px-3 text-sm font-semibold disabled:opacity-50";
+const BIANCO = "border border-neutral-300 bg-white text-brand-ink active:bg-neutral-100";
+const TESTATA = "min-h-[44px] shrink-0 rounded-xl border px-3 text-sm font-semibold";
+const ICONA = "h-11 w-11 shrink-0 rounded-xl text-lg font-semibold";
+const nascosta = { scrollbarWidth: "none" }; // strisce che scorrono di lato, senza barra
 
 export default function ComandeConto() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const [conto, setConto] = useState(null);
+  // Quello che Prenotazioni non ha potuto fare (turno chiuso…): il conto va avanti, ma si dice.
+  const [avviso, setAvviso] = useState(() => (location.state && location.state.avviso) || null);
   const [catalogo, setCatalogo] = useState(null);
   const [imp, setImp] = useState(null);
   const [errore, setErrore] = useState(null);
@@ -62,6 +72,11 @@ export default function ComandeConto() {
   const [sposta, setSposta] = useState(null); // sale coi tavoli liberi, mentre si sceglie dove spostare
   const [azioniDi, setAzioniDi] = useState(null); // uscita andata di cui si vedono le azioni (⋯)
   const [legame, setLegame] = useState(false); // finestra «Chi è al tavolo» (prenotazioni del giorno)
+  const [menu, setMenu] = useState(false); // telefono: le azioni del tavolo dietro «⋯»
+  const largo = useSchermoLargo();
+  // iPad: i pannelli sono alti ESATTAMENTE quanto resta. Telefono: ALMENO quanto resta, così la barra
+  // (Aggiungi · Uscita · Invia) sta in fondo allo schermo, sotto il pollice, anche a comanda corta.
+  const [refPannelli, altezza] = useAltezzaRestante(true);
 
   const mostra = (msg) => {
     setToast(msg);
@@ -92,7 +107,10 @@ export default function ComandeConto() {
     setBusy(true);
     try {
       const c = await fn();
-      if (c && c.id) setConto(c);
+      if (c && c.id) {
+        setConto(c);
+        setAvviso(c.avviso || null);
+      }
       if (okMsg) mostra(okMsg);
       setErrore(null);
       return true;
@@ -240,12 +258,12 @@ export default function ComandeConto() {
     if (ok) setSposta(null);
   };
 
-  // Chi è al tavolo: lega il conto a una prenotazione del giorno (null = togli il collegamento).
-  // In Prenotazioni non cambia niente: né stato né tavolo.
-  const lega = async (prenotazioneId, msg) => {
+  // Chi è al tavolo: un prenotato, un walk-in, un cliente che c'è già o uno nuovo (null = nessuno).
+  // Prenotazioni la sistema il server: «Seduto» a questo tavolo, o una prenotazione «Walk-in» nuova.
+  const mettiAlTavolo = async (scelta) => {
     const ok = await esegui(
-      () => api(`/comande/conti/${id}`, { method: "PATCH", body: { prenotazione_id: prenotazioneId } }),
-      msg
+      () => api(`/comande/conti/${id}`, { method: "PATCH", body: { ospite: scelta ? scelta.ospite : null } }),
+      scelta ? `Al tavolo: ${scelta.info.nome}` : "Nessuno al tavolo"
     );
     if (ok) setLegame(false);
   };
@@ -270,9 +288,9 @@ export default function ComandeConto() {
   };
 
   const rigaConto = (r, uscitaNuova) => (
-    <div key={r.id} className="flex items-center gap-2 border-t border-neutral-100 px-3 py-2">
+    <div key={r.id} className="flex min-h-[46px] items-center gap-2 border-t border-neutral-100 px-2 py-px">
       {r.stato === "da_inviare" && aperto ? (
-        <div className="flex items-center gap-1">
+        <div className="flex shrink-0 items-center gap-1">
           <button
             aria-label="Uno in meno"
             className="h-11 w-11 rounded-lg border border-neutral-300 text-lg"
@@ -284,7 +302,7 @@ export default function ComandeConto() {
           >
             −
           </button>
-          <span className="w-6 text-center font-semibold tabular-nums">{r.quantita}</span>
+          <span className="w-5 text-center font-semibold tabular-nums">{r.quantita}</span>
           <button
             aria-label="Uno in più"
             className="h-11 w-11 rounded-lg border border-neutral-300 text-lg"
@@ -294,10 +312,10 @@ export default function ComandeConto() {
           </button>
         </div>
       ) : (
-        <span className="w-8 text-right font-semibold tabular-nums">{r.quantita}</span>
+        <span className="w-6 shrink-0 text-right font-semibold tabular-nums">{r.quantita}</span>
       )}
       <button
-        className="min-w-0 flex-1 py-1 text-left"
+        className="flex min-h-[44px] min-w-0 flex-1 items-center gap-2 text-left"
         disabled={!aperto || r.stato === "stornata"}
         onClick={() => {
           setNotaRiga(r.nota || "");
@@ -305,100 +323,152 @@ export default function ComandeConto() {
           setRigaAperta(r);
         }}
       >
-        <div className={`text-sm font-medium ${r.stato === "stornata" ? "text-neutral-400 line-through" : "text-brand-ink"}`}>
-          {r.nome}
-        </div>
-        <div className="truncate text-xs text-neutral-500">
-          {r.nota ? `📝 ${r.nota} · ` : ""}
-          {r.reparto ? conto.reparti[r.reparto] || r.reparto : "nessun reparto"}
-          {r.stato === "stornata" && r.motivo_storno ? ` · ${r.motivo_storno}` : ""}
-        </div>
+        <span className="min-w-0 flex-1">
+          <span className={`block text-sm font-medium leading-tight ${r.stato === "stornata" ? "text-neutral-400 line-through" : "text-brand-ink"}`}>
+            {r.nome}
+          </span>
+          {(r.nota || (r.stato === "stornata" && r.motivo_storno)) && (
+            <span className="block truncate text-xs text-neutral-500">
+              {r.nota ? `📝 ${r.nota}` : ""}
+              {r.stato === "stornata" && r.motivo_storno ? `${r.nota ? " · " : ""}${r.motivo_storno}` : ""}
+            </span>
+          )}
+        </span>
+        <span className={`shrink-0 text-[11px] ${r.reparto ? "text-neutral-400" : "font-semibold text-amber-700"}`}>
+          {r.reparto ? conto.reparti[r.reparto] || r.reparto : "senza reparto"}
+        </span>
       </button>
       {(r.stato === "stornata" || (r.stato === "da_inviare" && !uscitaNuova)) && (
-        <span className={`rounded-full border px-1.5 text-[10px] ${STATO_RIGA[r.stato].cls}`}>{STATO_RIGA[r.stato].label}</span>
+        <span className={`shrink-0 rounded-full border px-1.5 text-[10px] ${STATO_RIGA[r.stato].cls}`}>{STATO_RIGA[r.stato].label}</span>
       )}
     </div>
   );
 
-  return (
-    <PageLayout
-      wide
-      nav={<ComandeNav current="tavoli" />}
-      title={`Tavolo ${conto.tavolo}`}
-      subtitle={`${conto.zona || ""} · aperto alle ${ora(conto.aperto_at)}${conto.aperto_da ? ` da ${conto.aperto_da}` : ""}${
-        aperto ? "" : ` · ${conto.stato}`
-      }`}
-      actions={
-        <>
-          {aperto && <Btn variant="secondary" onClick={apriSposta}>Sposta</Btn>}
-          {aperto && <Btn variant="secondary" onClick={() => setChiudi(true)}>Chiudi tavolo</Btn>}
-          <Btn variant="secondary" onClick={() => navigate("/comande")}>← Tavoli</Btn>
-        </>
-      }
-    >
-      <BannerProva />
-      {errore && (
-        <div className="mb-3 rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-800">{errore}</div>
-      )}
+  // Le due metà della pagina. Su schermo largo stanno affiancate e alte quanto lo schermo;
+  // su telefono se ne vede una per volta e scorre la pagina.
+  const catalogoVisibile = aperto && (largo || vista === "catalogo");
+  const comandaVisibile = largo || vista === "conto" || !aperto;
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_420px]">
-        {/* Catalogo a elenco */}
-        {aperto && (
-          <section className={`min-w-0 ${vista === "catalogo" ? "" : "hidden lg:block"}`}>
-            <TextInput value={cerca} onChange={setCerca} placeholder="Cerca un piatto, un vino, un codice…" />
-            <div className="my-3 flex flex-wrap items-center gap-2">
-              <span className="text-xs text-neutral-600">Si batte in</span>
-              <span className="rounded-full bg-brand-ink px-3 py-1 text-xs font-bold text-white">{nomeUscita(battuta)}</span>
-              {tasti.map((t) => (
-                <button
-                  key={t.id}
-                  disabled={busy}
-                  onClick={() => toccaTasto(t)}
-                  className="min-h-[44px] rounded-xl border border-amber-300 bg-amber-50 px-3 text-sm font-semibold text-amber-900 active:scale-[0.98] disabled:opacity-50"
-                >
-                  {t.nome} <span className="font-normal">×{t.quantita}</span>
-                </button>
-              ))}
+  return (
+    <PageLayout nav={<ComandeNav current="tavoli" />} background={false} padded={false} wide>
+      <div className="bg-brand-cream px-3 pb-3 pt-2 font-sans sm:px-4">
+        {/* Testata su una riga: tavolo, coperti, totale, azioni */}
+        <div className="mb-2 flex items-center gap-2">
+          <button aria-label="Torna ai tavoli" onClick={() => navigate("/comande")} className={`${ICONA} ${BIANCO}`}>
+            ←
+          </button>
+          <div className="min-w-0 flex-1">
+            <h1 className="truncate text-xl font-bold leading-tight text-brand-ink">Tavolo {conto.tavolo}</h1>
+            <div className="truncate text-[11px] leading-tight text-neutral-500">
+              {!largo && <span className="font-semibold text-amber-700">in prova · </span>}
+              {largo && conto.zona ? `${conto.zona} · ` : ""}
+              {largo ? "aperto alle " : ""}
+              {ora(conto.aperto_at)}
+              {largo && conto.aperto_da ? ` da ${conto.aperto_da}` : ""}
+              {aperto ? "" : ` · ${conto.stato}`}
             </div>
-            {catalogo && catalogo.avvisi && catalogo.avvisi.length > 0 && (
-              <div className="mb-2 text-xs text-amber-800">{catalogo.avvisi.join(" · ")}</div>
-            )}
-            {!catalogo ? (
-              <TrgbLoader />
-            ) : (
-              <div className="flex flex-col gap-3 lg:flex-row">
-                {!cerca && (
-                  <div className="flex shrink-0 gap-1 overflow-x-auto pb-1 lg:max-h-[64vh] lg:w-44 lg:flex-col lg:overflow-y-auto lg:overflow-x-hidden lg:pb-0">
-                    {catalogo.gruppi.map((g) => (
-                      <button
-                        key={g.nome}
-                        onClick={() => setGruppo(g.nome)}
-                        className={`min-h-[44px] shrink-0 rounded-xl px-3 text-left text-sm font-semibold ${
-                          gruppo === g.nome ? "bg-brand-ink text-white" : "text-brand-ink hover:bg-white"
-                        }`}
-                      >
-                        {g.nome} <span className="text-xs font-normal opacity-60">{g.n}</span>
-                      </button>
-                    ))}
-                    <button
-                      onClick={() => setFuoriCarta({ nome: "", prezzo: "", famiglia: "food" })}
-                      className="min-h-[44px] shrink-0 rounded-xl border border-dashed border-neutral-400 px-3 text-left text-sm"
+          </div>
+          {largo && <ProvaPill />}
+          <button disabled={!aperto} onClick={apriCoperti} className={`${TESTATA} border-rose-200 bg-rose-50 text-rose-900`}>
+            👤 {conto.coperti}
+            {largo ? (conto.coperti === 1 ? " coperto" : " coperti") : ""}
+            {conto.coperto && conto.coperto.omaggio ? (largo ? " · omaggio" : " ·🎁") : ""}
+          </button>
+          <span className={`${TESTATA} flex items-center border-neutral-200 bg-white font-bold text-brand-ink`}>{euro(conto.totale)}</span>
+          {largo && aperto && (
+            <>
+              <button onClick={apriSposta} className={`${TESTATA} ${BIANCO}`}>Sposta</button>
+              <button onClick={() => setChiudi(true)} className={`${TESTATA} ${BIANCO}`}>Chiudi tavolo</button>
+            </>
+          )}
+          {!largo && aperto && (
+            <button aria-label="Azioni del tavolo" onClick={() => setMenu(true)} className={`${ICONA} ${BIANCO}`}>
+              ⋯
+            </button>
+          )}
+        </div>
+        {errore && (
+          <div className="mb-2 rounded-xl border border-red-200 bg-red-50 px-3 py-1.5 text-sm text-red-800">{errore}</div>
+        )}
+        {avviso && (
+          <div className="mb-2 flex items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 px-3 py-1 text-sm text-amber-900">
+            <span className="min-w-0 flex-1">{avviso}</span>
+            <button aria-label="Chiudi l'avviso" className="h-11 w-11 shrink-0 rounded-lg text-lg" onClick={() => setAvviso(null)}>✕</button>
+          </div>
+        )}
+
+        <div
+          ref={refPannelli}
+          style={altezza ? (largo ? { height: altezza } : { minHeight: altezza }) : undefined}
+          className={
+            largo
+              ? `grid min-h-0 gap-3 ${aperto ? "grid-cols-[minmax(0,1fr)_minmax(320px,38%)] lg:grid-cols-[minmax(0,1fr)_400px]" : "grid-cols-1"}`
+              : "flex flex-col"
+          }
+        >
+          {/* Catalogo a elenco */}
+          {catalogoVisibile && (
+            <section className={largo ? "flex min-h-0 min-w-0 flex-col" : "flex min-w-0 flex-1 flex-col"}>
+              <TextInput value={cerca} onChange={setCerca} placeholder="Cerca un piatto, un vino, un codice…" />
+              <div className="my-2 flex shrink-0 items-center gap-2 overflow-x-auto" style={nascosta}>
+                <span className="shrink-0 text-xs text-neutral-600">Si aggiunge in</span>
+                <span className="shrink-0 rounded-full bg-brand-ink px-3 py-1 text-xs font-bold text-white">{nomeUscita(battuta)}</span>
+                {tasti.map((t) => (
+                  <button
+                    key={t.id}
+                    disabled={busy}
+                    onClick={() => toccaTasto(t)}
+                    className="min-h-[44px] shrink-0 whitespace-nowrap rounded-xl border border-amber-300 bg-amber-50 px-3 text-sm font-semibold text-amber-900 active:scale-[0.98] disabled:opacity-50"
+                  >
+                    {t.nome} <span className="font-normal">×{t.quantita}</span>
+                  </button>
+                ))}
+              </div>
+              {catalogo && catalogo.avvisi && catalogo.avvisi.length > 0 && (
+                <div className="mb-2 text-xs text-amber-800">{catalogo.avvisi.join(" · ")}</div>
+              )}
+              {!catalogo ? (
+                <TrgbLoader />
+              ) : (
+                <div className={`flex flex-col gap-2 lg:flex-row ${largo ? "min-h-0 flex-1" : ""}`}>
+                  {!cerca && (
+                    <div
+                      className="flex shrink-0 gap-1 overflow-x-auto lg:w-40 lg:flex-col lg:overflow-y-auto lg:overflow-x-hidden"
+                      style={nascosta}
                     >
-                      ＋ Fuori carta
-                    </button>
-                  </div>
-                )}
-                <div className="min-w-0 flex-1 overflow-hidden rounded-2xl border border-neutral-200 bg-white">
-                  <div className="max-h-[64vh] divide-y divide-neutral-100 overflow-y-auto">
+                      {catalogo.gruppi.map((g) => (
+                        <button
+                          key={g.nome}
+                          onClick={() => setGruppo(g.nome)}
+                          className={`min-h-[44px] shrink-0 whitespace-nowrap rounded-xl px-3 text-left text-sm font-semibold lg:whitespace-normal ${
+                            gruppo === g.nome ? "bg-brand-ink text-white" : "text-brand-ink hover:bg-white"
+                          }`}
+                        >
+                          {g.nome} <span className="text-xs font-normal opacity-60">{g.n}</span>
+                        </button>
+                      ))}
+                      <button
+                        onClick={() => setFuoriCarta({ nome: "", prezzo: "", famiglia: "food" })}
+                        className="min-h-[44px] shrink-0 whitespace-nowrap rounded-xl border border-dashed border-neutral-400 px-3 text-left text-sm"
+                      >
+                        ＋ Fuori carta
+                      </button>
+                    </div>
+                  )}
+                  <div
+                    className={`min-w-0 divide-y divide-neutral-100 rounded-2xl border border-neutral-200 bg-white ${
+                      largo ? "min-h-0 flex-1 overflow-y-auto" : "overflow-hidden"
+                    }`}
+                  >
                     {articoli.slice(0, 300).map((a) => (
                       <button
                         key={a.codice}
                         disabled={busy}
                         onClick={() => tocca(a)}
-                        className="flex min-h-[54px] w-full items-center gap-3 px-4 py-2 text-left hover:bg-rose-50 active:bg-rose-100"
+                        className="flex min-h-[48px] w-full items-center gap-3 px-3 py-1.5 text-left hover:bg-rose-50 active:bg-rose-100"
                       >
                         <span className="min-w-0 flex-1">
-                          <span className="block text-[15px] font-semibold text-brand-ink">{a.nome}</span>
+                          <span className="block text-[15px] font-semibold leading-tight text-brand-ink">{a.nome}</span>
                           {(a.dettaglio || cerca) && (
                             <span className="block truncate text-xs text-neutral-500">
                               {cerca ? `${a.gruppo}${a.dettaglio ? " · " : ""}` : ""}
@@ -414,149 +484,155 @@ export default function ComandeConto() {
                     {articoli.length === 0 && <div className="p-4 text-center text-sm text-neutral-500">Niente trovato</div>}
                   </div>
                 </div>
-              </div>
-            )}
-            <div className="sticky bottom-2 mt-3 lg:hidden">
-              <Btn size="lg" className="w-full shadow-lg" onClick={() => setVista("conto")}>
-                Fatto{conto.da_inviare ? ` · ${conto.da_inviare} da inviare` : ""}
-              </Btn>
-            </div>
-          </section>
-        )}
-
-        {/* La comanda, per uscite. Su schermo largo sta tutta nello schermo (intestazione compresa)
-            e scorre per conto suo, così «Invia comanda» si vede senza scorrere la pagina. */}
-        <section
-          className={`min-w-0 lg:sticky lg:top-3 lg:max-h-[calc(100vh-13rem)] lg:self-start lg:overflow-y-auto ${
-            vista === "conto" || !aperto ? "" : "hidden lg:block"
-          }`}
-        >
-          <div className="mb-3 flex flex-wrap items-center gap-2">
-            <button
-              disabled={!aperto}
-              onClick={apriCoperti}
-              className="min-h-[44px] rounded-xl border border-rose-200 bg-rose-50 px-3 text-sm font-semibold text-rose-900"
-            >
-              👤 {conto.coperti} coperti{conto.coperto && conto.coperto.omaggio ? " · omaggio" : ""}
-            </button>
-            <span className="rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-sm font-bold text-brand-ink">
-              {euro(conto.totale)}
-            </span>
-            {aperto && !conto.ospite && (
-              <button
-                onClick={() => setLegame(true)}
-                className="min-h-[44px] rounded-xl border border-indigo-200 bg-indigo-50 px-3 text-sm font-semibold text-indigo-900"
-              >
-                ＋ Prenotazione
-              </button>
-            )}
-            {rigaCoperto && (
-              <span className="text-xs text-neutral-600">
-                di cui {rigaCoperto.quantita} × {rigaCoperto.nome} {euro(rigaCoperto.totale)}
-              </span>
-            )}
-          </div>
-          <SchedaPrenotazione
-            p={conto.prenotazione}
-            ospite={conto.ospite}
-            onApri={aperto ? () => setLegame(true) : null}
-          />
-
-          <div className="space-y-2">
-            {daMostrare.length === 0 && (
-              <div className="rounded-2xl border border-dashed border-neutral-300 bg-white p-6 text-center text-sm text-neutral-500">
-                Conto vuoto.
-              </div>
-            )}
-            {daMostrare.map((u) => {
-              const sue = conto.righe.filter((r) => r.uscita === u.numero && !eCoperto(r));
-              const qui = aperto && u.numero === battuta;
-              const prima = primaInAttesa && u.numero === primaInAttesa.numero;
-              return (
-                <div
-                  key={u.numero}
-                  className={`overflow-hidden rounded-2xl border bg-white ${
-                    qui ? "border-2 border-brand-ink" : prima ? "border-blue-600" : "border-neutral-200"
-                  }`}
-                >
-                  <div className={`flex flex-wrap items-center gap-2 px-3 py-2 text-sm font-bold ${TESTA_USCITA[u.stato]}`}>
-                    <span className="flex-1">
-                      {nomeUscita(u.numero)}
-                      <span className="font-normal">
-                        {u.stato === "andata" && ` · andata${u.andata_at ? ` ${ora(u.andata_at)}` : ""}`}
-                        {u.stato === "attende" && " · attende"}
-                        {u.stato === "nuova" && (sue.length ? " · da inviare" : " · vuota")}
-                        {u.stato !== "nuova" && u.da_inviare > 0 && ` · ${u.da_inviare} da inviare`}
-                        {u.solleciti > 0 && ` · sollecitata ${u.solleciti}×`}
-                        {qui && " · si batte qui"}
-                      </span>
-                    </span>
-                    {aperto && !qui && u.stato !== "andata" && (
-                      <button className={AZ} onClick={() => setUscitaScelta(u.numero)}>Batti qui</button>
-                    )}
-                    {aperto && u.stato === "andata" && (
-                      <button
-                        className={`${AZ} min-w-[44px] text-base`}
-                        aria-label={`Azioni su ${nomeUscita(u.numero)}`}
-                        aria-expanded={azioniDi === u.numero}
-                        onClick={() => setAzioniDi(azioniDi === u.numero ? null : u.numero)}
-                      >
-                        ⋯
-                      </button>
-                    )}
-                  </div>
-                  {aperto && u.stato === "andata" && azioniDi === u.numero && (
-                    <div className="flex flex-wrap gap-2 border-t border-emerald-100 bg-emerald-50/60 px-3 py-2 text-emerald-900">
-                      {!qui && (
-                        <button className={AZ} onClick={() => { setUscitaScelta(u.numero); setAzioniDi(null); }}>Batti qui</button>
-                      )}
-                      {u.numero > 0 && (
-                        <>
-                          <button disabled={busy} className={AZ} onClick={() => chiama(u.numero, "sollecita", `${nomeUscita(u.numero)} sollecitata`)}>
-                            Invia sollecito
-                          </button>
-                          <button disabled={busy} className={AZ} onClick={() => chiama(u.numero, "attendi", `${nomeUscita(u.numero)} attende`)}>
-                            Attendi
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  )}
-                  {sue.map((r) => rigaConto(r, u.stato === "nuova"))}
-                  {aperto && u.stato === "attende" && (
-                    <div className="border-t border-neutral-100 p-2">
-                      <Btn
-                        variant={prima ? "primary" : "secondary"}
-                        size="lg"
-                        className="w-full"
-                        disabled={busy}
-                        onClick={() => chiama(u.numero, "vai", `${nomeUscita(u.numero)}: vai`)}
-                      >
-                        Vai con la preparazione
-                      </Btn>
-                    </div>
-                  )}
+              )}
+              {!largo && (
+                <div className="sticky bottom-2 mt-auto pt-2">
+                  <button className={`${BARRA} w-full bg-brand-blue text-white shadow-lg`} onClick={() => setVista("conto")}>
+                    Fatto{conto.da_inviare ? ` · ${conto.da_inviare} da inviare` : ""}
+                  </button>
                 </div>
-              );
-            })}
-          </div>
-
-          {conto.invii.length > 0 && (
-            <p className="mt-2 text-xs text-neutral-500">
-              {conto.invii.length} {conto.invii.length === 1 ? "foglio" : "fogli"} ai reparti · la stampa arriva col ponte
-            </p>
+              )}
+            </section>
           )}
 
-          {aperto && (
-            <div className="sticky bottom-2 mt-3 flex flex-wrap gap-2 rounded-2xl border border-neutral-200 bg-white/95 p-2 shadow-lg backdrop-blur">
-              <Btn variant="secondary" size="lg" className="flex-1 lg:hidden" onClick={() => setVista("catalogo")}>＋ Aggiungi</Btn>
-              <Btn variant="secondary" size="lg" className="flex-1 whitespace-nowrap lg:flex-none" onClick={() => setUscitaScelta(prossimaUscita)}>＋ Nuova uscita</Btn>
-              <Btn variant="success" size="lg" className="w-full lg:w-auto lg:flex-1" disabled={!conto.da_inviare || busy} onClick={invia}>
-                Invia comanda{conto.da_inviare ? ` · ${conto.da_inviare}` : ""}
-              </Btn>
-            </div>
+          {/* La comanda, per uscite */}
+          {comandaVisibile && (
+            <section className={largo ? "flex min-h-0 min-w-0 flex-col" : "flex min-w-0 flex-1 flex-col"}>
+              {conto.prenotazione || conto.ospite ? (
+                <SchedaOspite conto={conto} onApri={aperto ? () => setLegame(true) : null} />
+              ) : (
+                aperto && (
+                  <button
+                    onClick={() => setLegame(true)}
+                    className="mb-2 min-h-[44px] w-full shrink-0 rounded-xl border border-dashed border-indigo-300 bg-indigo-50/60 px-3 text-left text-sm font-semibold text-indigo-900"
+                  >
+                    ＋ Chi è al tavolo
+                  </button>
+                )
+              )}
+
+              <div className={largo ? "min-h-0 flex-1 space-y-2 overflow-y-auto" : "flex-1 space-y-2"}>
+                {rigaCoperto && (
+                  <div className="px-1 text-[11px] text-neutral-500">
+                    In conto anche {rigaCoperto.quantita} × {rigaCoperto.nome} {euro(rigaCoperto.totale)}
+                  </div>
+                )}
+                {daMostrare.length === 0 && (
+                  <div className="rounded-xl border border-dashed border-neutral-300 bg-white p-5 text-center text-sm text-neutral-500">
+                    Conto vuoto.
+                  </div>
+                )}
+                {daMostrare.map((u) => {
+                  const sue = conto.righe.filter((r) => r.uscita === u.numero && !eCoperto(r));
+                  const qui = aperto && u.numero === battuta;
+                  const prima = primaInAttesa && u.numero === primaInAttesa.numero;
+                  const chiamabile = u.stato === "andata" && u.numero > 0;
+                  const haAzioni = aperto && (!qui || chiamabile);
+                  return (
+                    <div
+                      key={u.numero}
+                      className={`overflow-hidden rounded-xl border bg-white ${
+                        qui ? "border-2 border-brand-ink" : prima ? "border-blue-600" : "border-neutral-200"
+                      }`}
+                    >
+                      <div className={`flex min-h-[44px] items-center gap-1 pl-3 pr-1 text-sm font-bold ${TESTA_USCITA[u.stato]}`}>
+                        <span className="min-w-0 flex-1 py-1 leading-tight">
+                          {nomeUscita(u.numero)}
+                          <span className="font-normal">
+                            {u.stato === "andata" && ` · andata${u.andata_at ? ` ${ora(u.andata_at)}` : ""}`}
+                            {u.stato === "attende" && " · attende"}
+                            {u.stato === "nuova" && (sue.length ? " · da inviare" : " · vuota")}
+                            {u.stato !== "nuova" && u.da_inviare > 0 && ` · ${u.da_inviare} da inviare`}
+                            {u.solleciti > 0 && ` · sollecitata ${u.solleciti}×`}
+                            {qui && " · si aggiunge qui"}
+                          </span>
+                        </span>
+                        {haAzioni && (
+                          <button
+                            className="h-11 w-11 shrink-0 rounded-lg text-lg"
+                            aria-label={`Azioni su ${nomeUscita(u.numero)}`}
+                            aria-expanded={azioniDi === u.numero}
+                            onClick={() => setAzioniDi(azioniDi === u.numero ? null : u.numero)}
+                          >
+                            ⋯
+                          </button>
+                        )}
+                      </div>
+                      {haAzioni && azioniDi === u.numero && (
+                        <div className={`flex flex-wrap gap-2 border-t border-black/5 px-2 py-1.5 ${TESTA_USCITA[u.stato]}`}>
+                          {!qui && (
+                            <button
+                              className={AZ}
+                              onClick={() => {
+                                setUscitaScelta(u.numero);
+                                setAzioniDi(null);
+                                if (!largo) setVista("catalogo");
+                              }}
+                            >
+                              ＋ Aggiungi qui
+                            </button>
+                          )}
+                          {chiamabile && (
+                            <>
+                              <button disabled={busy} className={AZ} onClick={() => chiama(u.numero, "sollecita", `${nomeUscita(u.numero)} sollecitata`)}>
+                                Invia sollecito
+                              </button>
+                              <button disabled={busy} className={AZ} onClick={() => chiama(u.numero, "attendi", `${nomeUscita(u.numero)} attende`)}>
+                                Attendi
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      )}
+                      {sue.map((r) => rigaConto(r, u.stato === "nuova"))}
+                      {aperto && u.stato === "attende" && (
+                        <div className="border-t border-neutral-100 p-1.5">
+                          <button
+                            disabled={busy}
+                            onClick={() => chiama(u.numero, "vai", `${nomeUscita(u.numero)}: vai`)}
+                            className={`${BARRA} w-full ${prima ? "bg-brand-blue text-white" : BIANCO}`}
+                          >
+                            Vai con la preparazione
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                {conto.invii.length > 0 && (
+                  <p className="px-1 text-[11px] text-neutral-500">
+                    {conto.invii.length} {conto.invii.length === 1 ? "foglio" : "fogli"} ai reparti · la stampa arriva col ponte
+                  </p>
+                )}
+              </div>
+
+              {aperto && (
+                <div
+                  className={
+                    largo
+                      ? "mt-2 flex shrink-0 gap-2"
+                      : "sticky bottom-2 mt-2 flex gap-2 rounded-2xl border border-neutral-200 bg-white/95 p-1.5 shadow-lg backdrop-blur"
+                  }
+                >
+                  {!largo && (
+                    <button className={`${BARRA} flex-1 ${BIANCO}`} onClick={() => setVista("catalogo")}>＋ Aggiungi</button>
+                  )}
+                  <button className={`${BARRA} whitespace-nowrap ${BIANCO} ${largo ? "" : "flex-1"}`} onClick={() => setUscitaScelta(prossimaUscita)}>
+                    ＋ {largo ? "Nuova uscita" : "Uscita"}
+                  </button>
+                  <button
+                    className={`${BARRA} flex-[1.3] whitespace-nowrap bg-brand-green text-white active:bg-emerald-700`}
+                    disabled={!conto.da_inviare || busy}
+                    onClick={invia}
+                  >
+                    {largo ? "Invia comanda" : "Invia"}
+                    {conto.da_inviare ? ` · ${conto.da_inviare}` : ""}
+                  </button>
+                </div>
+              )}
+            </section>
           )}
-        </section>
+        </div>
       </div>
 
       {toast && (
@@ -743,18 +819,37 @@ export default function ComandeConto() {
         )}
       </Modal>
 
+      {/* Telefono: azioni del tavolo */}
+      <Modal open={menu} onClose={() => setMenu(false)} title={`Tavolo ${conto.tavolo}`} size="sm">
+        <div className="flex flex-col gap-2">
+          <button className={`${BARRA} ${BIANCO} text-left`} onClick={() => { setMenu(false); setLegame(true); }}>
+            Chi è al tavolo{conto.ospite ? `: ${conto.ospite}` : ""}
+          </button>
+          <button className={`${BARRA} ${BIANCO} text-left`} onClick={() => { setMenu(false); apriSposta(); }}>
+            Sposta su un altro tavolo
+          </button>
+          <button className={`${BARRA} ${BIANCO} text-left`} onClick={() => { setMenu(false); setChiudi(true); }}>
+            Chiudi tavolo
+          </button>
+        </div>
+      </Modal>
+
       {/* Chi è al tavolo */}
       <Modal
         open={legame}
         onClose={() => setLegame(false)}
         title={`Chi è al tavolo ${conto.tavolo}`}
-        subtitle="Le prenotazioni del giorno. Legarne una non cambia niente in Prenotazioni"
+        subtitle={
+          imp && imp.prenotazioni_aggiorna
+            ? "Prenotazioni si aggiorna da sola: «Seduto» a questo tavolo, o un walk-in nuovo"
+            : "Il nome resta sul conto: Prenotazioni non cambia (Impostazioni)"
+        }
         size="md"
         footer={
           <>
-            {conto.prenotazione_id && (
-              <Btn variant="secondary" disabled={busy} onClick={() => lega(null, "Collegamento tolto")}>
-                Togli il collegamento
+            {(conto.ospite || conto.prenotazione_id) && (
+              <Btn variant="secondary" disabled={busy} onClick={() => mettiAlTavolo(null)}>
+                Nessuno al tavolo
               </Btn>
             )}
             <Btn variant="secondary" onClick={() => setLegame(false)}>Chiudi</Btn>
@@ -762,11 +857,19 @@ export default function ComandeConto() {
         }
       >
         {legame && (
-          <ScegliPrenotazione
+          <ScegliOspite
             data={String(conto.aperto_at || "").slice(0, 10)}
             tavolo={conto.tavolo}
-            scelta={conto.prenotazione_id}
-            onScegli={(pr) => lega(pr.id, `Al tavolo: ${pr.nome}`)}
+            scelta={
+              conto.prenotazione_id && !conto.pren_creata
+                ? `p${conto.prenotazione_id}`
+                : conto.cliente_id
+                  ? `c${conto.cliente_id}`
+                  : conto.ospite
+                    ? "walkin"
+                    : null
+            }
+            onScegli={mettiAlTavolo}
           />
         )}
       </Modal>
@@ -832,6 +935,12 @@ export default function ComandeConto() {
         <p className="text-sm text-neutral-600">
           È un conto di prova: chiudendolo il tavolo torna libero. Il conto vero si batte su iPratico.
           {conto.da_inviare > 0 && " Prima invia o togli le righe non inviate."}
+          {conto.prenotazione_id && imp && imp.prenotazioni_aggiorna && (
+            <span className="mt-2 block">
+              In Prenotazioni: con «Chiudi» {conto.ospite || "la prenotazione"} passa a «Completata»; con «Annulla conto»
+              torna tutto com'era{conto.pren_creata ? " (il walk-in nato da questo tavolo sparisce)" : ""}.
+            </span>
+          )}
         </p>
       </Modal>
     </PageLayout>

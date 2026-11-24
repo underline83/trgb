@@ -3,6 +3,33 @@
 
 ---
 
+## 2026-11-24 — Comanda 2.2: tutto lo schermo su iPad e telefono, chi è al tavolo anche senza prenotazione `[core]`
+Marco, dopo la 2.1: «ottimizza lo spazio sull'iPad e sull'iPhone nelle due versioni»; «"batti qui" è brutto, metti o i puntini oppure modifica»; «se non c'è la prenotazione dammi la possibilità di inserirla come walk-in, oppure di scegliere altro cliente, oppure di creare nuovo cliente, oppure di selezionarne uno tra gli altri prenotati; in ogni caso dovresti sistemare la cosa anche sulle prenotazioni». Sempre in prova.
+
+**Aggiunto**
+- **Chi è al tavolo, sempre**: all'apertura o dal conto si sceglie un prenotato di quel tavolo, «🚶 Walk-in», un cliente che c'è già (ricerca per nome o telefono), un «＋ Cliente nuovo» (cognome, nome, telefono) o un altro prenotato del giorno. «Nessuno» resta possibile.
+- **Prenotazioni segue il conto**: un prenotato va «Seduto» sul tavolo del conto; per walk-in, cliente e cliente nuovo nasce una prenotazione di oggi, canale «Walk-in», già seduta; coperti e «Sposta» la aggiornano; «Chiudi tavolo» la segna «Completata»; «Annulla conto» e «Nessuno al tavolo» rimettono tutto com'era (la prenotazione nata dal conto si elimina, non si annulla).
+- Interruttore **«Aggiorna Prenotazioni»** in Comanda › Impostazioni (`prenotazioni_aggiorna`, acceso).
+- `GET /comande/clienti/?q=` (nome, ultime 4 cifre del telefono, visite, allergie); `ospite` in `POST` e `PATCH /comande/conti/`; `avviso` nella risposta quando Prenotazioni non si è aggiornata.
+
+**Cambiato**
+- **Spazio**: Tavoli senza titolo e con una sola barra, griglia più fitta (i 31 tavoli dell'osteria in una schermata di iPad, 3 colonne su telefono), mappa alta quanto lo schermo. Conto con la testata su una riga e i due pannelli alti fino in fondo, «Invia comanda» sempre a vista; su telefono le azioni del tavolo stanno in «⋯».
+- **«Batti qui» non c'è più**: ogni uscita ha «⋯» con «＋ Aggiungi qui» (e «Invia sollecito» / «Attendi» su quelle andate); in alto «Si aggiunge in Uscita N».
+- `prenotazioni_giorno_service` 1.1: oltre a leggere, scrive — con le funzioni del Planning (`crea_prenotazione`, `modifica_prenotazione`, `cambio_stato`, `search_clienti`), mai sul DB a mano, tranne l'eliminazione della prenotazione nata da un conto.
+
+**Note**
+- **Le scritture in Prenotazioni sono vere anche se la Comanda è in prova**: un tavolo di prova aperto con un prenotato lo segna «Seduto», un walk-in di prova entra nel Planning di oggi. «Annulla conto» rimette a posto; per provare senza toccare Prenotazioni si spegne l'interruttore.
+- Al cliente non parte niente (né mail né WhatsApp), a TheFork nemmeno.
+- Una prenotazione sta su un solo conto aperto. Se Prenotazioni rifiuta (turno chiuso, passaggio di stato non ammesso) il conto si apre lo stesso e lo dice; il cliente nuovo invece non si crea.
+- Da verificare: i walk-in oggi arrivano da TheFork Manager; segnati anche in Comanda rischiano di comparire due volte nel Planning.
+- Nessuna migrazione numerata (tre colonne al boot, solo ADD COLUMN). Versione di sistema invariata, comande 2.2.
+- Provato: router col TestClient sul **codice vero del Planning** e un DB clienti con la sola forma di quello vero (walk-in, cliente, cliente nuovo, altro prenotato, cambio, annullo, chiusura, «Da confermare», turno chiuso, interruttore spento, prenotazione già seduta altrove); giro delle pagine in un browser a 1180×820, 820×1180 e 390×844 contro quel server; passaggio dello schema su una copia del DB comande vero (DB veri intatti). **Non provato:** server vero, iPad vero; sulle prenotazioni vere non è stata fatta nessuna scrittura.
+
+---
+
+## 2026-11-24 — Vini 4.21: tag NFC sugli scaffali della cantina `[core]`
+Dopo i ripiani dei frigo, anche la cantina: un tag NFC (sotto la stessa etichetta Brother col cerchio) apre la Cantina da iPhone già sul posto. Si può etichettare **per fila** («Scaffale 3 · Fila B» mostra solo quella fila) o **per scaffale** («Scaffale 3» mostra tutte le sue file); i frigo dei vini, i posti senza file (Cantina Centrale, Bancone, Zone Matrice…) e la Matrice hanno il loro tag. Toccando una bottiglia si apre la scheda con vendita, carico, scarico e conta, e «‹» torna al posto. Nella cantina c'è il nuovo «🏷️ Tag» (admin, sommelier, capo sala): per ogni posto e ogni fila «🔗 Copia» per NFC Tools e 🖨️, più le due stampe in blocco «Per fila» e «Per scaffale». Il formato delle etichette e il Copia link stanno ora in `utils/etichetteTag.js`, usato anche dalla cucina (CucinaMobile 1.15, stesso risultato). Solo frontend, nessuna migrazione. `modulo_vini.md` riga «Cantina mobile».
+
 ## 2026-11-24 — Comanda 2.1: il tavolo si lega alla prenotazione `[core]`
 Marco, dopo aver pushato la 2.0: «aggiungi già il collegamento con le prenotazioni, quindi sul tavolo posso linkare la persona che ha la prenotazione». Sempre in prova.
 

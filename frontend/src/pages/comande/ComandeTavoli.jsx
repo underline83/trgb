@@ -1,4 +1,4 @@
-// @version: v2.1 — i tavoli prenotati e chi c'è seduto; all'apertura si lega la prenotazione (2026-11-24)
+// @version: v2.2 — più tavoli nello schermo; all'apertura chi è al tavolo: prenotato, walk-in, cliente, cliente nuovo (2026-11-24)
 // Modulo: comande
 // La mappa riusa le forme della piantina di Prenotazioni: stessi tavoli, stesso disegno
 // (li disegna l'Editor Tavoli; qui si leggono dal servizio platform tavoli_sala_service).
@@ -8,8 +8,8 @@ import { Btn, EmptyState, Modal, PageLayout } from "../../components/ui";
 import TrgbLoader from "../../components/TrgbLoader";
 import { CANVAS_W, CANVAS_H, FormaElemento, FormaTavolo, SchedeSale } from "../prenotazioni/components/Piantina";
 import ComandeNav, { BannerProva } from "./ComandeNav";
-import { ScegliPrenotazione, etichettaPrenotazione } from "./ComandePrenotazione";
-import { api, durata, euro, utenteCorrente } from "./comandeApi";
+import { SCELTA_WALKIN, ScegliOspite, sceltaPrenotazione } from "./ComandePrenotazione";
+import { api, durata, euro, useAltezzaRestante, utenteCorrente } from "./comandeApi";
 
 const AGGIORNA_OGNI_MS = 20000;
 const CHIAVE_VISTA = "comande.tavoli.vista";
@@ -91,14 +91,15 @@ function vistaSalvata() {
 
 // La sala disegnata: ogni tavolo col suo stato, un tocco apre il tavolo o il suo conto.
 function Mappa({ sala, elementi, onTocca, spento }) {
+  // alta quanto resta dello schermo sotto la barra e le schede, così la sala si vede intera
+  const [refMappa, altezza] = useAltezzaRestante(true, 20);
   const fuori = sala.tavoli.filter((t) => !inPianta(t));
   const disegnati = sala.tavoli.filter(inPianta);
   const fissi = elementi.filter((e) => (e.zona || "Sala") === sala.zona && inPianta(e));
   return (
     <>
-      <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-neutral-50">
-        {/* alta quanto resta dello schermo sotto intestazione e schede, così la sala si vede intera */}
-        <svg viewBox={riquadro([...disegnati, ...fissi])} className="w-full" style={{ minHeight: 320, maxHeight: "calc(100vh - 320px)" }}>
+      <div ref={refMappa} className="overflow-hidden rounded-2xl border border-neutral-200 bg-neutral-50">
+        <svg viewBox={riquadro([...disegnati, ...fissi])} className="block w-full" style={{ minHeight: 240, maxHeight: altezza || undefined }}>
           {fissi.map((e) => (
             <FormaElemento key={`e${e.id}`} e={e} />
           ))}
@@ -185,8 +186,8 @@ export default function ComandeTavoli() {
   const [daAprire, setDaAprire] = useState(null); // tavolo
   const [coperti, setCoperti] = useState(2);
   const [apro, setApro] = useState(false);
-  const [prenScelta, setPrenScelta] = useState(null); // prenotazione da legare all'apertura
-  const [altra, setAltra] = useState(false); // elenco di tutte le prenotazioni del giorno
+  const [chi, setChi] = useState(null); // chi è al tavolo all'apertura: {ospite, info} o nessuno
+  const [altra, setAltra] = useState(false); // elenco di prenotati e clienti fra cui cercare
 
   const carica = useCallback(async () => {
     try {
@@ -218,25 +219,26 @@ export default function ComandeTavoli() {
     // Se sono di più (o nessuna) non indovino: sceglie chi apre.
     const possibili = (t.prenotazioni || []).filter((p) => !p.conto);
     const sola = possibili.length === 1 ? possibili[0] : null;
-    setPrenScelta(sola);
+    setChi(sola ? sceltaPrenotazione(sola) : null);
     setAltra(false);
     setCoperti(sola && sola.pax > 0 ? sola.pax : Math.max(1, t.posti_min || 2));
     setDaAprire(t);
   };
 
-  const scegliPren = (p) => {
-    setPrenScelta(p);
+  const scegli = (s) => {
+    setChi(s);
     setAltra(false);
-    if (p && p.pax > 0) setCoperti(p.pax);
+    if (s && s.info.pax > 0) setCoperti(s.info.pax);
   };
 
   const apri = async () => {
     setApro(true);
     try {
       const body = { tavolo_id: daAprire.id, coperti };
-      if (prenScelta) body.prenotazione_id = prenScelta.id;
+      if (chi) body.ospite = chi.ospite;
       const c = await api("/comande/conti/", { method: "POST", body });
-      navigate(`/comande/conto/${c.id}`);
+      // se Prenotazioni non ha potuto seguire (turno chiuso…) il conto lo dice appena aperto
+      navigate(`/comande/conto/${c.id}`, c.avviso ? { state: { avviso: c.avviso } } : undefined);
     } catch (e) {
       setErrore(e.message);
       setDaAprire(null);
@@ -260,30 +262,10 @@ export default function ComandeTavoli() {
     : sale;
 
   return (
-    <PageLayout
-      wide={vista === "mappa"}
-      nav={<ComandeNav current="tavoli" />}
-      title="Tavoli"
-      subtitle={
-        dati
-          ? `${conti.length} ${conti.length === 1 ? "tavolo aperto" : "tavoli aperti"}${
-              attendono ? ` · ${attendono} con un'uscita che attende` : ""
-            }`
-          : ""
-      }
-      actions={<Btn variant="secondary" size="md" onClick={carica}>↻ Aggiorna</Btn>}
-    >
-      <BannerProva />
-      {errore && (
-        <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-800">{errore}</div>
-      )}
-      {!dati && !errore && <TrgbLoader />}
-      {dati && sale.length === 0 && (
-        <EmptyState icon="🍽️" title="Nessun tavolo" description="I tavoli si disegnano in Prenotazioni › Editor Tavoli." />
-      )}
-
-      {dati && sale.length > 0 && (
-        <div className="mb-4 flex flex-wrap items-center gap-2">
+    <PageLayout nav={<ComandeNav current="tavoli" />} background={false} padded={false} wide>
+      <div className="min-h-[70vh] bg-brand-cream px-3 pb-4 pt-2 font-sans sm:px-4">
+        {/* Barra unica: vista, filtro, quanti tavoli, legenda, aggiorna */}
+        <div className="mb-2 flex flex-wrap items-center gap-2">
           <button className={pill(vista === "elenco")} onClick={() => cambiaVista("elenco")}>Elenco</button>
           <button className={pill(vista === "mappa")} onClick={() => cambiaVista("mappa")}>Mappa</button>
           {io && (
@@ -291,7 +273,13 @@ export default function ComandeTavoli() {
               Miei
             </button>
           )}
-          <span className="ml-auto flex flex-wrap items-center gap-3 text-xs text-neutral-600">
+          {dati && (
+            <span className="hidden text-xs text-neutral-600 sm:inline">
+              {conti.length} {conti.length === 1 ? "aperto" : "aperti"}
+              {attendono ? ` · ${attendono} ${attendono === 1 ? "attende" : "attendono"}` : ""}
+            </span>
+          )}
+          <span className="ml-auto hidden items-center gap-3 text-xs text-neutral-600 md:flex">
             {LEGENDA.map((l) => (
               <span key={l.key} className="flex items-center gap-1.5">
                 <span className="h-3 w-3 rounded-full border" style={{ background: TINTE[l.key].fill, borderColor: TINTE[l.key].stroke }} />
@@ -299,92 +287,114 @@ export default function ComandeTavoli() {
               </span>
             ))}
           </span>
+          <button
+            aria-label="Aggiorna"
+            onClick={carica}
+            className="ml-auto h-11 w-11 shrink-0 rounded-xl border border-neutral-300 bg-white text-lg text-brand-ink md:ml-0"
+          >
+            ↻
+          </button>
         </div>
-      )}
+        <BannerProva />
+        {errore && (
+          <div className="mb-2 rounded-xl border border-red-200 bg-red-50 px-3 py-1.5 text-sm text-red-800">{errore}</div>
+        )}
+        {!dati && !errore && <TrgbLoader />}
+        {dati && sale.length === 0 && (
+          <EmptyState icon="🍽️" title="Nessun tavolo" description="I tavoli si disegnano in Prenotazioni › Editor Tavoli." />
+        )}
 
-      {dati && vista === "mappa" && salaAttiva && (
-        <>
-          <SchedeSale sale={sale.map((s) => s.zona)} attiva={salaAttiva.zona} onChange={setSala} conteggi={conteggi} />
-          <Mappa
-            sala={salaAttiva}
-            elementi={dati.elementi || []}
-            onTocca={tocca}
-            spento={(t) => soloMiei && !!t.conto && !mio(t)}
-          />
-        </>
-      )}
+        {dati && vista === "mappa" && salaAttiva && (
+          <>
+            <SchedeSale sale={sale.map((s) => s.zona)} attiva={salaAttiva.zona} onChange={setSala} conteggi={conteggi} />
+            <Mappa
+              sala={salaAttiva}
+              elementi={dati.elementi || []}
+              onTocca={tocca}
+              spento={(t) => soloMiei && !!t.conto && !mio(t)}
+            />
+          </>
+        )}
 
-      {dati && vista === "elenco" && soloMiei && saleElenco.length === 0 && (
-        <EmptyState icon="🍽️" title="Nessun tavolo aperto da te" />
-      )}
-      {dati && vista === "elenco" &&
-        saleElenco.map((s) => (
-          <section key={s.zona} className="mb-6">
-            <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-neutral-500">{s.zona}</h2>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-6">
-              {s.tavoli.map((t) => {
-                const c = t.conto;
-                const pr = c ? null : prenotato(t);
-                return (
-                  <button
-                    key={t.id}
-                    onClick={() => tocca(t)}
-                    className={`min-h-[96px] rounded-2xl border p-2.5 text-left shadow-sm transition active:scale-[0.98] ${TINTE[statoDi(t)].card}`}
-                  >
-                    <div className="flex items-start justify-between">
-                      <span className="text-lg font-bold text-brand-ink">{t.nome}</span>
-                      {c && c.da_inviare > 0 && (
-                        <span className="rounded-full bg-brand-red px-1.5 text-xs font-semibold text-white">
-                          {c.da_inviare}
-                        </span>
+        {dati && vista === "elenco" && soloMiei && saleElenco.length === 0 && (
+          <EmptyState icon="🍽️" title="Nessun tavolo aperto da te" />
+        )}
+        {dati && vista === "elenco" &&
+          saleElenco.map((s) => (
+            <section key={s.zona} className="mb-3">
+              <h2 className="mb-1 text-xs font-semibold uppercase tracking-wide text-neutral-500">
+                {s.zona} <span className="font-normal normal-case text-neutral-400">{conteggi[s.zona]}</span>
+              </h2>
+              <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-7">
+                {s.tavoli.map((t) => {
+                  const c = t.conto;
+                  const pr = c ? null : prenotato(t);
+                  return (
+                    <button
+                      key={t.id}
+                      onClick={() => tocca(t)}
+                      className={`flex min-h-[76px] min-w-0 flex-col justify-start rounded-xl border p-2 text-left shadow-sm transition active:scale-[0.98] ${TINTE[statoDi(t)].card}`}
+                    >
+                      <div className="flex items-start justify-between gap-1">
+                        <span className="text-base font-bold leading-none text-brand-ink">{t.nome}</span>
+                        {c && c.da_inviare > 0 ? (
+                          <span className="rounded-full bg-brand-red px-1.5 text-[11px] font-semibold leading-4 text-white">
+                            {c.da_inviare}
+                          </span>
+                        ) : (
+                          !c && <span className="text-[10px] leading-none text-neutral-400">{t.posti_min}–{t.posti_max}</span>
+                        )}
+                      </div>
+                      {c ? (
+                        <div className="mt-1 text-[11px] leading-snug">
+                          {c.ospite && <div className="truncate font-semibold text-brand-ink">{c.ospite}</div>}
+                          <div className="truncate font-semibold">
+                            <span className="md:hidden">{rigaUsciteCorta(c)}</span>
+                            <span className="hidden md:inline">{rigaUscite(c) || "aperto"}</span>
+                          </div>
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="truncate">👤 {c.coperti} · {euro(c.totale)}</span>
+                            {c.sollecitata && <span className="shrink-0 font-semibold text-amber-800">soll.</span>}
+                          </div>
+                          <div className="truncate opacity-70">da {durata(c.minuti_aperto)}</div>
+                        </div>
+                      ) : pr.prossima ? (
+                        <div className="mt-1 text-[11px] leading-snug text-indigo-950">
+                          <div className="truncate font-semibold">{pr.prossima.ora} · {pr.prossima.nome}</div>
+                          <div className="truncate">
+                            {pr.prossima.pax} {pr.prossima.pax === 1 ? "persona" : "persone"}
+                            {pr.prossima.allergie ? " · ⚠" : ""}
+                            {pr.altre > 0 ? ` · +${pr.altre}` : ""}
+                          </div>
+                        </div>
+                      ) : (
+                        pr.unita && (
+                          <div className="mt-1 text-[11px] leading-snug text-neutral-500">
+                            <div className="truncate">{pr.unita.nome}</div>
+                            <div className="truncate">con il {pr.unita.conto.tavolo}</div>
+                          </div>
+                        )
                       )}
-                    </div>
-                    {c ? (
-                      <div className="mt-1 text-xs leading-snug">
-                        {c.ospite && <div className="truncate font-semibold text-brand-ink">{c.ospite}</div>}
-                        <div>👤 {c.coperti} · {durata(c.minuti_aperto)}</div>
-                        <div className="font-semibold">{rigaUscite(c) || "aperto"}</div>
-                        <div className="flex items-center justify-between">
-                          <span>{euro(c.totale)}</span>
-                          {c.sollecitata && <span className="font-semibold text-amber-800">sollecitata</span>}
-                        </div>
-                      </div>
-                    ) : pr.prossima ? (
-                      <div className="mt-1 text-xs leading-snug text-indigo-950">
-                        <div className="truncate font-semibold">{pr.prossima.ora} · {pr.prossima.nome}</div>
-                        <div>
-                          {pr.prossima.pax} {pr.prossima.pax === 1 ? "persona" : "persone"}
-                          {pr.prossima.allergie ? " · ⚠ allergie" : ""}
-                        </div>
-                        {pr.altre > 0 && <div className="text-indigo-700">+{pr.altre} dopo</div>}
-                      </div>
-                    ) : pr.unita ? (
-                      <div className="mt-1 text-xs leading-snug text-neutral-500">
-                        <div className="truncate">{pr.unita.nome}</div>
-                        <div>con il tavolo {pr.unita.conto.tavolo}</div>
-                      </div>
-                    ) : (
-                      <div className="mt-1 text-xs text-neutral-400">{t.posti_min}–{t.posti_max} posti</div>
-                    )}
-                  </button>
-                );
-              })}
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          ))}
+
+        {dati && dati.altri_conti.length > 0 && (
+          <section className="my-3">
+            <h2 className="mb-1 text-xs font-semibold uppercase tracking-wide text-neutral-500">Conti su tavoli tolti</h2>
+            <div className="flex flex-wrap gap-2">
+              {dati.altri_conti.map((c) => (
+                <Btn key={c.id} variant="secondary" onClick={() => navigate(`/comande/conto/${c.id}`)}>
+                  {c.tavolo} · {euro(c.totale)}
+                </Btn>
+              ))}
             </div>
           </section>
-        ))}
-
-      {dati && dati.altri_conti.length > 0 && (
-        <section className="my-6">
-          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-neutral-500">Conti su tavoli tolti</h2>
-          <div className="flex flex-wrap gap-2">
-            {dati.altri_conti.map((c) => (
-              <Btn key={c.id} variant="secondary" onClick={() => navigate(`/comande/conto/${c.id}`)}>
-                {c.tavolo} · {euro(c.totale)}
-              </Btn>
-            ))}
-          </div>
-        </section>
-      )}
+        )}
+      </div>
 
       <Modal
         open={!!daAprire}
@@ -408,36 +418,48 @@ export default function ComandeTavoli() {
             <Btn variant="secondary" size="lg" onClick={() => setCoperti((n) => Math.min(200, n + 1))}>+</Btn>
           </div>
         </div>
-        {daAprire && (
-          <div className="mt-3 border-t border-neutral-100 pt-3">
-            <div className="mb-2 text-sm text-neutral-600">Chi è al tavolo</div>
-            <div className="flex flex-wrap gap-2">
-              {[
-                ...(daAprire.prenotazioni || []),
-                ...(prenScelta && !(daAprire.prenotazioni || []).some((p) => p.id === prenScelta.id) ? [prenScelta] : []),
-              ].map((p) => (
-                <button key={p.id} className={pill(!!prenScelta && prenScelta.id === p.id)} onClick={() => scegliPren(p)}>
-                  {etichettaPrenotazione(p)}
-                  {p.conto ? ` (al tavolo ${p.conto.tavolo})` : ""}
+        {daAprire && (() => {
+          const suQuesto = (daAprire.prenotazioni || []).map(sceltaPrenotazione);
+          const note = [...suQuesto.map((x) => x.info.chiave), "walkin"];
+          return (
+            <div className="mt-3 border-t border-neutral-100 pt-3">
+              <div className="mb-2 text-sm text-neutral-600">Chi è al tavolo</div>
+              <div className="flex flex-wrap gap-2">
+                {suQuesto.map((x, i) => (
+                  <button
+                    key={x.info.chiave}
+                    className={`${pill(!!chi && chi.info.chiave === x.info.chiave)} disabled:opacity-50`}
+                    disabled={!!daAprire.prenotazioni[i].conto}
+                    onClick={() => scegli(x)}
+                  >
+                    {x.info.etichetta}
+                    {daAprire.prenotazioni[i].conto ? ` (al tavolo ${daAprire.prenotazioni[i].conto.tavolo})` : ""}
+                  </button>
+                ))}
+                {chi && !note.includes(chi.info.chiave) && (
+                  <button className={pill(true)} onClick={() => setAltra(true)}>{chi.info.etichetta}</button>
+                )}
+                <button className={pill(!!chi && chi.info.chiave === "walkin")} onClick={() => scegli(SCELTA_WALKIN)}>
+                  🚶 Walk-in
                 </button>
-              ))}
-              <button className={pill(!prenScelta)} onClick={() => scegliPren(null)}>Senza prenotazione</button>
-              <button className={pill(false)} aria-expanded={altra} onClick={() => setAltra((v) => !v)}>
-                Un'altra…
-              </button>
+                <button className={pill(!chi)} onClick={() => scegli(null)}>Nessuno</button>
+                <button className={pill(false)} aria-expanded={altra} onClick={() => setAltra((v) => !v)}>
+                  Cliente o altro prenotato…
+                </button>
+              </div>
+              {chi && chi.info.allergie && (
+                <div className="mt-2 rounded-lg bg-red-100 px-2 py-1 text-sm font-semibold text-red-900">
+                  ⚠ Allergie: {chi.info.allergie}
+                </div>
+              )}
+              {altra && (
+                <div className="mt-3">
+                  <ScegliOspite tavolo={daAprire.nome} scelta={chi ? chi.info.chiave : null} onScegli={scegli} walkin={false} />
+                </div>
+              )}
             </div>
-            {prenScelta && prenScelta.allergie && (
-              <div className="mt-2 rounded-lg bg-red-100 px-2 py-1 text-sm font-semibold text-red-900">
-                ⚠ Allergie: {prenScelta.allergie}
-              </div>
-            )}
-            {altra && (
-              <div className="mt-3">
-                <ScegliPrenotazione tavolo={daAprire.nome} scelta={prenScelta ? prenScelta.id : null} onScegli={scegliPren} />
-              </div>
-            )}
-          </div>
-        )}
+          );
+        })()}
       </Modal>
     </PageLayout>
   );

@@ -1,6 +1,7 @@
 // frontend/src/pages/cucina/CucinaMobile.jsx
 // Modulo: cucina
-// @version: v1.14 — tag NFC sulle porte: link di un ripiano (?r=) che apre solo quel ripiano; modo «🏷️ Tag» nel frigo con Copia link ed etichette 90×29 (2026-11-23)
+// @version: v1.15 — etichette e Copia link dei tag spostati in utils/etichetteTag (condivisi con la cantina), stesso risultato (2026-11-24)
+// v1.14 — tag NFC sulle porte: link di un ripiano (?r=) che apre solo quel ripiano; modo «🏷️ Tag» nel frigo con Copia link ed etichette 90×29 (2026-11-23)
 // v1.13 — «Collega i prodotti»: abbinamento guidato (sicuri in blocco, dubbi uno a uno, ricerca a mano) da Scorte; CollegaSheet condiviso (2026-11-08)
 // v1.12 — Collega: ingredienti prima delle ricette, ricerca per parole, si parte dalla prima parola del nome (2026-11-08)
 // v1.11 — scheda: riga «È: …» con Collega (ricetta / ingrediente / non-food), 🗑 Elimina prodotto (admin/chef); Spesa: 🗑 Non serve su ogni riga (2026-11-08)
@@ -60,7 +61,7 @@ import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import { isCucinaWriterRole } from "../../utils/authHelpers";
 import { stampaLista, stampaListaSpesa } from "../../utils/stampaLista";
-import { pdfEtichetteQr, mostraPdf, apriFinestraVuota, larghezzaTesto } from "../../utils/pdfEtichetta";
+import { copiaTesto, stampaEtichetteTag } from "../../utils/etichetteTag";
 
 const REFRESH_MS = 90_000;
 /** Finestra dell'«Annulla». Stessa di CantinaMobile: in servizio è il tempo di
@@ -2243,9 +2244,8 @@ function TabFrigo({ onCount, apri, modi }) {
 // contiene solo il link: lo si scrive dall'iPhone con NFC Tools incollando
 // il link copiato qui. Il link usa l'id del ripiano, non il codice: se il
 // ripiano si rinomina il tag resta buono. Sopra il tag va un'etichetta della
-// Brother (rotolo 29×90, come le gift card): variante «A» scelta da Marco il
-// 2026-11-23 — QR a sinistra (stesso link), nome al centro, a destra il cerchio
-// tratteggiato da 25 mm (la misura dei tag comprati) che dice dove sta il tag.
+// Brother (variante «A»): il formato sta in utils/etichetteTag, condiviso con
+// i tag della cantina (2026-11-24).
 // ─────────────────────────────────────────────────────────────
 function nomeRipiano(r) { return r.nome || `Ripiano ${r.codice}`; }
 
@@ -2253,64 +2253,16 @@ function linkRipiano(ubicazioneId, ripianoId) {
   return `${window.location.origin}/cucina/mobile/frigo/${ubicazioneId}?r=${ripianoId}`;
 }
 
-async function copiaTesto(testo) {
-  try {
-    await navigator.clipboard.writeText(testo);
-    return true;
-  } catch { /* Safari vecchio o permesso negato: si prova alla vecchia */ }
-  try {
-    const ta = document.createElement("textarea");
-    ta.value = testo;
-    ta.setAttribute("readonly", "");
-    ta.style.position = "fixed";
-    ta.style.opacity = "0";
-    document.body.appendChild(ta);
-    ta.select();
-    ta.setSelectionRange(0, testo.length);
-    const ok = document.execCommand("copy");
-    document.body.removeChild(ta);
-    return ok;
-  } catch { return false; }
-}
-
-// Etichetta 90×29 orizzontale, PDF in piedi 29×90 (`ruota`): stesso formato
-// delle gift card (EtichettaGiftCard.jsx), rotolo montato sulla Brother.
-const TAG_MM = 25;   // diametro dei tag NFC comprati (Timeskey anti-metallo, tondi 25 mm, NTAG215)
-function opzioniEtichettaRipiano(u, r) {
-  let nome = nomeRipiano(r);
-  let size = 19;
-  // spazio per il testo: da 3 + 22 QR + 3 = 28 mm fino al cerchio (90 − 2 − 25 = 63 mm),
-  // meno 2 mm di stacco ≈ 33 mm ≈ 92 pt. Si rimpicciolisce fino a 10 pt; un nome
-  // ancora più lungo si accorcia con «...» (il carattere «…» non c'è nel font del PDF).
-  const MAX_PT = 92;
-  while (size > 10 && larghezzaTesto(nome, size, true) > MAX_PT) size -= 1;
-  if (larghezzaTesto(nome, size, true) > MAX_PT) {
-    let corto = nome;
-    while (corto.length > 4 && larghezzaTesto(`${corto}...`, size, true) > MAX_PT) corto = corto.slice(0, -1).trimEnd();
-    nome = `${corto}...`;
-  }
-  // nome del posto in maiuscolo spaziato: se non sta, si stringe
-  const posto = (u.nome || "").toUpperCase();
-  let sizePosto = 7.5;
-  while (sizePosto > 5.5 && larghezzaTesto(posto, sizePosto, true) + [...posto].length > MAX_PT) sizePosto -= 0.5;
-  const righe = [
-    { testo: posto, sizePt: sizePosto, bold: true, spaziatura: 1 },
-    { testo: nome, sizePt: size, bold: true, spazioPrimaMm: 2.4 },
-  ];
-  if (r.destinazione) righe.push({ testo: r.destinazione.toLowerCase(), sizePt: 8.5, spazioPrimaMm: 2 });
-  return {
-    ruota: true, wMm: 90, hMm: 29,
-    qrText: linkRipiano(u.id, r.id), qrMm: 22, margineMm: 3, gapMm: 3, righe,
-    bersaglio: { dMm: TAG_MM, margineMm: 2 },
-  };
-}
-
 function stampaEtichetteRipiani(u, ripiani) {
-  if (!ripiani.length) return;
-  const finestra = apriFinestraVuota(); // dentro il clic: Safari blocca le finestre aperte dopo
-  const blob = pdfEtichetteQr(ripiani.map((r) => opzioniEtichettaRipiano(u, r)));
-  const slug = (u.nome || "frigo").toLowerCase().replace(/[^a-z0-9]+/g, "_");
-  mostraPdf(blob, `etichette_ripiani_${slug}.pdf`, finestra);
+  stampaEtichetteTag(
+    ripiani.map((r) => ({
+      link: linkRipiano(u.id, r.id),
+      sopra: u.nome || "",
+      titolo: nomeRipiano(r),
+      sotto: r.destinazione ? r.destinazione.toLowerCase() : null,
+    })),
+    `etichette_ripiani_${u.nome || "frigo"}`,
+  );
 }
 
 function DentroFrigo({ id, soloRipiano, canWrite, indietro, apriArticolo, tuttoIlFrigo }) {

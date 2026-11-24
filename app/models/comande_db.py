@@ -1,4 +1,4 @@
-# @version: v2.1 (2026-11-24) — nome dell'ospite sul conto (prenotazione legata); 2.0: uscite che vanno o attendono, tasti rapidi con la loro uscita
+# @version: v2.2 (2026-11-24) — traccia di ciò che il conto scrive in Prenotazioni (walk-in creati, stato e tavolo di prima); 2.1: ospite; 2.0: uscite
 # -*- coding: utf-8 -*-
 """
 Database Comande — TRGB Gestionale. Modulo: comande. [core]
@@ -60,6 +60,9 @@ CONFIG_INIZIALE = {
     "coperto_attivo": "0",
     "coperto_nome": "Coperto",
     "coperto_prezzo": "0",
+    # Legare un tavolo a qualcuno aggiorna anche Prenotazioni (walk-in creati, «Seduto»,
+    # «Completata», tavolo). Spento = il nome resta solo sul conto.
+    "prenotazioni_aggiorna": "1",
 }
 # I reparti seguono le due stampanti comande dell'osteria (SALA e CUCINA).
 REPARTI_INIZIALI = (
@@ -249,6 +252,12 @@ def init_comande_db() -> None:
         # del collegamento così resta anche se la prenotazione poi cambia. prenotazione_id e
         # cliente_id ci sono dalla 1.0.
         _colonna(cur, "comande_conti", "ospite", "TEXT")
+        # Cosa il conto ha scritto in Prenotazioni (2.2), per poterlo rimettere com'era se il
+        # collegamento si toglie o il conto si annulla: la prenotazione l'ha creata lui (walk-in)?
+        # Che stato e che tavolo aveva prima di sedersi?
+        _colonna(cur, "comande_conti", "pren_creata", "INTEGER")
+        _colonna(cur, "comande_conti", "pren_stato_prima", "TEXT")
+        _colonna(cur, "comande_conti", "pren_tavolo_prima", "TEXT")
         # Uscita fissa di un tasto rapido (NULL = l'uscita in cui si sta battendo).
         tasti_senza_uscita = _colonna(cur, "comande_tasti_rapidi", "uscita", "INTEGER")
 

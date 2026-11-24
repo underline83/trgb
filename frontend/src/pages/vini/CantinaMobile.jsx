@@ -1,5 +1,6 @@
 // frontend/src/pages/vini/CantinaMobile.jsx
 // Modulo: vini
+// @version: v1.4 — tag NFC sugli scaffali: ?posto=&fila= / ?matrice=1 aprono solo quel posto (la scheda torna lì); modo «🏷️ Tag» con Copia link ed etichette per fila o per scaffale (2026-11-24)
 // @version: v1.3 — bottone «Stampa etichetta QR» in scheda (2026-10-06)
 // @version: v1.2 — fase 2 «muovi la bottiglia»: movimentazione in scheda (2026-08-21)
 // @version: v1.1 — filtro locazione nel modo «Per scaffale» (2026-08-21)
@@ -38,10 +39,11 @@
 // coerente con CartaStaff/CartaClienti. Prefisso classi: cm-.
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import { t } from "../../utils/localeStrings";
 import { isViniManagerRole } from "../../utils/authHelpers";
+import { copiaTesto, stampaEtichetteTag } from "../../utils/etichetteTag";
 
 const REFRESH_MS = 90_000;
 /** Finestra dell'«Annulla» dopo un movimento. Stessa di CartaStaff: in
@@ -257,6 +259,19 @@ const STYLE = `
 .cm-shelf-caret{display:inline-block;width:16px;opacity:.75;font-size:14px}
 .cm-shelf-n{font-size:13.5px;font-style:italic;opacity:.85}
 .cm-shelf-body{background:#fff;margin:0 12px 6px;border:1px solid #e2d4b8;border-top:none;border-radius:0 0 11px 11px;overflow:hidden}
+.cm-modes button.cm-mode-tag{flex:0 0 auto;padding:10px 14px}
+.cm-tagbox{margin:12px 12px 4px;background:#fbf3e2;border:1px solid #e3cfa6;border-radius:11px;padding:12px 14px;font-size:14px;line-height:1.45;color:#5a4634}
+.cm-tagprint{display:flex;gap:8px;margin:12px 12px 0}
+.cm-tagprint button{flex:1;font-family:inherit;font-size:15px;font-weight:700;border:1px solid #c5a97a;background:#fff;color:#2b2118;border-radius:11px;min-height:48px;cursor:pointer}
+.cm-taghead{display:flex;align-items:center;gap:8px;background:#2b2118;color:#f5ead3;margin:14px 12px 0;border-radius:11px;padding:7px 8px 7px 15px;min-height:46px}
+.cm-taghead .cm-shelf-nome{flex:1}
+.cm-taghead button,.cm-tagrow button{font-family:inherit;font-size:14px;font-weight:700;border-radius:9px;min-height:40px;padding:0 12px;cursor:pointer}
+.cm-taghead button{background:#f5ead3;color:#2b2118;border:none}
+.cm-tagrow{display:flex;align-items:center;gap:8px;margin:0 12px;padding:5px 4px 5px 15px;border-bottom:1px solid #eadfcb;font-size:16px}
+.cm-tagrow span{flex:1}
+.cm-tagrow button{background:#fff;color:#8f3800;border:1px solid #c5a97a}
+.cm-taglink{margin:2px 16px 6px;font-size:12px;color:#6b5c46;word-break:break-all;-webkit-user-select:all;user-select:all}
+.cm-taglink.ok{color:#2b2118;font-weight:600}
 .cm-shelf-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:13px 15px;border-bottom:1px solid #f2e9d6;font-size:16.5px;line-height:1.3;cursor:pointer;min-height:46px}
 .cm-shelf-row:last-child{border-bottom:none}
 .cm-shelf-row:active{background:#fbf3e4}
@@ -421,8 +436,166 @@ function VinoCard({ v, onOpen }) {
 // ─────────────────────────────────────────────────────────────
 // FINDER (modo Cerca + Per scaffale)
 // ─────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// Tag NFC sugli scaffali (Marco 2026-11-24, come i ripiani dei frigo in
+// cucina): il tag contiene un link che apre la cantina già su un posto.
+//   /vini/cantina-mobile?posto=Scaffale 3&fila=Fila B → solo quella fila
+//   /vini/cantina-mobile?posto=Scaffale 3              → lo scaffale, tutte le file
+//   /vini/cantina-mobile?matrice=1                     → la matrice
+// Si può etichettare per fila o per scaffale: le due stampe stanno nel modo
+// «🏷️ Tag». Il link usa i NOMI della config locazioni (Impostazioni Vini),
+// perché le bottiglie tengono la locazione come testo «Scaffale 3 - Fila B»;
+// il confronto ignora maiuscole e spazi doppi («FIla E» = «Fila E»). Se un
+// posto si rinomina, i suoi tag vanno riscritti.
+// ─────────────────────────────────────────────────────────────
+function normLoc(s) { return String(s || "").toLowerCase().replace(/\s+/g, " ").trim(); }
+
+/** «FIla E» → «Fila E» sulle etichette (solo come si scrive: il link resta quello salvato). */
+function titoloSpazio(s) {
+  return String(s || "").trim().replace(/^(\p{L})(\p{L}*)/u, (m, a, b) => a.toUpperCase() + b.toLowerCase());
+}
+
+function linkCantina({ posto = null, fila = null, matrice = false }) {
+  const base = `${window.location.origin}/vini/cantina-mobile`;
+  if (matrice) return `${base}?matrice=1`;
+  const qs = new URLSearchParams({ posto });
+  if (fila) qs.set("fila", fila);
+  return `${base}?${qs.toString()}`;
+}
+
+/** Dal link (?posto, ?fila, ?matrice) al posto da mostrare; null = cantina intera. */
+function postoDaLink(search) {
+  const qs = new URLSearchParams(search || "");
+  if (qs.get("matrice")) return { matrice: true };
+  const posto = (qs.get("posto") || "").trim();
+  return posto ? { posto, fila: (qs.get("fila") || "").trim() || null } : null;
+}
+
+/** Questa locazione del finder sta nel posto del link? */
+function shelfNelPosto(s, f) {
+  if (f.matrice) return s.cat === "matrice";
+  if (s.cat === "matrice") return false;
+  const n = normLoc(s.nome);
+  if (f.fila) return n === normLoc(`${f.posto} - ${f.fila}`);
+  const p = normLoc(f.posto);
+  return n === p || n.startsWith(`${p} - `);
+}
+
+/** I posti della config locazioni, una volta sola (Locazione 1 e 2 condividono la config). */
+function postiDaConfig(cfg) {
+  const visti = new Map();
+  const add = (arr, frigo) => (arr || []).forEach((p) => {
+    if (!p || visti.has(p.id) || !String(p.nome || "").trim()) return;
+    const spazi = [...new Set((p.spazi || []).map((x) => String(x).trim()).filter(Boolean))];
+    visti.set(p.id, { id: p.id, nome: String(p.nome).trim(), spazi, frigo,
+      matrice: p.tipo === "matrice", righe: p.righe, colonne: p.colonne });
+  });
+  add(cfg?.locazione_1, false);
+  add(cfg?.locazione_2, false);
+  add(cfg?.frigorifero, true);
+  add(cfg?.locazione_3, false);
+  const rank = (p) => (p.matrice ? 3 : /^scaffale/i.test(p.nome) ? 0 : p.frigo ? 1 : 2);
+  return [...visti.values()].sort((a, b) => (rank(a) - rank(b)) || a.nome.localeCompare(b.nome, "it", { numeric: true }));
+}
+
+function etichettaPosto(p) {
+  if (p.matrice) {
+    return { link: linkCantina({ matrice: true }), sopra: "Cantina", titolo: p.nome,
+      sotto: p.righe && p.colonne ? `${p.righe} righe × ${p.colonne} colonne` : null };
+  }
+  return { link: linkCantina({ posto: p.nome }), sopra: "Cantina", titolo: p.nome,
+    sotto: p.spazi.length ? `${p.spazi.length} file` : null };
+}
+
+function etichettaFila(p, fila) {
+  return { link: linkCantina({ posto: p.nome, fila }), sopra: p.nome, titolo: titoloSpazio(fila) };
+}
+
+/** Modo «🏷️ Tag»: link da copiare in NFC Tools ed etichette, per fila o per scaffale. */
+function TagCantina() {
+  const [posti, setPosti] = useState(null);
+  const [err, setErr] = useState(null);
+  const [copiato, setCopiato] = useState(null); // { k, ok }
+
+  useEffect(() => {
+    let vivo = true;
+    (async () => {
+      try {
+        const r = await apiFetch(`${API_BASE}/vini/cantina-tools/locazioni-config`);
+        if (!r.ok) throw new Error(`Errore ${r.status}`);
+        const d = await r.json();
+        if (vivo) setPosti(postiDaConfig(d));
+      } catch (e) { if (vivo) setErr(e.message); }
+    })();
+    return () => { vivo = false; };
+  }, []);
+
+  async function copia(k, link) {
+    const ok = await copiaTesto(link);
+    setCopiato({ k, ok });
+  }
+
+  if (err) return <div className="cm-empty" style={{ color: "#8f3800" }}>{err}</div>;
+  if (!posti) return <div className="cm-loading">Carico i posti della cantina…</div>;
+
+  // Per fila: una per fila, e una per i posti senza file (e la matrice)
+  const perFila = posti.flatMap((p) => (p.spazi.length ? p.spazi.map((f) => etichettaFila(p, f)) : [etichettaPosto(p)]));
+  const perPosto = posti.map(etichettaPosto);
+  const linkSotto = (k, link) => copiato?.k === k && (
+    <div className={`cm-taglink${copiato.ok ? " ok" : ""}`}>
+      {!copiato.ok && "Copia non riuscita: tieni premuto sul link e copialo a mano. "}{link}
+    </div>
+  );
+
+  return (
+    <>
+      <div className="cm-tagbox">
+        <b>Un tag per fila o uno per scaffale.</b> «🔗 Copia» → in NFC Tools: Scrivi → Aggiungi un record → URL → incolla → avvicina il tag.
+        Poi sopra il tag l'etichetta stampata, col cerchio tratteggiato sopra il tag. Brother: carta «29x90mm», scala 100%.
+      </div>
+      <div className="cm-tagprint">
+        <button onClick={() => stampaEtichetteTag(perFila, "etichette_cantina_per_fila")}>🖨️ Per fila ({perFila.length})</button>
+        <button onClick={() => stampaEtichetteTag(perPosto, "etichette_cantina_per_scaffale")}>🖨️ Per scaffale ({perPosto.length})</button>
+      </div>
+      {posti.map((p) => {
+        const ep = etichettaPosto(p);
+        const kp = `p${p.id}`;
+        return (
+          <div key={p.id}>
+            <div className="cm-taghead">
+              <span className="cm-shelf-nome">{p.nome}</span>
+              <span className="cm-shelf-n">{p.matrice ? "matrice" : p.spazi.length ? `${p.spazi.length} file` : ""}</span>
+              <button onClick={() => copia(kp, ep.link)}>{copiato?.k === kp && copiato.ok ? "✓ Copiato" : "🔗 Copia"}</button>
+              <button onClick={() => stampaEtichetteTag([ep], `etichetta_${p.nome}`)}>🖨️</button>
+            </div>
+            {linkSotto(kp, ep.link)}
+            {p.spazi.map((f) => {
+              const ef = etichettaFila(p, f);
+              const kf = `${kp}|${f}`;
+              return (
+                <React.Fragment key={f}>
+                  <div className="cm-tagrow">
+                    <span>{titoloSpazio(f)}</span>
+                    <button onClick={() => copia(kf, ef.link)}>{copiato?.k === kf && copiato.ok ? "✓ Copiato" : "🔗 Copia"}</button>
+                    <button onClick={() => stampaEtichetteTag([ef], `etichetta_${p.nome}_${f}`)}>🖨️</button>
+                  </div>
+                  {linkSotto(kf, ef.link)}
+                </React.Fragment>
+              );
+            })}
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
 function Finder() {
   const navigate = useNavigate();
+  const location = useLocation();
+  // Aperto da un tag (?posto, ?fila, ?matrice): solo quel posto (2026-11-24)
+  const focus = useMemo(() => postoDaLink(location.search), [location.search]);
+  const puoTag = useMemo(() => isViniManagerRole(localStorage.getItem("role") || ""), []);
   const [vini, setVini] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -456,7 +629,9 @@ function Finder() {
     return () => clearInterval(id);
   }, [fetchVini]);
 
-  const openScheda = (id) => navigate(`/vini/cantina-mobile/${id}`);
+  // dalla scheda si torna al posto del tag, se si veniva da lì
+  const openScheda = (id) => navigate(`/vini/cantina-mobile/${id}`,
+    focus ? { state: { da: `${location.pathname}${location.search}` } } : undefined);
 
   // Chip per CATEGORIA di locazione: Scaffali / Frigo / Matrice / Altro.
   // Conta quante etichette hanno almeno una locazione in quella categoria
@@ -539,29 +714,52 @@ function Finder() {
 
   const totBt = useMemo(() => vini.reduce((s, v) => s + num(v.QTA_TOTALE), 0), [vini]);
 
+  const focusShelves = useMemo(() => (focus ? shelves.filter((s) => shelfNelPosto(s, focus)) : []), [shelves, focus]);
+  const focusEtichette = focusShelves.reduce((n, s) => n + s.items.length, 0);
+  const focusBt = focusShelves.reduce((n, s) => n + s.bt, 0);
+  const focusTitolo = !focus ? "" : focus.matrice ? "Matrice" : focus.fila ? titoloSpazio(focus.fila) : focus.posto;
+
   return (
     <div className="cm-root">
       <style>{STYLE}</style>
       <div className="cm-wrap">
         <div className="cm-top">
-          <div className="cm-top-row">
-            <button className="cm-back" onClick={() => navigate("/vini")} title="Torna ai Vini">‹</button>
-            <div>
-              <div className="cm-title">In cantina</div>
-              <div className="cm-sub">{vini.length} etichette · {totBt} bottiglie</div>
+          {focus ? (
+            <div className="cm-top-row">
+              <button className="cm-back" onClick={() => navigate("/vini/cantina-mobile")} title="Tutta la cantina">‹</button>
+              <div>
+                <div className="cm-title">{focusTitolo}</div>
+                <div className="cm-sub">
+                  {focus.fila ? `${focus.posto} · ` : ""}{focusEtichette} etichette · {focusBt} bt
+                </div>
+              </div>
+              <span className="cm-live"><span className="cm-live-dot"></span>live</span>
             </div>
-            <span className="cm-live"><span className="cm-live-dot"></span>live</span>
-          </div>
-          <div className="cm-modes">
-            <button className={mode === "cerca" ? "cm-on" : ""} onClick={() => setMode("cerca")}>🔍 Cerca vino</button>
-            <button className={mode === "scaffale" ? "cm-on" : ""} onClick={() => setMode("scaffale")}>📍 Per scaffale</button>
-          </div>
+          ) : (
+            <div className="cm-top-row">
+              <button className="cm-back" onClick={() => navigate("/vini")} title="Torna ai Vini">‹</button>
+              <div>
+                <div className="cm-title">In cantina</div>
+                <div className="cm-sub">{vini.length} etichette · {totBt} bottiglie</div>
+              </div>
+              <span className="cm-live"><span className="cm-live-dot"></span>live</span>
+            </div>
+          )}
+          {!focus && (
+            <div className="cm-modes">
+              <button className={mode === "cerca" ? "cm-on" : ""} onClick={() => setMode("cerca")}>🔍 Cerca vino</button>
+              <button className={mode === "scaffale" ? "cm-on" : ""} onClick={() => setMode("scaffale")}>📍 Per scaffale</button>
+              {puoTag && (
+                <button className={`cm-mode-tag${mode === "tag" ? " cm-on" : ""}`} onClick={() => setMode("tag")}>🏷️ Tag</button>
+              )}
+            </div>
+          )}
         </div>
 
         {loading && <div className="cm-loading">Caricamento cantina…</div>}
         {!loading && error && <div className="cm-empty" style={{ color: "#8f3800" }}>{error}</div>}
 
-        {!loading && !error && mode === "cerca" && (
+        {!loading && !error && !focus && mode === "cerca" && (
           <>
             <div className="cm-searchbar">
               <input
@@ -587,7 +785,7 @@ function Finder() {
           </>
         )}
 
-        {!loading && !error && mode === "scaffale" && (
+        {!loading && !error && !focus && mode === "scaffale" && (
           <>
             <div className="cm-searchbar">
               <input
@@ -648,6 +846,42 @@ function Finder() {
             })}
           </>
         )}
+
+        {!focus && mode === "tag" && puoTag && <TagCantina />}
+
+        {!loading && !error && focus && (
+          <>
+            {focusShelves.length === 0 && (
+              <div className="cm-hint">Nessuna bottiglia in giacenza qui.</div>
+            )}
+            {focusShelves.map((s, i) => (
+              <div key={i}>
+                <div className="cm-shelf-head cm-open">
+                  <span className="cm-shelf-nome">{s.nome}</span>
+                  <span className="cm-shelf-n">
+                    {s.items.length} {s.items.length === 1 ? "etichetta" : "etichette"} · {s.bt} bt
+                  </span>
+                </div>
+                <div className="cm-shelf-body">
+                  {s.items.map(({ v, qta, celle }, j) => (
+                    <div key={j} className="cm-shelf-row" onClick={() => openScheda(v.id)}>
+                      <span>
+                        {celle?.length > 0 && <span className="cm-sr-cella">{celleLabel(celle)}</span>}
+                        {v.DESCRIZIONE}
+                        {v.ANNATA ? ` ${v.ANNATA}` : ""}
+                        <span className="cm-sr-sub"> — {nomeProduttore(v)}</span>
+                      </span>
+                      <span className="cm-sr-q">{qta} bt</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+            <div className="cm-tagprint">
+              <button onClick={() => navigate("/vini/cantina-mobile")}>📍 Tutta la cantina</button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
@@ -686,6 +920,8 @@ function slotNome(v, slot) {
 
 function Scheda({ id }) {
   const navigate = useNavigate();
+  // aperta da un posto della cantina (tag NFC): «‹» torna lì
+  const daQui = useLocation().state?.da || "/vini/cantina-mobile";
   const [v, setV] = useState(null);
   const [movimenti, setMovimenti] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -888,7 +1124,7 @@ function Scheda({ id }) {
     <div className="cm-root"><style>{STYLE}</style>
       <div className="cm-wrap">
         <div className="cm-top"><div className="cm-top-row">
-          <button className="cm-back" onClick={() => navigate("/vini/cantina-mobile")}>‹</button>
+          <button className="cm-back" onClick={() => navigate(daQui)}>‹</button>
           <div className="cm-title">Scheda</div>
         </div></div>
         <div className="cm-empty" style={{ color: "#8f3800" }}>{error || "Vino non trovato"}</div>
@@ -926,7 +1162,7 @@ function Scheda({ id }) {
       <div className="cm-wrap">
         <div className="cm-top">
           <div className="cm-top-row">
-            <button className="cm-back" onClick={() => navigate("/vini/cantina-mobile")}>‹</button>
+            <button className="cm-back" onClick={() => navigate(daQui)}>‹</button>
             <div><div className="cm-sub">Cantina · scheda</div></div>
             <span className="cm-live" style={{ color: "#6b5c46", fontStyle: "normal", fontWeight: 700 }}>#{v.id}</span>
           </div>

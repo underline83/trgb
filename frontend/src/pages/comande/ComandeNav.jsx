@@ -1,4 +1,4 @@
-// @version: v1.0 — Tavoli · Invii · Impostazioni (2026-11-24)
+// @version: v1.1 — Tavoli · Invii · Impostazioni; avviso «in prova» su una riga (2026-11-24)
 // Modulo: comande
 import React from "react";
 import { useLocation } from "react-router-dom";
@@ -27,11 +27,22 @@ export default function ComandeNav({ current }) {
 }
 
 // Avviso fisso: finché non c'è la Cassa le comande non valgono in servizio (Marco, 24/11/2026).
+// Su una riga sola, per non rubare spazio ai tavoli e al conto.
+const PROVA = "Le comande di TRGB non vanno in servizio: tavoli, conti e scontrini veri restano su iPratico finché non arriva la Cassa.";
+
 export function BannerProva() {
   return (
-    <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm text-amber-900">
-      <b>In prova.</b> Le comande di TRGB non vanno in servizio: tavoli, conti e scontrini veri
-      restano su iPratico finché non arriva la Cassa.
+    <div title={PROVA} className="mb-2 truncate rounded-lg border border-amber-300 bg-amber-50 px-3 py-1 text-xs text-amber-900">
+      <b>In prova.</b> Tavoli, conti e scontrini veri restano su iPratico finché non arriva la Cassa.
     </div>
+  );
+}
+
+// La stessa cosa in una pastiglia, dove c'è posto solo per due parole (testata del conto).
+export function ProvaPill() {
+  return (
+    <span title={PROVA} className="shrink-0 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-900">
+      In prova
+    </span>
   );
 }

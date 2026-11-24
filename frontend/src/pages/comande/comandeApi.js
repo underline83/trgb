@@ -1,5 +1,6 @@
-// @version: v2.0 — chiamate del modulo Comanda; uscite chiamate «Uscita N», durate in minuti (2026-11-24)
+// @version: v2.2 — chiamate del modulo Comanda; ganci per riempire lo schermo su iPad e telefono (2026-11-24)
 // Modulo: comande
+import { useEffect, useLayoutEffect, useState } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
 
 // Gli endpoint root dei router vogliono lo slash finale (/comande/conti/), gli altri no.
@@ -33,3 +34,52 @@ export const utenteCorrente = () => localStorage.getItem("username") || "";
 
 export const RUOLI_ADMIN = ["admin", "superadmin"];
 export const isAdmin = () => RUOLI_ADMIN.includes(localStorage.getItem("role"));
+
+// Schermo abbastanza grande per due pannelli affiancati (iPad dritto o sdraiato, computer).
+// Un telefono, anche girato, resta a un pannello per volta.
+export const SCHERMO_LARGO = "(min-width: 768px) and (min-height: 520px)";
+export function useSchermoLargo(query = SCHERMO_LARGO) {
+  const [si, setSi] = useState(() => typeof window !== "undefined" && window.matchMedia(query).matches);
+  useEffect(() => {
+    const m = window.matchMedia(query);
+    const senti = () => setSi(m.matches);
+    senti();
+    if (m.addEventListener) m.addEventListener("change", senti);
+    else m.addListener(senti);
+    return () => {
+      if (m.removeEventListener) m.removeEventListener("change", senti);
+      else m.removeListener(senti);
+    };
+  }, [query]);
+  return si;
+}
+
+// Altezza che resta sotto un elemento fino in fondo allo schermo, misurata sul posto: così un
+// pannello riempie lo schermo qualunque cosa ci sia sopra (testata di TRGB, barra del modulo,
+// avvisi), senza numeri fissi. Torna [ref da mettere sull'elemento, altezza in px o null].
+export function useAltezzaRestante(attivo = true, margine = 12) {
+  const [nodo, setNodo] = useState(null);
+  const [altezza, setAltezza] = useState(null);
+  useLayoutEffect(() => {
+    if (!attivo || !nodo) {
+      setAltezza(null);
+      return undefined;
+    }
+    const misura = () => {
+      const cima = nodo.getBoundingClientRect().top + window.scrollY;
+      setAltezza(Math.max(240, Math.round(window.innerHeight - cima - margine)));
+    };
+    misura();
+    window.addEventListener("resize", misura);
+    window.addEventListener("orientationchange", misura);
+    // se cambia ciò che sta sopra (un avviso che compare, una riga che va a capo) si rimisura
+    const oss = typeof ResizeObserver !== "undefined" ? new ResizeObserver(misura) : null;
+    if (oss && nodo.parentElement) oss.observe(nodo.parentElement);
+    return () => {
+      window.removeEventListener("resize", misura);
+      window.removeEventListener("orientationchange", misura);
+      if (oss) oss.disconnect();
+    };
+  }, [attivo, nodo, margine]);
+  return [setNodo, altezza];
+}

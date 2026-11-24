@@ -680,7 +680,7 @@ Il foglio storico (`gift-card-lista.xlsx`, 174 righe dal dic 2021) era compilato
 ## 17.2 Punti aperti
 
 1. ~~Collegare il numero senza essere Tech Provider~~ → no (23/11): collegato tramite YCloud, vedi sopra. L'app Meta «TRGB Tre Gobbi» e il portfolio «Tre Gobbi SRL» del profilo fittizio restano ma non servono.
-2. **Da verificare** (endpoint creato e attivo dal 24/11 14:04): che i messaggi arrivino in TRGB (pagina Impostazioni › WhatsApp, «Ultimo evento») e che la rubrica `whatsapp.smb.app.state.sync` abbia una forma che TRGB legge (se nel registro c'è `da_capire`, va adattata).
+2. ~~Verificare che arrivino i messaggi e la rubrica~~ → verificato il 24/11 sera: collegato, 15 eventi senza errori, rubrica dell'app letta («rubrica: 5 contatti», «3 contatti»), «✓ Gestita» usata. Da provare ancora: il primo messaggio scritto da TRGB (3.49).
 3. Informativa privacy del sito: aggiungere YCloud (fornitore extra UE) accanto a Meta.
 4. Il capo sala con la Posta vede **tutte** le caselle lette da TRGB (info@, prenotazioni@, marco@, la PEC, trgb@) e può rispondere, mandare bozze e cestinare; configurare le caselle resta admin. Se una casella non deve vederla, oggi si toglie la Posta al ruolo dalla matrice: un filtro per casella non c'è.
 

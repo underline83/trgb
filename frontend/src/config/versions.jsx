@@ -3,6 +3,10 @@
 
 const MODULE_VERSIONS = {
   vini: {
+    // 4.21 (2026-11-24): tag NFC sugli scaffali della cantina, come i ripiani dei frigo in cucina —
+    //   /vini/cantina-mobile?posto=…&fila=… apre solo quella fila, ?posto=… lo scaffale, ?matrice=1 la matrice
+    //   (la scheda torna lì); modo «🏷️ Tag» (admin, sommelier, capo sala) con Copia link ed etichette Brother
+    //   90×29 per fila o per scaffale (CantinaMobile 1.4, utils/etichetteTag 1.0 condiviso con CucinaMobile 1.15).
     // 4.20 (2026-11-23): anche formato e BIO escono dalla descrizione: carta, calici, pagina cliente e
     //   carta bevande scrivono «… 15,5% · BIO · Magnum 1,5 L» (nome del formato dalla tabella Formati, niente
     //   per la Bottiglia); iPratico, etichette (collo compreso) e inventari con BIO. Wizard: annata nuova di un
@@ -214,7 +218,7 @@ const MODULE_VERSIONS = {
     // 3.72 (2026-07-20): CartaStaff v2.0 "banco di servizio" (V.22) — vista
     //   sommelier operativa: Preparazione + Servizio, vendita one-tap con
     //   undo, toggle mescita. Endpoint carta-staff: locazioni con `slot`.
-    version: "4.20",
+    version: "4.21",
     label: "Cantina & Vini",
     status: "stabile",     // stabile | beta | alpha | dev
     color: "green",
@@ -835,6 +839,14 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   comande: {
+    // 2.2 (2026-11-24): tutto lo schermo su iPad e telefono (Marco: «ottimizza lo spazio»): Tavoli senza titolo, griglia
+    //   fitta (31 tavoli in una schermata di iPad, 3 colonne su telefono), conto con testata su una riga e pannelli alti
+    //   fino in fondo (useAltezzaRestante misura la pagina vera), «Invia comanda» sempre a vista. «Batti qui» → «⋯» su ogni
+    //   uscita con «＋ Aggiungi qui». Chi è al tavolo anche senza prenotazione: walk-in, cliente (ricerca), cliente nuovo,
+    //   altro prenotato; e Prenotazioni SEGUE il conto (anche in prova): «Seduto» sul tavolo del conto, prenotazione
+    //   «Walk-in» di oggi, «Completata» alla chiusura, tutto com'era con «Annulla conto» / «Nessuno al tavolo». Scritture
+    //   fatte con le funzioni del Planning (prenotazioni_giorno_service 1.1); interruttore «Aggiorna Prenotazioni» in
+    //   Impostazioni. Tre colonne comande_conti.pren_* al boot (solo ADD COLUMN), nessuna migrazione numerata.
     // 2.1 (2026-11-24): il tavolo si lega alla prenotazione (Marco: «sul tavolo posso linkare la persona che ha la
     //   prenotazione»). Tavoli: quelli prenotati nel turno dicono ora, nome e coperti (elenco e mappa); all'apertura
     //   si sceglie chi è al tavolo (una sola prenotazione possibile = già proposta, coi suoi coperti). Conto: scheda
@@ -859,7 +871,7 @@ const MODULE_VERSIONS = {
     //   degustazioni, piatti del giorno, Menù Business, vini a bottiglia e calice, Carta Bevande, menu template),
     //   prezzo libero e fuori carta, invio ai reparti (cucina, sala), «Via la Nª», storno con motivo, pagina Invii
     //   (quello che il ponte stamperà), Impostazioni (uscite, reparti, gruppo → reparto). DB comande.sqlite3 al boot.
-    version: "2.1",
+    version: "2.2",
     label: "Comanda",
     status: "alpha",
     color: "orange",
