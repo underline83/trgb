@@ -21,6 +21,8 @@ import { loadLocaleStrings } from "./utils/localeStrings";
 // per filtrare voci menu di moduli disattivati. Backward-compat: se il
 // backend è pre-R8b o la chiamata fallisce, fallback wildcard (mostra tutto).
 import { loadActiveModules } from "./utils/activeModules";
+// Push (M.A): tocco su una notifica con TRGB già aperto → si va alla pagina.
+import { ascoltaTocchiNotifica } from "./utils/push";
 
 // ✔️ App principale
 import App from "./App.jsx";
@@ -55,6 +57,7 @@ if ("serviceWorker" in navigator) {
     })
     .catch((err) => console.warn("⚠️ SW registrazione fallita:", err));
 }
+ascoltaTocchiNotifica();
 
 // Boot: carica branding + strings + moduli attivi del locale in parallelo
 // PRIMA del primo render. Se una fetch fallisce, render comunque avviene

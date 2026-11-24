@@ -53,6 +53,13 @@ Servizi/componenti riutilizzabili che piu' moduli richiedono. Costruirli PRIMA e
 | 2.7 | Prenotazioni | Lista d'attesa — posto liberato |
 | Home | Widget Attenzione | Aggrega notifiche non lette per tipo |
 
+**Push sui dispositivi (2026-11-24, fase 1)** — spec: [spec_notifiche_push.md](spec_notifiche_push.md). Decisione di Marco: push vere dalla PWA adesso, app nativa come obiettivo; per questo il servizio è **a canali** (`webpush` oggi, `apns` domani).
+- **Backend:** `app/services/notifiche_push.py` → `manda_a_utente(username, titolo, corpo, link, tag)`, `registra`, `togli`, `stato`, `prova`; `CANALI` = canale → funzione d'invio. Web push senza librerie nuove (RFC 8291 + VAPID con `cryptography`, invio con `httpx`); chiavi del locale generate da sole e cifrate con `TRGB_SECRET_KEY`. MAI chiamare un servizio push a mano.
+- **DB:** `notifiche_dispositivi`, `notifiche_push_config` (in `notifiche.sqlite3`, create al boot).
+- **Rotte:** `GET /notifiche/push/stato`, `POST /notifiche/push/dispositivi`, `DELETE /notifiche/push/dispositivi/{id}`, `POST /notifiche/push/prova` — tutti i ruoli, ognuno i suoi dispositivi.
+- **Frontend:** `utils/push.js` (l'unico punto che parla con le push), `components/NotifichePush.jsx` (riquadro in fondo al pannello del campanello), `public/sw.js` (`push`, `notificationclick`).
+- **Non ancora:** le notifiche vere (`crea_notifica`) non diventano push. Fase 2: interruttori per tipo e destinatari, aggancio a `crea_notifica`, strumento `notifica_crea` nel connettore.
+
 ---
 
 ### M.B — PDF brand service (backend)

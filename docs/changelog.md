@@ -3,6 +3,22 @@
 
 ---
 
+## 2026-11-24 — Notifiche push sui dispositivi, fase 1 (mattone M.A) `[core]`
+Marco, dal giro mail: «queste notifiche potrebbero arrivare anche sull'app?». Il campanello c'è ma non avvisa sul telefono. Tre strade proposte, scelta: «Lavoriamo la A; ma ricordiamoci che l'obiettivo è sempre C» (push dalla PWA adesso, app nativa come obiettivo); struttura approvata sul mockup. Spec: [spec_notifiche_push.md](spec_notifiche_push.md). Nessuna migrazione numerata (tabelle al boot), sistema invariato (6.10). Il backend è uscito dentro il push 85878008; il frontend è da pushare.
+
+**Aggiunto**
+- `app/services/notifiche_push.py` (platform): dispositivi di ogni utente, chiavi del locale generate da sole e cifrate con `TRGB_SECRET_KEY`, invio web push (cifratura RFC 8291 e firma VAPID con `cryptography`, nessuna libreria nuova), a canali per accogliere domani l'app nativa. Un dispositivo sparito viene tolto, dopo 5 invii falliti di fila viene spento.
+- Tabelle `notifiche_dispositivi` e `notifiche_push_config` in `notifiche.sqlite3`.
+- `GET /notifiche/push/stato`, `POST /notifiche/push/dispositivi`, `DELETE /notifiche/push/dispositivi/{id}`, `POST /notifiche/push/prova`: tutti i ruoli, ognuno i suoi dispositivi.
+- Service worker: mostra la push e, al tocco, apre la pagina giusta di TRGB.
+- Pannello del campanello: in fondo «📲 Notifiche su questo dispositivo» con **Attiva**, **Prova**, **Spegni** e l'elenco degli altri propri dispositivi (`components/NotifichePush.jsx`, `utils/push.js`).
+- `tests/test_notifiche_push.py`: 19 prove, la cifratura contro l'esempio dell'RFC.
+
+**Non ancora**
+- Le notifiche vere non diventano push: arriva con la fase 2 (interruttori per tipo e destinatari). Oggi parte solo la push di prova.
+
+---
+
 ## 2026-11-24 — Prenotazioni 2.39: formato iPhone `[core]`
 Marco: «modulo prenotazioni, ottimizzazione formato iPhone… chiaramente deve rimanere ottimizzato anche per iPad». Solo frontend.
 

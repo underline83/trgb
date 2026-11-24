@@ -39,6 +39,8 @@
     "users (users.json)",
     "notifiche",
     "notifiche_lettura",
+    "notifiche_dispositivi",
+    "notifiche_push_config",
     "comunicazioni",
     "alert_config",
     "schema_migrations",
@@ -52,7 +54,7 @@
     "ponte_lavori"
   ],
   "mattoni": {
-    "M.A": "notifiche (FATTO, sessione 31)",
+    "M.A": "notifiche (FATTO, sessione 31; push sui dispositivi fase 1, 2026-11-24)",
     "M.B": "pdf brand (FATTO)",
     "M.C": "wa composer (FATTO, sessione 31)",
     "M.D": "email service (PARZIALE, 2026-07-30)",

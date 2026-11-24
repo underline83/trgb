@@ -1,9 +1,10 @@
-// @version: v1.0-notifiche-panel
+// @version: v1.1 (2026-11-24) — riquadro «Notifiche su questo dispositivo» (push, NotifichePush) sopra il piede; v1.0-notifiche-panel
 // Pannello dropdown notifiche + comunicazioni — Header campanello
 // Mattone M.A — componente condiviso
 
 import React, { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import NotifichePush from "./NotifichePush";
 
 // Icone per tipo notifica (emoji per coerenza con Home v3)
 const TIPO_ICONA = {
@@ -203,6 +204,9 @@ export default function NotifichePanel({
           </>
         )}
       </div>
+
+      {/* ── Push su questo dispositivo (M.A, fase 1) ── */}
+      <NotifichePush />
 
       {/* ── Footer ── */}
       <div className="border-t border-neutral-100 px-4 py-2.5 flex justify-between items-center">

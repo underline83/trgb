@@ -957,6 +957,10 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 6.10 (2026-11-24): M.A notifiche — push sui dispositivi, fase 1 (docs/spec_notifiche_push.md): notifiche_push.py
+    //   (dispositivi, chiavi del locale, web push a canali), /notifiche/push/*, tabelle notifiche_dispositivi e
+    //   notifiche_push_config al boot, service worker (push + tocco), riquadro «Notifiche su questo dispositivo» nel
+    //   campanello. Nessuna migrazione numerata, stesso 6.10 del ponte (backend uscito nel push 85878008).
     // 6.10 (2026-11-24): mattone nuovo M.M «ponte di stampa» — ponte.sqlite3 creato al boot (stampanti, tempi, token),
     //   /ponte per il programma ponte/ponte.py che gira nella rete del locale, servizio stampa_escpos (righe → byte ESC/POS).
     //   Primo a usarlo: la Comanda (comande 2.3). Nessuna migrazione numerata.
