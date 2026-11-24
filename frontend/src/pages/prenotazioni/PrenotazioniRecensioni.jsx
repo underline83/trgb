@@ -93,7 +93,7 @@ export default function PrenotazioniRecensioni() {
   return (
     <div className="min-h-screen bg-neutral-50">
       <PrenotazioniNav current="recensioni" />
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 space-y-4">
+      <div className="max-w-5xl mx-auto px-3 sm:px-6 py-3 sm:py-4 space-y-3 sm:space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <Media titolo="Ultimi 30 giorni" m={rie?.["30_giorni"]} />
           <Media titolo="Ultimi 90 giorni" m={rie?.["90_giorni"]} />
@@ -103,14 +103,14 @@ export default function PrenotazioniRecensioni() {
         <div className="flex items-center gap-2 flex-wrap">
           {FILTRI.map((f) => (
             <button key={f.k} onClick={() => { setFiltro(f.k); setPagina(1); }}
-              className={`px-3 py-1 rounded-full text-sm border ${filtro === f.k ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-neutral-600 border-neutral-300"}`}>
+              className={`px-3 py-1 max-sm:py-2 rounded-full text-sm border ${filtro === f.k ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-neutral-600 border-neutral-300"}`}>
               {f.l}
               {f.k === "da_rispondere" && rie?.da_rispondere > 0 && ` (${rie.da_rispondere})`}
               {f.k === "non_lette" && rie?.non_lette > 0 && ` (${rie.non_lette})`}
             </button>
           ))}
           <input value={q} onChange={(e) => { setQ(e.target.value); setPagina(1); }} placeholder="Cerca nome o parola…"
-            className="ml-auto px-3 py-1.5 border border-neutral-300 rounded-lg text-sm w-56" />
+            className="sm:ml-auto px-3 py-1.5 border border-neutral-300 rounded-lg text-base sm:text-sm w-full sm:w-56 max-sm:min-h-[44px]" />
           {rie?.non_lette > 0 && (
             <button onClick={tutteLette} className="text-xs text-indigo-700 hover:underline">Segna tutte lette</button>
           )}

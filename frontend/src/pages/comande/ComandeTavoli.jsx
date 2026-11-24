@@ -1,4 +1,4 @@
-// @version: v2.2 — più tavoli nello schermo; all'apertura chi è al tavolo: prenotato, walk-in, cliente, cliente nuovo (2026-11-24)
+// @version: v2.3 — avviso se la stampa è ferma; 2.2: più tavoli nello schermo; all'apertura chi è al tavolo: prenotato, walk-in, cliente, cliente nuovo (2026-11-24)
 // Modulo: comande
 // La mappa riusa le forme della piantina di Prenotazioni: stessi tavoli, stesso disegno
 // (li disegna l'Editor Tavoli; qui si leggono dal servizio platform tavoli_sala_service).
@@ -8,6 +8,7 @@ import { Btn, EmptyState, Modal, PageLayout } from "../../components/ui";
 import TrgbLoader from "../../components/TrgbLoader";
 import { CANVAS_W, CANVAS_H, FormaElemento, FormaTavolo, SchedeSale } from "../prenotazioni/components/Piantina";
 import ComandeNav, { BannerProva } from "./ComandeNav";
+import { AvvisoStampaFerma } from "./ComandeStampa";
 import { SCELTA_WALKIN, ScegliOspite, sceltaPrenotazione } from "./ComandePrenotazione";
 import { api, durata, euro, useAltezzaRestante, utenteCorrente } from "./comandeApi";
 
@@ -180,6 +181,7 @@ export default function ComandeTavoli() {
   const io = utenteCorrente();
   const [dati, setDati] = useState(null);
   const [errore, setErrore] = useState(null);
+  const [ponte, setPonte] = useState(null);
   const [vista, setVista] = useState(vistaSalvata);
   const [sala, setSala] = useState(null);
   const [soloMiei, setSoloMiei] = useState(false);
@@ -196,6 +198,7 @@ export default function ComandeTavoli() {
     } catch (e) {
       setErrore(e.message);
     }
+    api("/ponte/stato/").then(setPonte).catch(() => {});   // la stampa è ferma? lo dice un avviso
   }, []);
 
   useEffect(() => {
@@ -296,6 +299,7 @@ export default function ComandeTavoli() {
           </button>
         </div>
         <BannerProva />
+        <AvvisoStampaFerma stato={ponte} />
         {errore && (
           <div className="mb-2 rounded-xl border border-red-200 bg-red-50 px-3 py-1.5 text-sm text-red-800">{errore}</div>
         )}

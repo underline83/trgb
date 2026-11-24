@@ -1,4 +1,4 @@
-// @version: v2.9 — «In opzione»: tavolo ambra tratteggiato, «✓ Conferma» (2026-11-13); v2.8 — «✂️ Dividi» anche da un tavolo occupato (scheda prenotazione); v2.7 — Sposta, Unisci e Sala com'era vicini; v2.6 — «✂️ Stacca» anche da un'unione occupata (scheda prenotazione); v2.5-sposta — tavoli trascinabili per il turno (in assegnazione o con «✋ Sposta»), «↺ Sala com'era»; v2.4-unioni — «🔗 Unisci» (anche assegnando): tavoli uniti per il turno disegnati come un rettangolo unico, «Stacca»; uniti anche i tavoli di una stessa prenotazione; v2.3-menu-nei-bordi — menu del tavolo sempre dentro la mappa; v2.2-dividi — tavoli dividibili spezzati in A/B per il turno; v2.1-menu-tavolo — clic su tavolo libero: aggiungi prenotazione / blocca tavolo (come TheFork Manager)
+// @version: v2.10 — su iPhone la mappa prende tutta la larghezza e i riquadri (prenotazione scelta, senza tavolo, riepilogo) scendono sotto; tasti da pollice (2026-11-24); v2.9 — «In opzione»: tavolo ambra tratteggiato, «✓ Conferma» (2026-11-13); v2.8 — «✂️ Dividi» anche da un tavolo occupato (scheda prenotazione); v2.7 — Sposta, Unisci e Sala com'era vicini; v2.6 — «✂️ Stacca» anche da un'unione occupata (scheda prenotazione); v2.5-sposta — tavoli trascinabili per il turno (in assegnazione o con «✋ Sposta»), «↺ Sala com'era»; v2.4-unioni — «🔗 Unisci» (anche assegnando): tavoli uniti per il turno disegnati come un rettangolo unico, «Stacca»; uniti anche i tavoli di una stessa prenotazione; v2.3-menu-nei-bordi — menu del tavolo sempre dentro la mappa; v2.2-dividi — tavoli dividibili spezzati in A/B per il turno; v2.1-menu-tavolo — clic su tavolo libero: aggiungi prenotazione / blocca tavolo (come TheFork Manager)
 // Modulo: prenotazioni
 // Mappa serale tavoli — vista operativa con assegnazione, Fase 2 Prenotazioni
 import React, { useState, useEffect, useCallback, useRef } from "react";
@@ -289,7 +289,7 @@ export default function TavoliMappa() {
     <div className="min-h-screen bg-neutral-50">
       <PrenotazioniNav current="mappa" />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 py-3 sm:py-4">
         {toast && (
           <div className={`mb-3 px-4 py-2 rounded-lg text-sm font-medium ${
             toast.type === "ok" ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-800"
@@ -301,14 +301,14 @@ export default function TavoliMappa() {
           <div className="flex items-center gap-2">
             <Btn variant="secondary" size="sm" onClick={prevDay}>◀</Btn>
             <input type="date" value={data} onChange={e => setData(e.target.value)}
-              className="px-3 py-1.5 border rounded-lg text-sm" />
+              className="px-3 py-1.5 border rounded-lg text-sm max-sm:text-base max-sm:min-w-0 max-sm:flex-1" />
             <Btn variant="secondary" size="sm" onClick={nextDay}>▶</Btn>
             <Btn variant="ghost" size="sm" onClick={() => setData(today)}>Oggi</Btn>
           </div>
           <div className="flex items-center gap-1 bg-neutral-100 rounded-lg p-0.5">
             <button
               onClick={() => setTurno("pranzo")}
-              className={`px-3 py-1 text-sm rounded-md transition ${
+              className={`px-3 py-1 max-sm:px-5 max-sm:py-2 text-sm rounded-md transition ${
                 turno === "pranzo" ? "bg-white shadow-sm font-medium text-indigo-700" : "text-neutral-500"
               }`}
             >
@@ -316,7 +316,7 @@ export default function TavoliMappa() {
             </button>
             <button
               onClick={() => setTurno("cena")}
-              className={`px-3 py-1 text-sm rounded-md transition ${
+              className={`px-3 py-1 max-sm:px-5 max-sm:py-2 text-sm rounded-md transition ${
                 turno === "cena" ? "bg-white shadow-sm font-medium text-indigo-700" : "text-neutral-500"
               }`}
             >
@@ -364,7 +364,7 @@ export default function TavoliMappa() {
 
         <SchedeSale sale={sale} attiva={salaAttiva} onChange={setSala} conteggi={occupatiPerSala} />
 
-        <div className="flex gap-4">
+        <div className="flex flex-col md:flex-row gap-3 md:gap-4">
           {/* ── Canvas Mappa ── */}
           <div className="flex-1 bg-white rounded-xl border border-neutral-200 overflow-hidden relative">
             <svg
@@ -556,7 +556,7 @@ export default function TavoliMappa() {
           </div>
 
           {/* ── Sidebar: prenotazioni senza tavolo + dettaglio ── */}
-          <div className="w-72 flex-shrink-0 space-y-4">
+          <div className="w-full md:w-72 flex-shrink-0 space-y-3 md:space-y-4">
             {/* Dettaglio prenotazione selezionata */}
             {selectedPren && (
               <div className="bg-white rounded-xl border border-indigo-200 p-4 space-y-2">
@@ -584,36 +584,36 @@ export default function TavoliMappa() {
                   {selectedPren.stato === "RECORDED" && (
                     <>
                       <button onClick={() => cambiaStato(selectedPren.id, "SEATED")}
-                        className="px-2 py-1 text-[10px] bg-emerald-600 text-white rounded font-medium">Seduto</button>
+                        className="px-2 py-1 text-[10px] max-sm:px-3 max-sm:py-2.5 max-sm:text-xs bg-emerald-600 text-white rounded font-medium">Seduto</button>
                       <button onClick={() => cambiaStato(selectedPren.id, "NO_SHOW")}
-                        className="px-2 py-1 text-[10px] bg-red-600 text-white rounded font-medium">No-show</button>
+                        className="px-2 py-1 text-[10px] max-sm:px-3 max-sm:py-2.5 max-sm:text-xs bg-red-600 text-white rounded font-medium">No-show</button>
                     </>
                   )}
                   {selectedPren.stato === "OPTION" && (
                     <button onClick={() => cambiaStato(selectedPren.id, "RECORDED")}
-                      className="px-2 py-1 text-[10px] bg-indigo-600 text-white rounded font-medium">✓ Conferma</button>
+                      className="px-2 py-1 text-[10px] max-sm:px-3 max-sm:py-2.5 max-sm:text-xs bg-indigo-600 text-white rounded font-medium">✓ Conferma</button>
                   )}
                   {selectedPren.stato === "ARRIVED" && (
                     <button onClick={() => cambiaStato(selectedPren.id, "SEATED")}
-                      className="px-2 py-1 text-[10px] bg-emerald-600 text-white rounded font-medium">Seduto</button>
+                      className="px-2 py-1 text-[10px] max-sm:px-3 max-sm:py-2.5 max-sm:text-xs bg-emerald-600 text-white rounded font-medium">Seduto</button>
                   )}
                   {(selectedPren.stato === "SEATED" || selectedPren.stato === "BILL") && (
                     <button onClick={() => cambiaStato(selectedPren.id, "LEFT")}
-                      className="px-2 py-1 text-[10px] bg-neutral-600 text-white rounded font-medium">Andato via</button>
+                      className="px-2 py-1 text-[10px] max-sm:px-3 max-sm:py-2.5 max-sm:text-xs bg-neutral-600 text-white rounded font-medium">Andato via</button>
                   )}
                   {selectedTavolo && selectedPren.stato !== "LEFT" && (
                     <button onClick={() => liberaTavolo(selectedPren.id)}
-                      className="px-2 py-1 text-[10px] border border-neutral-300 text-neutral-600 rounded">Libera tavolo</button>
+                      className="px-2 py-1 text-[10px] max-sm:px-3 max-sm:py-2.5 max-sm:text-xs border border-neutral-300 text-neutral-600 rounded">Libera tavolo</button>
                   )}
                   {selectedTavolo?.unione_id && (
                     <button onClick={() => { staccaUnione(selectedTavolo); setSelectedPren(null); setSelectedTavolo(null); }}
                       title={`Stacca ${selectedTavolo.membri_nomi?.join(" e ")}: la prenotazione resta, i tavoli tornano singoli`}
-                      className="px-2 py-1 text-[10px] border border-neutral-300 text-neutral-600 rounded">✂️ Stacca {selectedTavolo.nome}</button>
+                      className="px-2 py-1 text-[10px] max-sm:px-3 max-sm:py-2.5 max-sm:text-xs border border-neutral-300 text-neutral-600 rounded">✂️ Stacca {selectedTavolo.nome}</button>
                   )}
                   {selectedTavolo?.dividibile === 1 && !selectedTavolo.diviso_da && !selectedTavolo.legato && (
                     <button onClick={() => { dividiTavolo(selectedTavolo); setSelectedPren(null); setSelectedTavolo(null); }}
                       title="Dividi il tavolo in due per questo turno: se la prenotazione ci sta, resta su una metà e l'altra si libera"
-                      className="px-2 py-1 text-[10px] border border-neutral-300 text-neutral-600 rounded">✂️ Dividi {(selectedTavolo.nomi_meta || "").includes(",") ? selectedTavolo.nomi_meta.replace(",", " +") : ""}</button>
+                      className="px-2 py-1 text-[10px] max-sm:px-3 max-sm:py-2.5 max-sm:text-xs border border-neutral-300 text-neutral-600 rounded">✂️ Dividi {(selectedTavolo.nomi_meta || "").includes(",") ? selectedTavolo.nomi_meta.replace(",", " +") : ""}</button>
                   )}
                 </div>
               </div>
@@ -654,7 +654,7 @@ export default function TavoliMappa() {
                       </div>
                       <button
                         onClick={() => setAssegnando(assegnando === p.id ? null : p.id)}
-                        className={`px-2 py-1 text-[10px] rounded font-medium transition ${
+                        className={`px-2 py-1 text-[10px] max-sm:px-3 max-sm:py-2.5 max-sm:text-xs rounded font-medium transition ${
                           assegnando === p.id
                             ? "bg-amber-500 text-white"
                             : "bg-indigo-100 text-indigo-700 hover:bg-indigo-200"

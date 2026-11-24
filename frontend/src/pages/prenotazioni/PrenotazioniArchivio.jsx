@@ -1,4 +1,4 @@
-// @version: v2.1 — filtro stati dalla tabella stati (In opzione, Lista d'attesa) (2026-11-13) · v2.0 — spostato da Clienti a Prenotazioni › Archivio (redesign 2026-10-19), API /prenotazioni/archivio/ · v1.1-mattoni
+// @version: v2.2 — su iPhone ricerca e filtri in cima (prima sotto i 1024 px non c'erano) ed elenco a schede al posto della tabella (2026-11-24); v2.1 — filtro stati dalla tabella stati (In opzione, Lista d'attesa) (2026-11-13) · v2.0 — spostato da Clienti a Prenotazioni › Archivio (redesign 2026-10-19), API /prenotazioni/archivio/ · v1.1-mattoni
 // Archivio prenotazioni: tutte, con filtri, ricerca, paginazione
 import React, { useState, useEffect, useCallback } from "react";
 import usePrenotazioniStati from "./components/statiPrenotazioni";
@@ -54,6 +54,8 @@ export default function PrenotazioniArchivio() {
   const [canale, setCanale] = useState("");
   const [dataDa, setDataDa] = useState("");
   const [dataA, setDataA] = useState("");
+  const [filtriAperti, setFiltriAperti] = useState(false);   // telefono/iPad dritto: filtri a scomparsa
+  const filtriAttivi = [stato, canale, dataDa, dataA].filter(Boolean).length;
 
   const fetchPrenotazioni = useCallback(async () => {
     setLoading(true);
@@ -97,11 +99,11 @@ export default function PrenotazioniArchivio() {
     <>
       <PrenotazioniNav current="archivio" />
       <div className="min-h-screen bg-brand-cream">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 py-3 sm:py-6">
           {/* Header + KPI */}
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between flex-wrap gap-x-4 gap-y-2 mb-3 sm:mb-4">
             <div>
-              <h1 className="text-2xl font-bold text-neutral-900">Archivio prenotazioni</h1>
+              <h1 className="text-xl sm:text-2xl font-bold text-neutral-900">Archivio prenotazioni</h1>
               <p className="text-sm text-neutral-500 mt-1">
                 {totale.toLocaleString("it-IT")} prenotazion{totale === 1 ? "e" : "i"} trovat{totale === 1 ? "a" : "e"}
               </p>
@@ -124,23 +126,31 @@ export default function PrenotazioniArchivio() {
             )}
           </div>
 
-          <div className="flex gap-6">
-            {/* SIDEBAR FILTRI */}
-            <div className="w-56 flex-shrink-0 hidden lg:block">
-              <div className="bg-white rounded-xl border border-neutral-200 p-4 shadow-sm space-y-4">
-                <h3 className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">Filtri</h3>
+          <div className="flex flex-col lg:flex-row gap-3 lg:gap-6">
+            {/* FILTRI: colonna a sinistra da lg; sotto, ricerca sempre a vista e il resto a scomparsa */}
+            <div className="w-full lg:w-56 flex-shrink-0">
+              <div className="bg-white rounded-xl border border-neutral-200 p-3 lg:p-4 shadow-sm">
+                <h3 className="hidden lg:block text-xs font-semibold text-neutral-500 uppercase tracking-wider mb-4">Filtri</h3>
 
-                <div>
-                  <label className="text-xs text-neutral-600 font-medium">Cerca</label>
-                  <input type="text" value={q} onChange={(e) => setQ(e.target.value)}
-                    placeholder="Nome, note..."
-                    className="w-full mt-1 border border-neutral-300 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-teal-300 outline-none" />
+                <div className="flex items-end gap-2">
+                  <div className="flex-1 min-w-0">
+                    <label className="hidden lg:block text-xs text-neutral-600 font-medium">Cerca</label>
+                    <input type="search" value={q} onChange={(e) => setQ(e.target.value)}
+                      placeholder="Nome, note..."
+                      className="w-full lg:mt-1 border border-neutral-300 rounded-lg px-3 py-1.5 max-lg:min-h-[44px] text-base lg:text-sm focus:ring-2 focus:ring-teal-300 outline-none" />
+                  </div>
+                  <button type="button" onClick={() => setFiltriAperti(!filtriAperti)}
+                    className={`lg:hidden flex-shrink-0 px-3 min-h-[44px] rounded-lg border text-sm font-medium ${filtriAttivi ? "bg-teal-50 border-teal-300 text-teal-800" : "bg-white border-neutral-300 text-neutral-700"}`}>
+                    Filtri{filtriAttivi ? ` · ${filtriAttivi}` : ""} {filtriAperti ? "▲" : "▼"}
+                  </button>
                 </div>
+
+                <div className={`${filtriAperti ? "grid" : "hidden"} grid-cols-2 gap-3 mt-3 lg:mt-4 lg:block lg:space-y-4`}>
 
                 <div>
                   <label className="text-xs text-neutral-600 font-medium">Stato</label>
                   <select value={stato} onChange={(e) => setStato(e.target.value)}
-                    className="w-full mt-1 border border-neutral-300 rounded-lg px-3 py-1.5 text-sm">
+                    className="w-full mt-1 border border-neutral-300 rounded-lg px-3 py-1.5 max-lg:min-h-[44px] text-base lg:text-sm">
                     <option value="">Tutti</option>
                     {statiElenco.map((s) => <option key={s.codice} value={s.codice}>{s.etichetta}</option>)}
                   </select>
@@ -149,7 +159,7 @@ export default function PrenotazioniArchivio() {
                 <div>
                   <label className="text-xs text-neutral-600 font-medium">Canale</label>
                   <select value={canale} onChange={(e) => setCanale(e.target.value)}
-                    className="w-full mt-1 border border-neutral-300 rounded-lg px-3 py-1.5 text-sm">
+                    className="w-full mt-1 border border-neutral-300 rounded-lg px-3 py-1.5 max-lg:min-h-[44px] text-base lg:text-sm">
                     <option value="">Tutti</option>
                     <option value="Offline">Offline (telefono)</option>
                     <option value="TheFork">TheFork</option>
@@ -162,19 +172,20 @@ export default function PrenotazioniArchivio() {
                 <div>
                   <label className="text-xs text-neutral-600 font-medium">Da data</label>
                   <input type="date" value={dataDa} onChange={(e) => setDataDa(e.target.value)}
-                    className="w-full mt-1 border border-neutral-300 rounded-lg px-3 py-1.5 text-sm" />
+                    className="w-full mt-1 border border-neutral-300 rounded-lg px-3 py-1.5 max-lg:min-h-[44px] text-base lg:text-sm" />
                 </div>
                 <div>
                   <label className="text-xs text-neutral-600 font-medium">A data</label>
                   <input type="date" value={dataA} onChange={(e) => setDataA(e.target.value)}
-                    className="w-full mt-1 border border-neutral-300 rounded-lg px-3 py-1.5 text-sm" />
+                    className="w-full mt-1 border border-neutral-300 rounded-lg px-3 py-1.5 max-lg:min-h-[44px] text-base lg:text-sm" />
                 </div>
 
                 <Btn variant="ghost" size="sm"
                   onClick={() => { setQ(""); setStato(""); setCanale(""); setDataDa(""); setDataA(""); }}
-                  className="w-full">
+                  className="w-full max-lg:col-span-2 max-lg:min-h-[44px]">
                   Resetta filtri
                 </Btn>
+                </div>
               </div>
             </div>
 
@@ -191,7 +202,45 @@ export default function PrenotazioniArchivio() {
                     compact
                   />
                 ) : (
-                  <div className="overflow-x-auto">
+                  <>
+                  {/* Telefono: una scheda per prenotazione */}
+                  <div className="sm:hidden divide-y divide-neutral-100">
+                    {prenotazioni.map((p) => {
+                      const nota = p.nota_ristorante || p.nota_cliente || "";
+                      const contenuto = (
+                        <>
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <div className={`text-[15px] font-medium truncate ${p.cliente_id ? "text-teal-800" : "text-neutral-400"}`}>
+                                {p.cliente_id ? `${p.cliente_vip ? "⭐ " : ""}${p.cliente_cognome || ""} ${p.cliente_nome || ""}` : "Non collegato"}
+                              </div>
+                              <div className="text-xs text-neutral-500 mt-0.5">
+                                {(p.data_pasto || "").split("-").reverse().join("/")}
+                                {p.ora_pasto ? ` · ${p.ora_pasto.substring(0, 5)}` : ""} · <span className="font-semibold text-neutral-700">{p.pax}</span> pax
+                                {fmt(p.tavolo) !== "—" ? ` · tav. ${p.tavolo}` : ""}
+                                {fmt(p.canale) !== "—" ? ` · ${p.canale}` : ""}
+                              </div>
+                            </div>
+                            <span className="flex-shrink-0">
+                              <StatusBadge tone={STATO_TONE[p.stato] || "neutral"} size="sm">
+                                {STATI_LABEL[p.stato] || p.stato}
+                              </StatusBadge>
+                            </span>
+                          </div>
+                          {nota && <div className="mt-1 text-xs text-neutral-500 line-clamp-2">{nota}</div>}
+                        </>
+                      );
+                      return p.cliente_id ? (
+                        <button key={p.id} type="button" onClick={() => navigate(`/clienti/${p.cliente_id}`)}
+                          className="block w-full text-left px-3 py-2.5 min-h-[56px] active:bg-teal-50">
+                          {contenuto}
+                        </button>
+                      ) : (
+                        <div key={p.id} className="px-3 py-2.5 min-h-[56px]">{contenuto}</div>
+                      );
+                    })}
+                  </div>
+                  <div className="hidden sm:block overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead className="bg-neutral-50 border-b border-neutral-200">
                         <tr>
@@ -218,7 +267,7 @@ export default function PrenotazioniArchivio() {
                               {p.cliente_id ? (
                                 <button
                                   onClick={() => navigate(`/clienti/${p.cliente_id}`)}
-                                  className="text-teal-700 hover:text-teal-900 font-medium hover:underline"
+                                  className="text-left text-teal-700 hover:text-teal-900 font-medium hover:underline"
                                 >
                                   {p.cliente_vip ? "⭐ " : ""}
                                   {p.cliente_cognome} {p.cliente_nome}
@@ -245,11 +294,12 @@ export default function PrenotazioniArchivio() {
                       </tbody>
                     </table>
                   </div>
+                  </>
                 )}
 
                 {/* PAGINAZIONE */}
                 {totalePagine > 1 && (
-                  <div className="flex items-center justify-between px-4 py-3 border-t border-neutral-200 bg-neutral-50">
+                  <div className="flex items-center justify-between gap-2 px-3 sm:px-4 py-3 border-t border-neutral-200 bg-neutral-50">
                     <Btn variant="secondary" size="sm" disabled={offset === 0}
                       onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}>
                       ← Precedente

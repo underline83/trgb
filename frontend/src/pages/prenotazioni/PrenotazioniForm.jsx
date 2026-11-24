@@ -1,4 +1,4 @@
-// @version: v1.6-stati — si nasce Confermata, In opzione (con «tenuto fino al») o in Lista d'attesa; in modifica la data dell'opzione (2026-11-13); v1.5-motore — «entra / non entra» col tavolo suggerito dal motore per tavoli, «Usa» lo scrive (anche le unioni) (2026-10-29); v1.4 — stesso form per modificare una prenotazione (prop «prenotazione», PUT) (2026-10-28); v1.3 — defaultCliente: aperto dalla scheda cliente con il cliente già scelto (2026-10-19); v1.2-fasce — slot chiusi/pieni segnati e avviso sulla fascia; v1.1-tavolo-turno — apribile dalla mappa con tavolo e turno già scelti; tavoli bloccati non selezionabili
+// @version: v1.7-telefono — su iPhone a tutto schermo con titolo e «Salva» sempre a vista, campi a 16 px (Safari non ingrandisce la pagina), orari e ± da pollice (2026-11-24); v1.6-stati — si nasce Confermata, In opzione (con «tenuto fino al») o in Lista d'attesa; in modifica la data dell'opzione (2026-11-13); v1.5-motore — «entra / non entra» col tavolo suggerito dal motore per tavoli, «Usa» lo scrive (anche le unioni) (2026-10-29); v1.4 — stesso form per modificare una prenotazione (prop «prenotazione», PUT) (2026-10-28); v1.3 — defaultCliente: aperto dalla scheda cliente con il cliente già scelto (2026-10-19); v1.2-fasce — slot chiusi/pieni segnati e avviso sulla fascia; v1.1-tavolo-turno — apribile dalla mappa con tavolo e turno già scelti; tavoli bloccati non selezionabili
 // Form modale per nuova prenotazione — modulo Prenotazioni TRGB
 import React, { useState, useEffect, useRef } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
@@ -188,15 +188,16 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center pt-8 overflow-y-auto">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 mb-8">
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center sm:pt-8 overflow-y-auto overscroll-contain">
+      {/* Telefono: tutto schermo, titolo e tasti fissi. Da sm in su: la finestra di sempre */}
+      <div className="bg-white shadow-2xl w-full min-h-full sm:min-h-0 sm:rounded-2xl sm:max-w-lg sm:mx-4 sm:mb-8">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3 border-b border-neutral-200">
+        <div className="flex items-center justify-between px-4 sm:px-5 py-3 border-b border-neutral-200 max-sm:sticky max-sm:top-0 max-sm:z-20 bg-white sm:rounded-t-2xl">
           <h2 className="text-lg font-bold text-neutral-800">{modifica ? "Modifica prenotazione" : "Nuova Prenotazione"}</h2>
-          <button onClick={onClose} className="text-neutral-400 hover:text-neutral-600 text-xl">✕</button>
+          <button type="button" onClick={onClose} aria-label="Chiudi" className="text-neutral-400 hover:text-neutral-600 text-xl max-sm:min-w-[44px] max-sm:min-h-[44px] max-sm:-mr-2">✕</button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-5 space-y-4">
           {modifica && P.thefork_booking_id && (
             <div className="px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-xs">
               Arriva da TheFork: giorno, ora e persone cambiali anche in TheFork Manager, altrimenti al prossimo
@@ -224,7 +225,7 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
                   <label>Tavolo tenuto fino al</label>
                   <input type="date" value={form.tenuto_fino_al} max={form.data_pasto}
                     onChange={(e) => setForm({ ...form, tenuto_fino_al: e.target.value })}
-                    className="px-2 py-1 border border-amber-300 rounded min-h-[36px]" />
+                    className="px-2 py-1 border border-amber-300 rounded min-h-[36px] max-sm:min-h-[44px] max-sm:text-base" />
                   {!form.tenuto_fino_al && <span className="text-amber-700">vuoto = {giorniOpzione ? `tra ${giorniOpzione} giorni` : "proposta delle impostazioni"}</span>}
                 </div>
               )}
@@ -238,19 +239,19 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
               <span>⏳ In opzione — tavolo tenuto fino al</span>
               <input type="date" value={form.tenuto_fino_al} max={form.data_pasto}
                 onChange={(e) => setForm({ ...form, tenuto_fino_al: e.target.value })}
-                className="px-2 py-1 border border-amber-300 rounded bg-white min-h-[36px]" />
+                className="px-2 py-1 border border-amber-300 rounded bg-white min-h-[36px] max-sm:min-h-[44px] max-sm:text-base" />
             </div>
           )}
 
           {/* Data e Ora */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-neutral-600 mb-1">Data</label>
               <input
                 type="date"
                 value={form.data_pasto}
                 onChange={(e) => setForm({ ...form, data_pasto: e.target.value })}
-                className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm"
+                className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-base sm:text-sm max-sm:min-h-[44px]"
                 required
               />
             </div>
@@ -258,7 +259,7 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
               <label className="block text-xs font-medium text-neutral-600 mb-1">
                 Ora <span className="text-neutral-400">({turnoCorrente})</span>
               </label>
-              <div className="flex gap-1 flex-wrap">
+              <div className="flex gap-1.5 sm:gap-1 flex-wrap">
                 {slotCorrente.map((s) => {
                   const f = fasce.find((x) => x.ora === s);
                   const chiusa = f && !f.aperta;
@@ -269,7 +270,7 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
                       type="button"
                       title={chiusa ? "Fascia chiusa" : piena ? `Fascia piena (${f.coperti}/${f.max_coperti})` : ""}
                       onClick={() => setForm({ ...form, ora_pasto: s })}
-                      className={`px-2 py-1 text-xs rounded border transition ${
+                      className={`px-3 py-2.5 text-sm sm:px-2 sm:py-1 sm:text-xs rounded border transition ${
                         form.ora_pasto === s
                           ? "bg-indigo-600 text-white border-indigo-600"
                           : chiusa ? "bg-neutral-100 text-neutral-400 border-neutral-200 line-through"
@@ -285,7 +286,7 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
                   type="time"
                   value={form.ora_pasto}
                   onChange={(e) => setForm({ ...form, ora_pasto: e.target.value })}
-                  className="px-2 py-1 text-xs border border-neutral-300 rounded ml-1 w-20"
+                  className="px-2 py-1 text-base sm:text-xs border border-neutral-300 rounded sm:ml-1 w-28 sm:w-20 max-sm:min-h-[44px]"
                 />
               </div>
             </div>
@@ -317,7 +318,7 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
                 <button
                   type="button"
                   onClick={() => setForm({ ...form, pax: Math.max(1, form.pax - 1) })}
-                  className="w-8 h-8 rounded-lg border border-neutral-300 text-lg hover:bg-neutral-50"
+                  className="w-11 h-11 sm:w-8 sm:h-8 rounded-lg border border-neutral-300 text-lg hover:bg-neutral-50"
                 >
                   −
                 </button>
@@ -325,7 +326,7 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
                 <button
                   type="button"
                   onClick={() => setForm({ ...form, pax: Math.min(50, form.pax + 1) })}
-                  className="w-8 h-8 rounded-lg border border-neutral-300 text-lg hover:bg-neutral-50"
+                  className="w-11 h-11 sm:w-8 sm:h-8 rounded-lg border border-neutral-300 text-lg hover:bg-neutral-50"
                 >
                   +
                 </button>
@@ -336,7 +337,7 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
               <select
                 value={form.canale}
                 onChange={(e) => setForm({ ...form, canale: e.target.value })}
-                className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm"
+                className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-base sm:text-sm max-sm:min-h-[44px]"
               >
                 {CANALI.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
@@ -363,16 +364,16 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
                   value={searchQ}
                   onChange={(e) => setSearchQ(e.target.value)}
                   placeholder="Cerca per nome, cognome, telefono..."
-                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm"
+                  className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-base sm:text-sm max-sm:min-h-[44px]"
                 />
                 {searchResults.length > 0 && (
-                  <div className="absolute z-10 w-full mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                  <div className="absolute z-10 w-full mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg max-h-48 max-sm:max-h-64 overflow-y-auto">
                     {searchResults.map((c) => (
                       <button
                         key={c.id}
                         type="button"
                         onClick={() => selezionaCliente(c)}
-                        className="w-full px-3 py-2 text-left hover:bg-indigo-50 text-sm border-b border-neutral-100 last:border-0"
+                        className="w-full px-3 py-2 max-sm:py-3 text-left hover:bg-indigo-50 text-sm border-b border-neutral-100 last:border-0"
                       >
                         <span className="font-medium">{c.nome} {c.cognome}</span>
                         {c.telefono && <span className="ml-2 text-neutral-400">{c.telefono}</span>}
@@ -387,7 +388,7 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
                   <button
                     type="button"
                     onClick={() => setShowNuovo(true)}
-                    className="mt-1 text-xs text-indigo-600 hover:underline"
+                    className="mt-1 text-xs max-sm:text-sm max-sm:py-2 text-indigo-600 hover:underline"
                   >
                     + Crea nuovo cliente
                   </button>
@@ -417,14 +418,14 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
                     placeholder="Nome"
                     value={form.nuovo_nome}
                     onChange={(e) => setForm({ ...form, nuovo_nome: e.target.value })}
-                    className="px-2 py-1.5 border border-neutral-300 rounded text-sm"
+                    className="min-w-0 px-2 py-1.5 border border-neutral-300 rounded text-base sm:text-sm max-sm:min-h-[44px]"
                   />
                   <input
                     type="text"
                     placeholder="Cognome *"
                     value={form.nuovo_cognome}
                     onChange={(e) => setForm({ ...form, nuovo_cognome: e.target.value })}
-                    className="px-2 py-1.5 border border-neutral-300 rounded text-sm"
+                    className="min-w-0 px-2 py-1.5 border border-neutral-300 rounded text-base sm:text-sm max-sm:min-h-[44px]"
                     required={showNuovo && !form.cliente_id}
                   />
                 </div>
@@ -434,14 +435,14 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
                     placeholder="Telefono"
                     value={form.nuovo_telefono}
                     onChange={(e) => setForm({ ...form, nuovo_telefono: e.target.value })}
-                    className="px-2 py-1.5 border border-neutral-300 rounded text-sm"
+                    className="min-w-0 px-2 py-1.5 border border-neutral-300 rounded text-base sm:text-sm max-sm:min-h-[44px]"
                   />
                   <input
                     type="email"
                     placeholder="Email"
                     value={form.nuovo_email}
                     onChange={(e) => setForm({ ...form, nuovo_email: e.target.value })}
-                    className="px-2 py-1.5 border border-neutral-300 rounded text-sm"
+                    className="min-w-0 px-2 py-1.5 border border-neutral-300 rounded text-base sm:text-sm max-sm:min-h-[44px]"
                   />
                 </div>
               </div>
@@ -449,13 +450,13 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
           </div>
 
           {/* Tavolo */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-neutral-600 mb-1">Tavolo</label>
               <select
                 value={form.tavolo}
                 onChange={(e) => setForm({ ...form, tavolo: e.target.value })}
-                className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm"
+                className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-base sm:text-sm max-sm:min-h-[44px]"
               >
                 <option value="">— Assegna dopo —</option>
                 {form.tavolo && !tavoli.some((t) => t.nome === form.tavolo) && (
@@ -485,7 +486,7 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
                   max={5}
                   value={form.seggioloni}
                   onChange={(e) => setForm({ ...form, seggioloni: e.target.value })}
-                  className="w-16 px-2 py-2 border border-neutral-300 rounded-lg text-sm"
+                  className="w-16 px-2 py-2 border border-neutral-300 rounded-lg text-base sm:text-sm max-sm:min-h-[44px]"
                 />
               </div>
             </div>
@@ -497,7 +498,7 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
             <textarea
               value={form.nota_ristorante}
               onChange={(e) => setForm({ ...form, nota_ristorante: e.target.value })}
-              className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm"
+              className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-base sm:text-sm max-sm:min-h-[44px]"
               rows={2}
               placeholder="Note per cucina/sala..."
             />
@@ -507,7 +508,7 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
             <textarea
               value={form.nota_cliente}
               onChange={(e) => setForm({ ...form, nota_cliente: e.target.value })}
-              className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm"
+              className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-base sm:text-sm max-sm:min-h-[44px]"
               rows={2}
               placeholder="Richieste speciali del cliente..."
             />
@@ -518,7 +519,7 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
               <select
                 value={form.occasione}
                 onChange={(e) => setForm({ ...form, occasione: e.target.value })}
-                className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm"
+                className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-base sm:text-sm max-sm:min-h-[44px]"
               >
                 {OCCASIONI.map((o) => <option key={o} value={o}>{o || "— Nessuna —"}</option>)}
               </select>
@@ -529,25 +530,25 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
                 type="text"
                 value={form.allergie_segnalate}
                 onChange={(e) => setForm({ ...form, allergie_segnalate: e.target.value })}
-                className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm"
+                className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-base sm:text-sm max-sm:min-h-[44px]"
                 placeholder="Es. celiaco, lattosio..."
               />
             </div>
           </div>
 
-          {/* Submit */}
-          <div className="flex justify-end gap-2 pt-2 border-t border-neutral-100">
+          {/* Submit: sul telefono resta attaccato in basso */}
+          <div className="flex justify-end gap-2 pt-2 border-t border-neutral-100 max-sm:sticky max-sm:bottom-0 max-sm:z-10 max-sm:-mx-4 max-sm:px-4 max-sm:py-3 max-sm:bg-white max-sm:border-neutral-200 max-sm:pb-[max(0.75rem,env(safe-area-inset-bottom))]">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm text-neutral-600 border border-neutral-300 rounded-lg hover:bg-neutral-50"
+              className="px-4 py-2 text-sm text-neutral-600 border border-neutral-300 rounded-lg hover:bg-neutral-50 max-sm:min-h-[48px]"
             >
               Annulla
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium disabled:opacity-50"
+              className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium disabled:opacity-50 max-sm:flex-1 max-sm:min-h-[48px] max-sm:text-base"
             >
               {submitting ? "Salvataggio..." : modifica ? "Salva modifiche" : "Salva Prenotazione"}
             </button>

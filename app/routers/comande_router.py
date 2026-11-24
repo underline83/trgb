@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# @version: v2.2 — chi è al tavolo (prenotazione, walk-in, cliente, cliente nuovo), ricerca clienti; 2.1: prenotazioni del giorno; 2.0: vai, attendi, sollecita (2026-11-24)
+# @version: v2.3 — ristampa di un invio (ponte di stampa); 2.2: chi è al tavolo, ricerca clienti; 2.1: prenotazioni del giorno; 2.0: vai, attendi, sollecito
 """
 Modulo: comande — comande prese in sala da TRGB. Doc: docs/modulo_comande.md.
 
@@ -37,7 +37,8 @@ le impostazioni solo admin):
     PATCH  /comande/righe/{id}                quantità, uscita, nota, varianti (solo non inviate)
     DELETE /comande/righe/{id}                toglie una riga non inviata
     POST   /comande/righe/{id}/storna         storna una riga inviata {motivo}
-    GET    /comande/invii/                    ultimi invii ai reparti (?reparto=cucina)
+    GET    /comande/invii/                    ultimi invii ai reparti (?reparto=cucina), con lo stato di stampa
+    POST   /comande/invii/{id}/ristampa       rimanda un invio alla stampante del suo reparto
     GET    /comande/impostazioni/ · PUT       uscite, reparti, gruppo → reparto, coperto, tasti rapidi
                                               (PUT solo admin)
 
@@ -262,6 +263,11 @@ def post_storno(riga_id: int, body: Storno, user=Depends(richiede_ruoli(*RUOLI_C
 @router.get("/invii/")
 def get_invii(reparto: Optional[str] = None, limite: int = 50):
     return svc.invii(reparto, limite)
+
+
+@router.post("/invii/{invio_id}/ristampa")
+def post_ristampa(invio_id: int, user=Depends(richiede_ruoli(*RUOLI_COMANDE))):
+    return _errori(svc.ristampa_invio, invio_id)
 
 
 @router.get("/impostazioni/")

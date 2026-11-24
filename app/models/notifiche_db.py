@@ -1,4 +1,4 @@
-# @version: v1.1-wal-protected
+# @version: v1.2 (2026-11-24) — tabelle notifiche_dispositivi e notifiche_push_config (push sui dispositivi); v1.1-wal-protected
 # -*- coding: utf-8 -*-
 """
 Database Notifiche — TRGB Gestionale (mattone M.A)
@@ -8,6 +8,7 @@ Contiene:
 - Tabella notifiche_lettura (tracciamento lettura per utente)
 - Tabella comunicazioni (bacheca ordini di servizio admin → staff)
   + righe tipo='nota_servizio' usate dalla Lavagna (Home)
+- Tabelle notifiche_dispositivi e notifiche_push_config (push sui dispositivi, notifiche_push.py)
 
 DB separato: app/data/notifiche.sqlite3
 """
@@ -185,6 +186,39 @@ def init_notifiche_db() -> None:
         except sqlite3.OperationalError as _e:
             if "duplicate column" not in str(_e).lower():
                 raise
+
+    # ── PUSH SUI DISPOSITIVI (M.A, 2026-11-24 — app/services/notifiche_push.py) ──
+    # Un dispositivo di un utente che ha attivato le notifiche. `canale` = come ci si arriva:
+    # 'webpush' oggi (PWA), 'apns' quando ci sarà l'app nativa; `indirizzo` = endpoint web
+    # push o token dell'app. p256dh/auth servono solo al canale webpush.
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS notifiche_dispositivi (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            username        TEXT NOT NULL,
+            canale          TEXT NOT NULL DEFAULT 'webpush',
+            indirizzo       TEXT NOT NULL UNIQUE,
+            p256dh          TEXT,
+            auth            TEXT,
+            nome            TEXT,
+            user_agent      TEXT,
+            attivo          INTEGER NOT NULL DEFAULT 1,
+            errori_di_fila  INTEGER NOT NULL DEFAULT 0,
+            ultimo_ok       TEXT,
+            ultimo_errore   TEXT,
+            creato_il       TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+            visto_il        TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+        )
+    """)
+    # Chiave/valore: chiavi VAPID del locale (cifrate) e i valori che si possono cambiare
+    # (ttl_ore, errori_max: i predefiniti stanno in notifiche_push.PREDEFINITI).
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS notifiche_push_config (
+            chiave          TEXT PRIMARY KEY,
+            valore          TEXT NOT NULL,
+            aggiornato_il   TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+        )
+    """)
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_notifiche_dispositivi_user ON notifiche_dispositivi(username)")
 
     # ── INDICI ──
     cur.execute("CREATE INDEX IF NOT EXISTS idx_notifiche_dest_username ON notifiche(dest_username)")

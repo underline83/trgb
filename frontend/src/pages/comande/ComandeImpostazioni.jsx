@@ -1,9 +1,10 @@
-// @version: v2.2 — «Aggiorna Prenotazioni» quando un tavolo si lega a qualcuno; 2.0: uscite libere, tasto rapido con la sua uscita (2026-11-24)
+// @version: v2.3 — sezione «Stampa» (ponte: token, stampanti, tempi) e stampante di ogni reparto; 2.2: «Aggiorna Prenotazioni» (2026-11-24)
 // Modulo: comande
 import React, { useEffect, useState } from "react";
 import { Btn, PageLayout, TextInput } from "../../components/ui";
 import TrgbLoader from "../../components/TrgbLoader";
 import ComandeNav from "./ComandeNav";
+import SezioneStampa from "./ComandeStampa";
 import { api } from "./comandeApi";
 
 const FAMIGLIE = [
@@ -32,6 +33,7 @@ export default function ComandeImpostazioni() {
   const [tasti, setTasti] = useState([]);
   const [msg, setMsg] = useState(null);
   const [salvo, setSalvo] = useState(false);
+  const [stampanti, setStampanti] = useState([]); // le stampanti del ponte, per dire a ogni reparto dove stampa
 
   const riempi = (d) => {
     setImp(d);
@@ -189,11 +191,13 @@ export default function ComandeImpostazioni() {
         </Btn>
       </section>
 
+      <SezioneStampa onStampanti={setStampanti} />
+
       <section className="mb-5 rounded-3xl border border-neutral-200 bg-white p-4 shadow-sm">
         <h2 className="mb-1 font-semibold text-brand-ink">Reparti</h2>
-        <p className="mb-3 text-xs text-neutral-500">Uno per stampante comande. La chiave non si cambia.</p>
+        <p className="mb-3 text-xs text-neutral-500">Uno per stampante comande. La chiave non si cambia. «Stampa su» dice dove escono i suoi fogli.</p>
         {reparti.map((r, i) => (
-          <div key={r.key} className="mb-2 flex items-center gap-2">
+          <div key={r.key} className="mb-2 flex flex-wrap items-center gap-2">
             <span className="w-20 font-mono text-xs text-neutral-500">{r.key}</span>
             <div className="w-48">
               <TextInput value={r.nome} onChange={(v) => setReparti(reparti.map((x, j) => (j === i ? { ...x, nome: v } : x)))} />
@@ -202,6 +206,15 @@ export default function ComandeImpostazioni() {
               <input type="checkbox" checked={!!r.attivo}
                 onChange={(e) => setReparti(reparti.map((x, j) => (j === i ? { ...x, attivo: e.target.checked ? 1 : 0 } : x)))} />
               attivo
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <span className="text-neutral-600">stampa su</span>
+              <select className={sel} value={r.stampante || ""}
+                onChange={(e) => setReparti(reparti.map((x, j) => (j === i ? { ...x, stampante: e.target.value || null } : x)))}>
+                <option value="">nessuna</option>
+                {stampanti.map((st) => <option key={st.chiave} value={st.chiave}>{st.nome}{st.attiva ? "" : " (spenta)"}</option>)}
+                {r.stampante && !stampanti.some((st) => st.chiave === r.stampante) && <option value={r.stampante}>{r.stampante}</option>}
+              </select>
             </label>
           </div>
         ))}

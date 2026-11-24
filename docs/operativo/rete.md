@@ -48,6 +48,8 @@ Configurazione corretta al 2026-08-24, identica sulle due salvo l'allarme sonoro
 | DHCP | disattivato (IP statico) |
 | Set comandi / codepage | ESC/POS, WCP1252 |
 
+**Stampa da TRGB — prova su carta del 2026-11-24.** Dal Mac di Marco, con byte ESC/POS mandati sulla 9100 senza passare da iPratico (`claude/ponte_prova/`), su una delle due SOL801 (quale: da chiedere a Marco). Funzionano: 48 colonne a carattere normale; 24 a carattere doppio (`GS ! 0x11`); doppia larghezza (`GS ! 0x10`) e doppia altezza (`GS ! 0x01`); negativo (`GS B`); grassetto; allineamenti; taglio parziale a fine foglio (`GS V 66 0`). **La stampante parte in modalità «caratteri cinesi»:** senza `FS .` in testa al foglio una lettera accentata si mangia il carattere che la segue, spazi e a capo compresi («· 4 coperti» diventa «·4 coperti», la riga dopo «più» resta attaccata). Con `FS .` gli accenti escono giusti; la tabella è già WPC1252 e `ESC t 16` non cambia niente. A carattere largo e basso le scritte in negativo si leggono male: per le fasce meglio il carattere doppio. Nelle fasce nere si vede una riga bianca verticale: è la testina, c'è anche sui fogli di iPratico. **Non ancora provato:** la stessa stampa mentre iPratico manda una comanda.
+
 Attenzione: nel pannello le tendine si modificano scorrendo con il trackpad se il cursore ci passa sopra. È già successo di cambiare per sbaglio larghezza, orientamento e carattere della stampante di sala. Dopo ogni modifica **ricaricare la pagina** per vedere i valori davvero salvati, e **fare una comanda di prova**.
 
 ## Wi-Fi — access point Aruba Instant On

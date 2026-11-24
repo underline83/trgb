@@ -168,6 +168,9 @@ from app.routers.cucina_vendite_router import router as cucina_vendite_router
 # COMANDA (modulo comande) — comande prese in sala da TRGB, in prova finché non c'è la Cassa (2026-11-24)
 # Doc: docs/modulo_comande.md
 from app.routers.comande_router import router as comande_router
+# PONTE DI STAMPA (platform, mattone M.M) — il programma in ponte/ chiede i fogli e li porta alle stampanti (2026-11-24)
+# Doc: docs/architettura_mattoni.md, ponte/LEGGIMI.md
+from app.routers.ponte_router import router as ponte_router
 
 # R8b — module loader: feature flags per locale.
 # Legge locali/<TRGB_LOCALE>/moduli_attivi.json + core/moduli/<id>/module.json
@@ -915,6 +918,9 @@ _mount("cucina_vendite_router", cucina_vendite_router)
 
 # COMANDA (modulo comande) — schema al boot (init_comande_db); catalogo e tavoli dai servizi platform
 _mount("comande_router", comande_router)
+
+# PONTE DI STAMPA (platform M.M) — /ponte: il ponte si presenta col suo token (X-Ponte-Token), niente JWT
+_mount("ponte_router", ponte_router)
 
 
 # Banner finale del module loader

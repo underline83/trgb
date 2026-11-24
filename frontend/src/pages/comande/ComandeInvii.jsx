@@ -1,11 +1,12 @@
-// @version: v2.0 — la comanda divisa per uscite (va / attende) e le chiamate: vai, attendi, sollecito (2026-11-24)
+// @version: v2.3 — stato di stampa di ogni invio, «Ristampa», avviso se la stampa è ferma; 2.0: uscite e chiamate (2026-11-24)
 // Modulo: comande
-// Quello che è partito verso i reparti: è ciò che il ponte stamperà.
+// Quello che è partito verso i reparti e com'è andata la stampa (ponte di stampa, mattone M.M).
 import React, { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Btn, EmptyState, PageLayout } from "../../components/ui";
 import TrgbLoader from "../../components/TrgbLoader";
 import ComandeNav, { BannerProva } from "./ComandeNav";
+import { AvvisoStampaFerma } from "./ComandeStampa";
 import { api, nomeUscita } from "./comandeApi";
 
 const TIPO = {
@@ -18,6 +19,9 @@ const AZIONE = {
   attendi: { label: "Attendi", cls: "bg-blue-100 text-blue-900" },
   sollecito: { label: "Sollecito", cls: "bg-amber-100 text-amber-900" },
 };
+// Come dire la stampa di un invio (i.stampa = {stato, testo} dal server).
+const STAMPA = { stampato: "text-emerald-700", attesa: "text-blue-700", errore: "text-red-700", scaduta: "text-red-700", spenta: "text-neutral-500" };
+const RILEGGI_IN_STAMPA_MS = 3000;
 const etichetta = (i) => (i.tipo === "via" ? AZIONE[i.azione] || AZIONE.vai : TIPO[i.tipo] || TIPO.comanda);
 
 // Le righe di una comanda raggruppate per uscita, in ordine: [[numero, righe], …]
@@ -46,6 +50,8 @@ export default function ComandeInvii() {
   const [reparto, setReparto] = useState("");
   const [invii, setInvii] = useState(null);
   const [errore, setErrore] = useState(null);
+  const [ponte, setPonte] = useState(null);
+  const [ristampo, setRistampo] = useState(null);
 
   const carica = useCallback(async () => {
     try {
@@ -55,7 +61,28 @@ export default function ComandeInvii() {
     } catch (e) {
       setErrore(e.message);
     }
+    api("/ponte/stato/").then(setPonte).catch(() => {});
   }, [reparto]);
+
+  // finché un foglio è «in stampa» si rilegge da soli: così si vede quando esce
+  const inStampa = (invii || []).some((i) => i.stampa && (i.stampa.stato === "attesa" || i.stampa.stato === "errore"));
+  useEffect(() => {
+    if (!inStampa) return undefined;
+    const t = setInterval(carica, RILEGGI_IN_STAMPA_MS);
+    return () => clearInterval(t);
+  }, [inStampa, carica]);
+
+  const ristampa = async (i) => {
+    setRistampo(i.id);
+    try {
+      await api(`/comande/invii/${i.id}/ristampa`, { method: "POST" });
+      await carica();
+    } catch (e) {
+      setErrore(e.message);
+    } finally {
+      setRistampo(null);
+    }
+  };
 
   useEffect(() => {
     api("/comande/impostazioni/").then((d) => setReparti(d.reparti || [])).catch(() => {});
@@ -72,10 +99,11 @@ export default function ComandeInvii() {
     <PageLayout
       nav={<ComandeNav current="invii" />}
       title="Invii ai reparti"
-      subtitle="Quello che uscirà sulle stampanti comande quando ci sarà il ponte"
+      subtitle="Quello che è partito verso i reparti, e se è uscito dalla stampante"
       actions={<Btn variant="secondary" onClick={carica}>↻ Aggiorna</Btn>}
     >
       <BannerProva />
+      <AvvisoStampaFerma stato={ponte} />
       <div className="mb-3 flex flex-wrap gap-1.5">
         <button onClick={() => setReparto("")} className={chip(!reparto)}>Tutti</button>
         {reparti.map((r) => (
@@ -122,8 +150,20 @@ export default function ComandeInvii() {
                   {i.righe.map((r) => <Riga key={r.id} r={r} />)}
                 </ul>
               )}
-              <div className="mt-1 font-sans text-[11px] text-neutral-400">
-                {i.creato_da || ""}{i.stampato_at ? ` · stampato ${String(i.stampato_at).slice(11, 16)}` : " · non stampato"}
+              <div className="mt-2 flex items-center gap-2 border-t border-neutral-100 pt-1.5 font-sans text-xs">
+                <span className="min-w-0 flex-1 truncate">
+                  <span className="text-neutral-500">{i.creato_da || ""} · </span>
+                  <span className={`font-semibold ${STAMPA[(i.stampa || {}).stato] || "text-neutral-500"}`}>{(i.stampa || {}).testo || "non stampato"}</span>
+                </span>
+                {(i.stampa || {}).stato !== "attesa" && (
+                  <button
+                    onClick={() => ristampa(i)}
+                    disabled={ristampo === i.id}
+                    className="min-h-[44px] shrink-0 rounded-lg border border-neutral-300 bg-white px-3 text-sm font-semibold text-brand-ink disabled:opacity-50"
+                  >
+                    Ristampa
+                  </button>
+                )}
               </div>
             </div>
           );

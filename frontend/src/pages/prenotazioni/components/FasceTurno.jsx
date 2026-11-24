@@ -37,7 +37,7 @@ function Limite({ valore, predefinito, onSalva, disabled }) {
       onChange={(e) => setV(e.target.value)}
       onBlur={salva}
       onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-      className="w-16 px-2 py-1 border border-neutral-300 rounded text-sm text-center disabled:bg-neutral-50"
+      className="w-16 max-sm:w-14 px-2 max-sm:px-1 py-1 max-sm:py-2 border border-neutral-300 rounded text-sm max-sm:text-base text-center disabled:bg-neutral-50"
     />
   );
 }
@@ -108,17 +108,17 @@ export default function FasceTurno({ data, turno, onClose, onChange }) {
   return (
     <div className="fixed inset-0 z-50 bg-black/40 flex items-start sm:items-center justify-center p-2 sm:p-6" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[92vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between px-5 py-3 border-b border-neutral-200 sticky top-0 bg-white z-10">
+        <div className="flex items-center justify-between gap-2 px-3 sm:px-5 py-3 border-b border-neutral-200 sticky top-0 bg-white z-10">
           <div>
             <h3 className="font-semibold text-neutral-800">🕒 Fasce orarie · {turno === "pranzo" ? "Pranzo" : "Cena"} {dataIt}</h3>
             <p className="text-[11px] text-neutral-500">
               Default del turno: {dflt.max_coperti ?? "∞"} coperti per fascia, {dflt.max_online ?? "∞"} online (Impostazioni)
             </p>
           </div>
-          <button onClick={onClose} className="text-neutral-400 hover:text-neutral-700 text-lg">✕</button>
+          <button onClick={onClose} aria-label="Chiudi" className="text-neutral-400 hover:text-neutral-700 text-lg max-sm:min-w-[44px] max-sm:min-h-[44px]">✕</button>
         </div>
 
-        <div className="px-5 py-3 space-y-3">
+        <div className="px-3 sm:px-5 py-3 space-y-3">
           {errore && <div className="text-sm text-red-700">{errore}</div>}
           {messaggio && (
             <div className={`px-3 py-2 rounded text-sm ${messaggio.tipo === "ok" ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-800"}`}>
@@ -136,13 +136,14 @@ export default function FasceTurno({ data, turno, onClose, onChange }) {
 
           <div className="flex flex-wrap gap-2 text-xs">
             <button disabled={occupato || !tutte.length} onClick={() => imposta(tutte, { online_aperta: false })}
-              className="px-2.5 py-1 rounded border border-neutral-300 hover:bg-neutral-50">🌐✕ Chiudi online tutto il turno</button>
+              className="px-2.5 py-1 max-sm:py-2.5 rounded border border-neutral-300 hover:bg-neutral-50">🌐✕ Chiudi online tutto il turno</button>
             <button disabled={occupato || !tutte.length} onClick={() => imposta(tutte, { online_aperta: true })}
-              className="px-2.5 py-1 rounded border border-neutral-300 hover:bg-neutral-50">🌐 Riapri online tutto il turno</button>
+              className="px-2.5 py-1 max-sm:py-2.5 rounded border border-neutral-300 hover:bg-neutral-50">🌐 Riapri online tutto il turno</button>
             <button disabled={occupato} onClick={verificaTheFork}
-              className="px-2.5 py-1 rounded border border-indigo-300 text-indigo-700 hover:bg-indigo-50">🔍 Cosa vede il cliente su TheFork (2 persone)</button>
+              className="px-2.5 py-1 max-sm:py-2.5 rounded border border-indigo-300 text-indigo-700 hover:bg-indigo-50">🔍 Cosa vede il cliente su TheFork (2 persone)</button>
           </div>
 
+          <div className="overflow-x-auto -mx-1 px-1">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-[11px] uppercase text-neutral-400 border-b border-neutral-100">
@@ -210,6 +211,7 @@ export default function FasceTurno({ data, turno, onClose, onChange }) {
               ))}
             </tbody>
           </table>
+          </div>
 
           <p className="text-[11px] text-neutral-400">
             Interruttore = fascia aperta o chiusa in TRGB (anche per il telefono). «Disattiva online» la chiude anche su TheFork.

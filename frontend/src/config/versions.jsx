@@ -744,6 +744,12 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   prenotazioni: {
+    // 2.39 (2026-11-24): formato iPhone — Planning a schede sotto i 640 px (ora e coperti, nome e stato, tavolo ed
+    //   etichette, nota; dettaglio a tutta larghezza con «Scheda cliente»), form a tutto schermo con «Salva» a vista
+    //   e campi a 16 px, Settimana un giorno per riga, Archivio con ricerca/filtri (prima assenti sotto i 1024 px) e
+    //   schede, Mappa coi riquadri sotto, Fasce e mini-calendario da pollice, «Editor Tavoli» sotto «Meglio dal
+    //   computer». iPad: tutto come prima, più le etichette che vanno a capo (a 820 px «Stato» usciva dalla tabella).
+    //   Hook platform nuovo hooks/useTelefono.js.
     // 2.38 (2026-11-20): Planning — ?apri=<id> apre la prenotazione e scorre fino alla riga (link dall'orario nella Home).
     // 2.37 (2026-11-19): turni chiusi dal calendario chiusure (Vendite › Chiusure) — Planning con banner
     //   «Turno chiuso», Settimana e mini-calendario li segnano, prenotazioni a mano BLOCCATE sul turno chiuso
@@ -781,7 +787,7 @@ const MODULE_VERSIONS = {
     // 2.16 (2026-10-19): Prenotazioni › Archivio (tutte le prenotazioni con filtri), spostato da
     //   Clienti; API nuova GET /prenotazioni/archivio/ (+ /riepilogo/). /clienti/prenotazioni rimanda qui.
     // 2.15 (2026-10-19): PrenotazioniForm accetta defaultCliente (bottone «Prenota» della scheda cliente).
-    version: "2.38",
+    version: "2.39",
     label: "Prenotazioni",
     status: "beta",
     color: "blue",
@@ -839,6 +845,13 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   comande: {
+    // 2.3 (2026-11-24): le comande ESCONO SULLE STAMPANTI (ponte di stampa, mattone M.M). Foglio di cucina scelto da Marco
+    //   sulle tavole (ossatura di iPratico + «PROVA - NON PREPARARE», coperti in testa, allergie del tavolo, fascia nera
+    //   sull'uscita che va, nome tagliato alla virgola; sulle chiamate «ANNULLA» al posto di «STORNO»), provato su carta.
+    //   Un invio nasce «in stampa» se il suo reparto ha una stampante accesa; Invii dice com'è andata e ha «Ristampa»;
+    //   Tavoli e Invii avvisano se la stampa è ferma. Impostazioni › Stampa: token del ponte, stampanti (nascono spente),
+    //   tempi, foglio di prova, stampante di ogni reparto. Colonne comande_invii.stampa_* e comande_reparti.stampante al
+    //   boot (solo ADD COLUMN), nessuna migrazione numerata.
     // 2.2 (2026-11-24): tutto lo schermo su iPad e telefono (Marco: «ottimizza lo spazio»): Tavoli senza titolo, griglia
     //   fitta (31 tavoli in una schermata di iPad, 3 colonne su telefono), conto con testata su una riga e pannelli alti
     //   fino in fondo (useAltezzaRestante misura la pagina vera), «Invia comanda» sempre a vista. «Batti qui» → «⋯» su ogni
@@ -871,7 +884,7 @@ const MODULE_VERSIONS = {
     //   degustazioni, piatti del giorno, Menù Business, vini a bottiglia e calice, Carta Bevande, menu template),
     //   prezzo libero e fuori carta, invio ai reparti (cucina, sala), «Via la Nª», storno con motivo, pagina Invii
     //   (quello che il ponte stamperà), Impostazioni (uscite, reparti, gruppo → reparto). DB comande.sqlite3 al boot.
-    version: "2.2",
+    version: "2.3",
     label: "Comanda",
     status: "alpha",
     color: "orange",
@@ -944,6 +957,9 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 6.10 (2026-11-24): mattone nuovo M.M «ponte di stampa» — ponte.sqlite3 creato al boot (stampanti, tempi, token),
+    //   /ponte per il programma ponte/ponte.py che gira nella rete del locale, servizio stampa_escpos (righe → byte ESC/POS).
+    //   Primo a usarlo: la Comanda (comande 2.3). Nessuna migrazione numerata.
     // 6.9 (2026-11-24): mig 245 clienti_wa_invii — messaggi WhatsApp scritti dalla pagina via YCloud (clienti 3.49).
     // 6.8 (2026-11-24): mig 244 clienti_wa_gestite («✓ Gestita» nella pagina 💬 WhatsApp) + M.G permessi 1.1:
     //   richiede_sotto_modulo / ha_sotto_modulo / ruoli_sotto_modulo, il backend segue la matrice Moduli (Posta e WhatsApp
@@ -1119,7 +1135,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "6.9",
+    version: "6.10",
     label: "Sistema",
     status: "stabile",
     color: "green",

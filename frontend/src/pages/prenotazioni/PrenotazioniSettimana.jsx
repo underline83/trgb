@@ -1,4 +1,4 @@
-// @version: v1.3 — pranzo o cena chiusi dal calendario chiusure: «CHIUSO» al posto dei numeri (2026-11-19); v1.2 — coperti «In opzione» a parte (2026-11-13); v1.1-mattoni — M.I primitives (Btn) su CTA "Questa settimana"
+// @version: v1.4 — su iPhone un giorno per riga (giorno, pranzo, cena, totale) al posto delle sette colonne (2026-11-24); v1.3 — pranzo o cena chiusi dal calendario chiusure: «CHIUSO» al posto dei numeri (2026-11-19); v1.2 — coperti «In opzione» a parte (2026-11-13); v1.1-mattoni — M.I primitives (Btn) su CTA "Questa settimana"
 // Vista settimanale riepilogativa — modulo Prenotazioni TRGB
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
@@ -64,20 +64,21 @@ export default function PrenotazioniSettimana() {
     <div className="min-h-screen bg-brand-cream">
       <PrenotazioniNav current="settimana" />
 
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
+      <div className="max-w-5xl mx-auto px-3 sm:px-6 py-3 sm:py-6">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <button onClick={() => nav(-1)} className="p-1.5 rounded-lg bg-white border border-neutral-200 hover:bg-neutral-50 text-lg">◀</button>
-            <div className="text-center">
+        <div className="flex items-center justify-between mb-3 sm:mb-6">
+          <div className="flex items-center flex-wrap gap-2 sm:gap-3 w-full sm:w-auto">
+            <button onClick={() => nav(-1)} className="p-1.5 max-sm:min-w-[44px] max-sm:min-h-[44px] rounded-lg bg-white border border-neutral-200 hover:bg-neutral-50 text-lg">◀</button>
+            <div className="text-center max-sm:flex-1">
               <div className="text-lg font-bold text-neutral-800">Settimana</div>
               <div className="text-sm text-neutral-500">{rangeLabel}</div>
             </div>
-            <button onClick={() => nav(1)} className="p-1.5 rounded-lg bg-white border border-neutral-200 hover:bg-neutral-50 text-lg">▶</button>
+            <button onClick={() => nav(1)} className="p-1.5 max-sm:min-w-[44px] max-sm:min-h-[44px] rounded-lg bg-white border border-neutral-200 hover:bg-neutral-50 text-lg">▶</button>
             <Btn
               variant="chip"
               tone="blue"
               size="sm"
+              className="max-sm:w-full max-sm:min-h-[44px]"
               onClick={() => { setData(getLunedi(oggi)); navigate(`/prenotazioni/settimana/${getLunedi(oggi)}`, { replace: true }); }}
             >
               Questa settimana
@@ -88,7 +89,7 @@ export default function PrenotazioniSettimana() {
         {loading ? (
           <div className="text-center py-12 text-neutral-400">Caricamento...</div>
         ) : settimana ? (
-          <div className="grid grid-cols-7 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-7 gap-2 sm:gap-3">
             {settimana.giorni.map((g, i) => {
               const d = new Date(g.data + "T12:00:00");
               const isOggi = g.data === oggi;
@@ -99,7 +100,7 @@ export default function PrenotazioniSettimana() {
                 <div
                   key={g.data}
                   onClick={() => !g.chiuso && goPlanning(g.data)}
-                  className={`rounded-xl border p-4 transition ${
+                  className={`rounded-xl border px-3 py-2.5 sm:p-4 transition max-sm:flex max-sm:items-center max-sm:gap-3 max-sm:min-h-[64px] ${
                     g.chiuso
                       ? "bg-neutral-100 border-neutral-200 opacity-50 cursor-default"
                       : isOggi
@@ -107,7 +108,7 @@ export default function PrenotazioniSettimana() {
                         : "bg-white border-neutral-200 cursor-pointer hover:shadow-md hover:-translate-y-0.5"
                   }`}
                 >
-                  <div className="text-center mb-2">
+                  <div className="text-center sm:mb-2 max-sm:w-12 max-sm:flex-shrink-0">
                     <div className={`text-xs font-semibold ${isOggi ? "text-indigo-600" : "text-neutral-500"}`}>
                       {GIORNI_SHORT[i]}
                     </div>
@@ -117,9 +118,11 @@ export default function PrenotazioniSettimana() {
                   </div>
 
                   {g.chiuso ? (
-                    <div className="text-center text-xs text-neutral-400 font-medium" title={g.motivo_chiusura || ""}>CHIUSO</div>
+                    <div className="text-center max-sm:text-left max-sm:flex-1 text-xs text-neutral-400 font-medium" title={g.motivo_chiusura || ""}>
+                      CHIUSO{g.motivo_chiusura && <span className="sm:hidden font-normal"> · {g.motivo_chiusura}</span>}
+                    </div>
                   ) : (
-                    <div className="space-y-1.5">
+                    <div className="sm:space-y-1.5 max-sm:flex-1 max-sm:grid max-sm:grid-cols-[1fr_1fr_auto] max-sm:gap-2 max-sm:items-center">
                       {/* Pranzo */}
                       <div className="text-center">
                         <div className="text-[10px] text-neutral-400 uppercase">Pranzo</div>
@@ -140,8 +143,8 @@ export default function PrenotazioniSettimana() {
                       </div>
                       {/* Totale */}
                       {(tot > 0 || g.opzione_pax > 0) && (
-                        <div className="text-center pt-1 border-t border-neutral-100">
-                          <span className="text-xs font-bold text-indigo-600">{tot} pren · {totPax} pax</span>
+                        <div className="text-center sm:pt-1 sm:border-t border-neutral-100">
+                          <span className="text-xs font-bold text-indigo-600 whitespace-nowrap">{tot} pren · {totPax} pax</span>
                           {g.opzione_pax > 0 && (
                             <div className="text-[10px] font-semibold text-amber-700" title="In opzione: tavolo tenuto, non ancora confermato">+{g.opzione_pax} ⏳ in opzione</div>
                           )}

@@ -1,4 +1,4 @@
-# @version: v2.2 (2026-11-24) — traccia di ciò che il conto scrive in Prenotazioni (walk-in creati, stato e tavolo di prima); 2.1: ospite; 2.0: uscite
+# @version: v2.3 (2026-11-24) — stato di stampa degli invii e stampante del reparto (ponte di stampa); 2.2: traccia di ciò che il conto scrive in Prenotazioni
 # -*- coding: utf-8 -*-
 """
 Database Comande — TRGB Gestionale. Modulo: comande. [core]
@@ -260,11 +260,23 @@ def init_comande_db() -> None:
         _colonna(cur, "comande_conti", "pren_tavolo_prima", "TEXT")
         # Uscita fissa di un tasto rapido (NULL = l'uscita in cui si sta battendo).
         tasti_senza_uscita = _colonna(cur, "comande_tasti_rapidi", "uscita", "INTEGER")
+        # 2.3 — stampa (ponte, mattone M.M). Un invio nasce «attesa» se il suo reparto ha una
+        # stampante accesa, «spenta» se no; gli invii di prima restano senza stato e non escono.
+        _colonna(cur, "comande_invii", "stampa_stato", "TEXT")        # attesa · stampato · spenta
+        _colonna(cur, "comande_invii", "stampa_da", "TEXT")           # da quando aspetta (una ristampa lo rimette a adesso)
+        _colonna(cur, "comande_invii", "stampa_presa_at", "TEXT")     # consegnato al ponte, in attesa dell'esito
+        _colonna(cur, "comande_invii", "stampa_tentativi", "INTEGER")
+        reparti_senza_stampante = _colonna(cur, "comande_reparti", "stampante", "TEXT")   # ponte_stampanti.chiave
 
         if not cur.execute("SELECT 1 FROM comande_reparti LIMIT 1").fetchone():
             cur.executemany(
                 "INSERT INTO comande_reparti (key, nome, ordine) VALUES (?, ?, ?)", REPARTI_INIZIALI
             )
+            reparti_senza_stampante = True
+        if reparti_senza_stampante:
+            # Di partenza ogni reparto guarda la stampante che ha la sua stessa chiave (cucina → cucina).
+            # Se quella stampante non c'è, o è spenta, non si stampa: si sceglie in Impostazioni.
+            cur.execute("UPDATE comande_reparti SET stampante = key WHERE stampante IS NULL")
 
         # Il seme del locale passa PRIMA dei valori neutri: riempie solo ciò che manca.
         seme = _seme_locale()

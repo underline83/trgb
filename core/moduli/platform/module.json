@@ -14,7 +14,8 @@
     "alerts_router",
     "home_actions_router",
     "backup_router",
-    "pubblicazione_router"
+    "pubblicazione_router",
+    "ponte_router"
   ],
   "endpoint_prefix": [
     "/auth",
@@ -31,7 +32,8 @@
     "/pubblicazione",
     "/mcp",
     "/oauth/pin",
-    "/.well-known/oauth-*"
+    "/.well-known/oauth-*",
+    "/ponte"
   ],
   "tabelle_db": [
     "users (users.json)",
@@ -44,7 +46,10 @@
     "web_publish_log",
     "connettore_oauth_clienti",
     "connettore_oauth_codici",
-    "connettore_oauth_token"
+    "connettore_oauth_token",
+    "ponte_stampanti",
+    "ponte_config",
+    "ponte_lavori"
   ],
   "mattoni": {
     "M.A": "notifiche (FATTO, sessione 31)",
@@ -57,6 +62,7 @@
     "M.H": "import engine (DA FARE)",
     "M.I": "ui primitives (FATTO, sessione 2026-04-18)",
     "M.J": "pubblicazione web / FTP (FATTO, 2026-08-03)",
-    "M.K": "connettore MCP di claude.ai (FATTO, 2026-10-08)"
+    "M.K": "connettore MCP di claude.ai (FATTO, 2026-10-08)",
+    "M.M": "ponte di stampa (FATTO, 2026-11-24)"
   }
 }

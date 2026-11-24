@@ -3,7 +3,7 @@
 # Router Notifiche & Comunicazioni — TRGB Gestionale (M.A)
 # ============================================================
 
-# @version: v1.0-notifiche-router
+# @version: v1.1 (2026-11-24) — push sui dispositivi: /notifiche/push/* (stato, dispositivi, prova); v1.0-notifiche-router
 # -*- coding: utf-8 -*-
 """
 Router Notifiche & Comunicazioni — TRGB Gestionale
@@ -15,6 +15,12 @@ Endpoint:
     POST /notifiche/{id}/letta    — segna come letta
     POST /notifiche/tutte-lette   — segna tutte come lette
     DELETE /notifiche/{id}        — elimina (solo admin)
+
+  Push sui dispositivi (notifiche_push, fase 1 — ognuno i suoi):
+    GET    /notifiche/push/stato             — chiave pubblica del locale + i miei dispositivi
+    POST   /notifiche/push/dispositivi       — registra questo dispositivo
+    DELETE /notifiche/push/dispositivi/{id}  — toglie un mio dispositivo
+    POST   /notifiche/push/prova             — push di prova sui miei dispositivi
 
   Comunicazioni (bacheca staff):
     GET  /comunicazioni           — lista attive per ruolo utente
@@ -28,11 +34,13 @@ Autenticazione: JWT su tutti gli endpoint.
 """
 
 from typing import Any, Dict, Optional
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from app.services.auth_service import get_current_user
 from app.models.notifiche_db import init_notifiche_db
+from app.services import notifiche_push
+from app.services.permessi import richiede_ruoli
 from app.services.notifiche_service import (
     get_notifiche_utente,
     conta_non_lette,
@@ -152,6 +160,60 @@ def api_elimina_notifica(
     if not elimina_notifica(notifica_id):
         raise HTTPException(status_code=404, detail="Notifica non trovata")
     return {"ok": True}
+
+
+# ═══════════════════════════════════════════════
+# PUSH SUI DISPOSITIVI (M.A — notifiche_push, fase 1)
+# ═══════════════════════════════════════════════
+# Ognuno gestisce SOLO i propri dispositivi: per questo tutti i ruoli (decisione di
+# Marco, 24/11/2026: «ognuno, sul suo dispositivo»). superadmin è implicito con admin.
+
+_OGNUNO = richiede_ruoli(
+    "admin", "contabile", "chef", "sous_chef", "commis", "sommelier", "capo_sala", "sala", "viewer",
+    cosa="le notifiche sul proprio dispositivo",
+)
+
+
+class DispositivoIn(BaseModel):
+    """L'iscrizione che dà il browser ({endpoint, keys:{p256dh, auth}}) e un nome a scelta."""
+    iscrizione: Dict[str, Any]
+    nome: Optional[str] = None
+
+
+@router.get("/push/stato")
+def api_push_stato(current_user: Dict[str, Any] = Depends(_OGNUNO)):
+    """Chiave pubblica del locale (per iscriversi) e dispositivi dell'utente."""
+    return notifiche_push.stato(current_user["username"])
+
+
+@router.post("/push/dispositivi")
+def api_push_registra(
+    body: DispositivoIn,
+    request: Request,
+    current_user: Dict[str, Any] = Depends(_OGNUNO),
+):
+    """Registra il dispositivo da cui l'utente ha attivato le notifiche."""
+    try:
+        return notifiche_push.registra(
+            current_user["username"], body.iscrizione, nome=body.nome,
+            user_agent=request.headers.get("user-agent"),
+        )
+    except notifiche_push.PushErrore as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.delete("/push/dispositivi/{dispositivo_id}")
+def api_push_togli(dispositivo_id: int, current_user: Dict[str, Any] = Depends(_OGNUNO)):
+    """Toglie un dispositivo dell'utente (non quelli degli altri)."""
+    if not notifiche_push.togli(current_user["username"], dispositivo_id):
+        raise HTTPException(status_code=404, detail="Dispositivo non trovato")
+    return {"ok": True}
+
+
+@router.post("/push/prova")
+def api_push_prova(current_user: Dict[str, Any] = Depends(_OGNUNO)):
+    """Manda una push di prova a tutti i dispositivi accesi dell'utente."""
+    return notifiche_push.prova(current_user["username"])
 
 
 # ═══════════════════════════════════════════════

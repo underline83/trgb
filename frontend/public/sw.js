@@ -145,3 +145,44 @@ self.addEventListener("fetch", (event) => {
       )
   );
 });
+
+// ---------------------------------------------------------------
+// NOTIFICHE PUSH (mattone M.A, 2026-11-24 — docs/spec_notifiche_push.md)
+// TRGB manda {titolo, corpo, link, tag}; qui la si mostra e, al tocco, si apre
+// la pagina giusta del gestionale. Su iPhone/iPad OGNI push deve mostrare una
+// notifica (Safari revoca il permesso a chi riceve push senza mostrarle).
+// ---------------------------------------------------------------
+self.addEventListener("push", (event) => {
+  let d = {};
+  try {
+    d = event.data ? event.data.json() : {};
+  } catch (_) {
+    d = { corpo: event.data ? event.data.text() : "" };
+  }
+  const opzioni = {
+    body: d.corpo || "",
+    icon: "/icons/icon-192.png",
+    badge: "/icons/icon-192.png",
+    data: { link: typeof d.link === "string" && d.link.startsWith("/") ? d.link : "/" },
+  };
+  if (d.tag) opzioni.tag = d.tag;
+  event.waitUntil(self.registration.showNotification(d.titolo || "TRGB", opzioni));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const link = (event.notification.data && event.notification.data.link) || "/";
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((finestre) => {
+      // Se TRGB è già aperto lo si porta davanti e gli si dice dove andare
+      // (App.jsx ascolta «APRI_LINK»); altrimenti si apre sulla pagina.
+      for (const f of finestre) {
+        if ("focus" in f) {
+          f.postMessage({ type: "APRI_LINK", link });
+          return f.focus();
+        }
+      }
+      return self.clients.openWindow(link);
+    })
+  );
+});

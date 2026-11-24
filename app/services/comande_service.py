@@ -1,4 +1,4 @@
-# @version: v2.2 (2026-11-24) — chi è al tavolo anche senza prenotazione (walk-in, cliente, cliente nuovo) e Prenotazioni che segue il conto
+# @version: v2.3 (2026-11-24) — gli invii vanno in stampa (ponte): stato di stampa, ristampa, stampante del reparto; 2.2: chi è al tavolo e Prenotazioni
 # -*- coding: utf-8 -*-
 """
 Comande — logica. Modulo: comande. [core]
@@ -64,7 +64,7 @@ from datetime import date, datetime
 from typing import Any, Dict, Iterable, List, Optional
 
 from app.models.comande_db import get_comande_conn
-from app.services import catalogo_vendita, prenotazioni_giorno_service, tavoli_sala_service
+from app.services import catalogo_vendita, comande_stampa, ponte_service, prenotazioni_giorno_service, tavoli_sala_service
 
 FAMIGLIE = ("food", "beverage", "servizio")
 COPERTO, COPERTO_OMAGGIO = "COPERTO", "COPERTO-OMAGGIO"   # articolo_codice della riga del coperto
@@ -105,7 +105,7 @@ def _minuti_da(ts: Optional[str]) -> Optional[int]:
 
 
 def _reparti(conn, solo_attivi: bool = False) -> List[Dict[str, Any]]:
-    sql = "SELECT key, nome, ordine, attivo FROM comande_reparti"
+    sql = "SELECT key, nome, ordine, attivo, stampante FROM comande_reparti"
     if solo_attivi:
         sql += " WHERE attivo = 1"
     return [dict(r) for r in conn.execute(sql + " ORDER BY ordine, key")]
@@ -180,7 +180,7 @@ CHIAVI_CONFIG = {
 
 
 def salva_impostazioni(dati: Dict[str, Any]) -> Dict[str, Any]:
-    """Accetta config (chiavi note), reparti [{key,nome,attivo,ordine}], gruppi_reparto
+    """Accetta config (chiavi note), reparti [{key,nome,attivo,ordine,stampante}], gruppi_reparto
     {gruppo: key|None} e tasti_rapidi [{id?,nome,reparto_key,ogni_coperti,attivo,ordine}].
     Un tasto rapido non si cancella: si spegne (il suo codice resta nelle righe già battute)."""
     conn = get_comande_conn()
@@ -197,6 +197,11 @@ def salva_impostazioni(dati: Dict[str, Any]) -> Dict[str, Any]:
                 "attivo = excluded.attivo",
                 (key, nome, _int(r.get("ordine"), 0), 1 if r.get("attivo", True) else 0),
             )
+            if "stampante" in r:    # chi salva senza dirla (una pagina vecchia) non la cambia
+                chiave = str(r.get("stampante") or "").strip().lower() or None
+                if chiave and not ponte_service.stampante(chiave):
+                    raise ComandaErrore(f"{nome}: stampante «{chiave}» inesistente")
+                conn.execute("UPDATE comande_reparti SET stampante = ? WHERE key = ?", (chiave, key))
             reparti_noti.add(key)
 
         for chiave, valore in (dati.get("config") or {}).items():
@@ -914,10 +919,13 @@ def _foto(r) -> Dict[str, Any]:
 
 def _nuovo_invio(conn, conto_id: int, tipo: str, reparto: str, righe: List[Dict[str, Any]],
                  utente: Optional[str], uscita: Optional[int] = None, azione: Optional[str] = None) -> int:
+    # Se il reparto ha una stampante accesa l'invio nasce in attesa di stampa: il ponte lo viene a
+    # prendere (comande_stampa). Se no nasce «spenta» e non uscirà nemmeno accendendola dopo.
     cur = conn.execute(
-        "INSERT INTO comande_invii (conto_id, tipo, reparto, uscita, righe_json, creato_da, azione) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (conto_id, tipo, reparto, uscita, json.dumps(righe, ensure_ascii=False), utente, azione))
+        "INSERT INTO comande_invii (conto_id, tipo, reparto, uscita, righe_json, creato_da, azione, "
+        "stampa_stato, stampa_da) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'))",
+        (conto_id, tipo, reparto, uscita, json.dumps(righe, ensure_ascii=False), utente, azione,
+         comande_stampa.stato_iniziale(conn, reparto)))
     return cur.lastrowid
 
 
@@ -1093,8 +1101,9 @@ def chiudi_conto(conto_id: int, utente: Optional[str], annulla: bool = False,
 
 
 def invii(reparto: Optional[str] = None, limite: int = 50) -> List[Dict[str, Any]]:
-    """Ultimi invii (per controllare cosa sarebbe uscito in stampa)."""
+    """Ultimi invii, ognuno con `stampa` {stato, testo}: stampato, in stampa, non riesce, spenta."""
     limite = max(1, min(_int(limite, 50), 200))
+    scadenza = ponte_service.valori()["scadenza_minuti"]
     conn = get_comande_conn()
     try:
         sql = ("SELECT i.*, c.tavolo, c.coperti FROM comande_invii i "
@@ -1112,7 +1121,17 @@ def invii(reparto: Optional[str] = None, limite: int = 50) -> List[Dict[str, Any
                 d["righe"] = json.loads(d.pop("righe_json") or "[]")
             except (TypeError, ValueError):
                 d["righe"] = []
+            d["stampa"] = comande_stampa.etichetta(d, scadenza)
             out.append(d)
         return out
     finally:
         conn.close()
+
+
+def ristampa_invio(invio_id: int) -> Dict[str, Any]:
+    """Rimanda un invio alla stampante del suo reparto."""
+    try:
+        comande_stampa.ristampa(invio_id)
+    except comande_stampa.StampaErrore as e:
+        raise ComandaErrore(str(e))
+    return {"ok": True}

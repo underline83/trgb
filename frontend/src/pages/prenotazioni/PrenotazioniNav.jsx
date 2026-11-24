@@ -1,4 +1,4 @@
-// @version: v1.2 — tab Archivio (spostato da Clienti, redesign 2026-10-19) · v1.1-recensioni — tab Recensioni (admin, sala); v1.0-prenotazioni-nav
+// @version: v1.3 — sul telefono «Editor Tavoli» va sotto «Meglio dal computer» (2026-11-24) · v1.2 — tab Archivio (spostato da Clienti, redesign 2026-10-19) · v1.1-recensioni — tab Recensioni (admin, sala); v1.0-prenotazioni-nav
 // Tab navigation per il modulo Prenotazioni
 import React from "react";
 import { useLocation } from "react-router-dom";
@@ -10,7 +10,7 @@ const TABS = [
   { key: "settimana", label: "Settimana", path: "/prenotazioni/settimana", icon: "📆" },
   { key: "archivio", label: "Archivio", path: "/prenotazioni/archivio", icon: "🗂️" },
   { key: "recensioni", label: "Recensioni", path: "/prenotazioni/recensioni", icon: "⭐", roles: ["superadmin", "admin", "sala"] },
-  { key: "tavoli", label: "Editor Tavoli", path: "/prenotazioni/tavoli", icon: "✏️", roles: ["superadmin", "admin"] },
+  { key: "tavoli", label: "Editor Tavoli", path: "/prenotazioni/tavoli", icon: "✏️", roles: ["superadmin", "admin"], mobile: false },
   { key: "impostazioni", label: "Impostazioni", path: "/prenotazioni/impostazioni", icon: "⚙️", roles: ["superadmin", "admin"] },
 ];
 

@@ -1,4 +1,4 @@
-// @version: v1.1 — giorni chiusi grigi barrati, mezzo giorno chiuso con titolo (calendario chiusure, 2026-11-19); v1.0
+// @version: v1.2 — su iPhone largo quanto lo schermo, giorni da pollice (2026-11-24); v1.1 — giorni chiusi grigi barrati, mezzo giorno chiuso con titolo (calendario chiusure, 2026-11-19); v1.0
 // Mini-calendario mensile con badge prenotazioni
 import React, { useState, useEffect } from "react";
 import { API_BASE, apiFetch } from "../../../config/api";
@@ -48,12 +48,12 @@ export default function MiniCalendario({ selectedDate, onSelectDate }) {
   }
 
   return (
-    <div className="bg-white border border-neutral-200 rounded-xl p-4 shadow-sm max-w-xs">
+    <div className="bg-white border border-neutral-200 rounded-xl p-3 sm:p-4 shadow-sm sm:max-w-xs">
       {/* Header mese */}
       <div className="flex items-center justify-between mb-3">
-        <button onClick={prevMese} className="text-neutral-400 hover:text-neutral-700 px-1">◀</button>
+        <button onClick={prevMese} className="text-neutral-400 hover:text-neutral-700 px-1 max-sm:min-w-[44px] max-sm:min-h-[44px]">◀</button>
         <span className="font-semibold text-sm text-neutral-800">{MESI[mese - 1]} {anno}</span>
-        <button onClick={nextMese} className="text-neutral-400 hover:text-neutral-700 px-1">▶</button>
+        <button onClick={nextMese} className="text-neutral-400 hover:text-neutral-700 px-1 max-sm:min-w-[44px] max-sm:min-h-[44px]">▶</button>
       </div>
 
       {/* Intestazione giorni */}
@@ -81,7 +81,7 @@ export default function MiniCalendario({ selectedDate, onSelectDate }) {
               key={cell.iso}
               onClick={() => onSelectDate(cell.iso)}
               title={titolo}
-              className={`relative w-8 h-8 flex items-center justify-center text-xs rounded-lg transition
+              className={`relative w-full h-11 text-sm sm:w-8 sm:h-8 sm:text-xs flex items-center justify-center rounded-lg transition
                 ${isSelected ? "bg-indigo-600 text-white font-bold" : ""}
                 ${isOggi && !isSelected ? "ring-2 ring-indigo-300" : ""}
                 ${!isSelected ? (giornoChiuso ? "bg-neutral-100 text-neutral-400 line-through" : "hover:bg-neutral-100 text-neutral-700") : ""}

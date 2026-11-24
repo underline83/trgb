@@ -1,4 +1,4 @@
-// @version: v1.17-apri — ?apri=<id> apre la prenotazione e ci scorre sopra (link dalla Home, 2026-11-20); v1.16-chiusure — turno chiuso nel calendario chiusure: banner rosso, «Nessuna prenotazione» diventa «Turno chiuso» (2026-11-19); v1.15-stelle — stelle TRGB e pallino del segmento accanto al nome (al posto della ⭐ VIP TheFork) (2026-11-16); v1.14-stati — «In opzione» (tavolo tenuto fino al…, proroga, coperti a parte) e «Lista d'attesa» (sezione propria, non occupa); pulsanti di stato dai passaggi permessi della tabella stati (sparito «Seduto» su «Da confermare», che dava errore) (2026-11-13); v1.13-scadenza-preventivo — ⏳ prenotazione in attesa di conferma preventivo (scadenza), «Libera tavolo», motivo della cancellazione (2026-11-03); v1.12-motore — tavolo suggerito dal motore per tavoli (clic = assegna, «Assegna i suggeriti»), «non entra» in rosso, tavoli doppi; v1.11-sale — sale aperte/chiuse per turno nell'intestazione (capienza dai tavoli); v1.10-modifica — «✏️ Modifica» nella riga aperta (stesso form della nuova prenotazione); v1.9-nome — nome anche col solo cognome; v1.8-menu-evento — menù dell'evento confermato nella riga aperta; v1.7-preventivo — tasto «📋 Preventivo» nella riga aperta (crea o apre il preventivo della prenotazione, solo per chi può crearli); v1.6-fasce — fasce orarie del turno (apertura, limiti, online anche su TheFork); v1.5-affidabilita — badge no-show del cliente, riconferma WhatsApp; v1.4 scheda inline — scheda cliente aperta dentro il Planning; v1.3 timeline — bollino cliente (prima/occasionale/frequente) + timeline sala per orario; badge «doppione?»
+// @version: v1.18-telefono — su iPad dritto le etichette vanno a capo e «Stato» non esce più dalla tabella; su iPhone le righe diventano schede (ora e coperti a sinistra, nome e stato, tavolo ed etichette, nota), intestazione del turno e barra della data che vanno a capo, tasti da pollice (2026-11-24); v1.17-apri — ?apri=<id> apre la prenotazione e ci scorre sopra (link dalla Home, 2026-11-20); v1.16-chiusure — turno chiuso nel calendario chiusure: banner rosso, «Nessuna prenotazione» diventa «Turno chiuso» (2026-11-19); v1.15-stelle — stelle TRGB e pallino del segmento accanto al nome (al posto della ⭐ VIP TheFork) (2026-11-16); v1.14-stati — «In opzione» (tavolo tenuto fino al…, proroga, coperti a parte) e «Lista d'attesa» (sezione propria, non occupa); pulsanti di stato dai passaggi permessi della tabella stati (sparito «Seduto» su «Da confermare», che dava errore) (2026-11-13); v1.13-scadenza-preventivo — ⏳ prenotazione in attesa di conferma preventivo (scadenza), «Libera tavolo», motivo della cancellazione (2026-11-03); v1.12-motore — tavolo suggerito dal motore per tavoli (clic = assegna, «Assegna i suggeriti»), «non entra» in rosso, tavoli doppi; v1.11-sale — sale aperte/chiuse per turno nell'intestazione (capienza dai tavoli); v1.10-modifica — «✏️ Modifica» nella riga aperta (stesso form della nuova prenotazione); v1.9-nome — nome anche col solo cognome; v1.8-menu-evento — menù dell'evento confermato nella riga aperta; v1.7-preventivo — tasto «📋 Preventivo» nella riga aperta (crea o apre il preventivo della prenotazione, solo per chi può crearli); v1.6-fasce — fasce orarie del turno (apertura, limiti, online anche su TheFork); v1.5-affidabilita — badge no-show del cliente, riconferma WhatsApp; v1.4 scheda inline — scheda cliente aperta dentro il Planning; v1.3 timeline — bollino cliente (prima/occasionale/frequente) + timeline sala per orario; badge «doppione?»
 // Modulo: prenotazioni
 // Vista planning giornaliero — modulo Prenotazioni TRGB
 import React, { useState, useEffect, useCallback } from "react";
@@ -16,6 +16,7 @@ import ClientiScheda from "../clienti/ClientiScheda";
 import { Stelle, SegmentoPill } from "../clienti/ProfiloCliente";
 import { Btn } from "../../components/ui";
 import useModuleAccess from "../../hooks/useModuleAccess";
+import useTelefono from "../../hooks/useTelefono";
 
 const oggi = () => new Date().toISOString().slice(0, 10);
 
@@ -25,6 +26,13 @@ const MESI = ["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","
 function formatData(iso) {
   const d = new Date(iso + "T12:00:00");
   return `${GIORNI[d.getDay()]} ${d.getDate()} ${MESI[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+// Sul telefono la data intera non ci sta accanto alle frecce: «Mer 25 novembre»
+function formatDataCorta(iso) {
+  const d = new Date(iso + "T12:00:00");
+  const anno = d.getFullYear() !== new Date().getFullYear() ? ` ${d.getFullYear()}` : "";
+  return `${GIORNI[d.getDay()].slice(0, 3)} ${d.getDate()} ${MESI[d.getMonth()].toLowerCase()}${anno}`;
 }
 
 function shiftDate(iso, days) {
@@ -76,7 +84,7 @@ function CellaTavolo({ pren, motore, onAssegna }) {
   if (motore.stato === "senza_posto") {
     return (
       <Tooltip label="Nessun tavolo o unione salvata libera per questi coperti a quell'ora">
-        <span className="text-[11px] font-semibold text-red-600">non entra</span>
+        <span className="text-[11px] font-semibold text-red-600 whitespace-nowrap">non entra</span>
       </Tooltip>
     );
   }
@@ -86,7 +94,7 @@ function CellaTavolo({ pren, motore, onAssegna }) {
   return (
     <Tooltip label={`${forzato ? "Solo su un tavolo più grande del necessario (sotto il suo minimo)" : "Tavolo suggerito"}: ${s.nome} (${s.posti} posti${s.prolunghe ? ", prolunga" : ""}). Clicca per assegnarlo`}>
       <button onClick={(e) => { e.stopPropagation(); onAssegna && onAssegna([motore]); }}
-        className={`text-xs px-1.5 py-0.5 rounded border border-dashed ${forzato ? "border-amber-400 text-amber-700" : "border-indigo-300 text-indigo-600"} hover:bg-indigo-50`}>
+        className={`text-xs px-1.5 py-0.5 rounded border border-dashed whitespace-nowrap ${forzato ? "border-amber-400 text-amber-700" : "border-indigo-300 text-indigo-600"} hover:bg-indigo-50`}>
         → {s.nome}
       </button>
     </Tooltip>
@@ -115,8 +123,223 @@ function azioneStato(da, a) {
 }
 const ggmm = (iso) => (iso || "").split("-").reverse().slice(0, 2).join("/");
 
-function RigaPrenotazione({ pren, motore, onAssegna, onStatoChange, onExpand, expanded, onApriCliente, onRiconferma, onUnisciDoppione, onPreventivo, onModifica, onLiberaTavolo, onTenutoFino }) {
+// Etichette accanto al nome (stelle, segmento, no-show, riconferma, evento, preventivo,
+// bollino, allergie, NUOVA, DOPPIONE?): le stesse nella riga del computer e nella scheda del telefono
+function EtichetteCliente({ pren }) {
+  return (
+    <>
+      {pren.profilo && (
+        <>
+          <Stelle nere={pren.profilo.stelle_nere} argento={pren.profilo.stelle_argento} oro={pren.profilo.stella_oro} className="text-xs" />
+          {pren.profilo.segmento && pren.profilo.segmento !== "mai_venuto" && <SegmentoPill segmento={pren.profilo.segmento} compatto />}
+        </>
+      )}
+      {pren.no_show_totali > 0 && (
+        <Tooltip label={`Affidabilità: ${pren.no_show_totali} no-show e ${pren.cancellate_totali || 0} cancellazioni in passato`}>
+          <span className="px-1.5 py-0.5 bg-red-50 text-red-700 border border-red-200 text-[10px] font-semibold rounded-full whitespace-nowrap">
+            {pren.no_show_totali} no-show
+          </span>
+        </Tooltip>
+      )}
+      {pren.reminder_inviato === 1 && (
+        <Tooltip label="Riconferma WhatsApp inviata"><span className="text-emerald-600 text-xs">✓💬</span></Tooltip>
+      )}
+      {pren.menu_evento && (
+        <Tooltip label="Evento confermato: menù nella riga aperta"><span className="text-xs">🍽️</span></Tooltip>
+      )}
+      {pren.preventivo_attesa && (
+        <Tooltip label={`In attesa di conferma preventivo ${pren.preventivo_attesa.numero}${pren.preventivo_attesa.scadenza ? ` — scade il ${(pren.preventivo_attesa.scadenza || "").split("-").reverse().slice(0, 2).join("/")}` : ""}`}>
+          <span className={`text-xs ${pren.preventivo_attesa.stato === "scaduto" ? "text-red-600" : "text-amber-600"}`}>⏳</span>
+        </Tooltip>
+      )}
+      {pren.bollino && BOLLINI[pren.bollino] && (
+        <Tooltip label={`${pren.visite_precedenti || 0} visite prima di oggi`}>
+          <span className={`px-1.5 py-0.5 border text-[10px] font-medium rounded-full whitespace-nowrap ${BOLLINI[pren.bollino].cls}`}>
+            {BOLLINI[pren.bollino].label}
+          </span>
+        </Tooltip>
+      )}
+      {(pren.allergie || pren.allergie_segnalate) && (
+        <Tooltip label={pren.allergie || pren.allergie_segnalate}>
+          <span className="text-red-500 text-xs">⚠️</span>
+        </Tooltip>
+      )}
+      {pren.stato === "REQUESTED" && (
+        <span className="px-1.5 py-0.5 bg-blue-500 text-white text-[10px] font-bold rounded-full">NUOVA</span>
+      )}
+      {pren.possibili_doppioni && pren.possibili_doppioni.length > 0 && (
+        <Tooltip label={pren.possibili_doppioni.map((d) => `Uguale a ${d.ora} ${d.nome} (${d.pax} pax${d.thefork ? ", TheFork" : ", a mano"}): ${d.motivi.join(", ")}`).join(" · ")}>
+          <span className="px-1.5 py-0.5 bg-amber-100 text-amber-800 border border-amber-300 text-[10px] font-bold rounded-full">DOPPIONE?</span>
+        </Tooltip>
+      )}
+    </>
+  );
+}
+
+// Riga aperta: cliente, dettagli, azioni. Tre colonne da md in su, una sotto l'altra sul telefono
+function DettaglioPrenotazione({ pren, onStatoChange, onRiconferma, onUnisciDoppione, onPreventivo, onModifica, onLiberaTavolo, onTenutoFino }) {
   const { info } = usePrenotazioniStati();
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+      {/* Colonna 1: info cliente */}
+      <div>
+        <div className="font-semibold text-neutral-700 mb-1">Cliente</div>
+        {pren.telefono && <div>📞 {pren.telefono}</div>}
+        {pren.email && <div>✉️ {pren.email}</div>}
+        {pren.visite_totali > 0 && <div>📊 {pren.visite_totali} visite totali</div>}
+        {pren.cliente_id && (pren.no_show_totali > 0 || pren.cancellate_totali > 0) && (
+          <div className={pren.no_show_totali > 0 ? "text-red-600" : "text-neutral-500"}>
+            ⚖️ Affidabilità: {pren.no_show_totali || 0} no-show, {pren.cancellate_totali || 0} cancellazioni
+          </div>
+        )}
+        {pren.tags && pren.tags.length > 0 && (
+          <div className="flex gap-1 mt-1 flex-wrap">
+            {pren.tags.map((t) => (
+              <span key={t.nome} className="px-1.5 py-0.5 rounded text-[10px] font-medium text-white" style={{ backgroundColor: t.colore }}>
+                {t.nome}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Colonna 2: note e dettagli */}
+      <div>
+        <div className="font-semibold text-neutral-700 mb-1">Dettagli</div>
+        {pren.allergie && <div className="text-red-600">⚠️ Allergie CRM: {pren.allergie}</div>}
+        {pren.allergie_segnalate && <div className="text-red-600">⚠️ Allergie pren.: {pren.allergie_segnalate}</div>}
+        {pren.restrizioni_dietetiche && <div>🥗 {pren.restrizioni_dietetiche}</div>}
+        {pren.pref_cibo && <div>🍽️ {pren.pref_cibo}</div>}
+        {pren.occasione && <div>🎉 {pren.occasione}</div>}
+        {(pren.possibili_doppioni || []).map((d) => (
+          <div key={d.id} className="text-amber-700">
+            ⚠️ Possibile doppione: {d.ora} {d.nome}, {d.pax} pax ({d.thefork ? "da TheFork" : "inserita a mano"}) — uguale: {d.motivi.join(", ")}
+            {d.thefork && !pren.thefork_booking_id && onUnisciDoppione && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onUnisciDoppione(pren, d); }}
+                className="ml-2 px-2 py-0.5 rounded border border-amber-400 bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-medium"
+              >
+                Tieni quella TheFork, elimina questa
+              </button>
+            )}
+          </div>
+        ))}
+        {pren.nota_ristorante && <div className="mt-1">📝 Nota staff: {pren.nota_ristorante}</div>}
+        {pren.nota_cliente && <div>💬 Nota cliente: {pren.nota_cliente}</div>}
+        {pren.menu_preset && <div>🍴 Menu: {pren.menu_preset}</div>}
+        {pren.menu_evento && (
+          <div className="mt-1 p-2 rounded bg-emerald-50 border border-emerald-200 text-emerald-900 whitespace-pre-line">
+            🍽️ <b>Evento confermato</b>{"\n"}{pren.menu_evento}
+          </div>
+        )}
+        {pren.degustazione && <div>🍷 Degustazione: {pren.degustazione}</div>}
+        {pren.stato === "OPTION" && !pren.preventivo_attesa && (
+          <div className="mt-1 p-2 rounded border border-dashed border-amber-300 bg-amber-50 text-amber-900">
+            ⏳ <b>In opzione</b>{pren.tenuto_fino_al ? <> — tavolo tenuto fino al {ggmm(pren.tenuto_fino_al)}</> : " — senza data"}
+            {pren.tenuto_fino_al && pren.tenuto_fino_al < new Date().toISOString().slice(0, 10) && <span className="ml-1 text-red-700 font-semibold">(scaduta)</span>}
+            {onTenutoFino && (
+              <div className="mt-1.5 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                <label className="text-xs">Proroga al</label>
+                <input type="date" defaultValue={pren.tenuto_fino_al || ""} max={pren.data_pasto}
+                  onChange={(e) => e.target.value && onTenutoFino(pren, e.target.value)}
+                  className="px-2 py-1 text-base sm:text-xs border border-amber-300 rounded bg-white min-h-[44px] sm:min-h-[32px]" />
+              </div>
+            )}
+            <div className="mt-1 text-[11px] text-amber-800">Alla scadenza il tavolo resta tenuto: arriva l'avviso e decidi tu.</div>
+          </div>
+        )}
+        {pren.stato === "WAITLIST" && (
+          <div className="mt-1 p-2 rounded border border-violet-200 bg-violet-50 text-violet-900">
+            🕰️ <b>Lista d'attesa</b> — non occupa tavoli. Se nel turno si libera un posto arriva l'avviso nel campanello.
+          </div>
+        )}
+        {pren.preventivo_attesa && (
+          <div className={`mt-1 p-2 rounded border ${pren.preventivo_attesa.stato === "scaduto" ? "bg-red-50 border-red-200 text-red-900" : "bg-amber-50 border-amber-200 text-amber-900"}`}>
+            ⏳ <b>{pren.preventivo_attesa.stato === "scaduto" ? "Preventivo scaduto" : "In attesa di conferma preventivo"}</b> {pren.preventivo_attesa.numero}
+            {pren.preventivo_attesa.scadenza && <> — {pren.preventivo_attesa.stato === "scaduto" ? "scaduto" : "scade"} il {(pren.preventivo_attesa.scadenza || "").split("-").reverse().slice(0, 2).join("/")}</>}
+            {(onPreventivo || onLiberaTavolo) && (
+              <div className="mt-1.5 flex flex-wrap gap-2">
+                {onPreventivo && (
+                  <button onClick={(e) => { e.stopPropagation(); onPreventivo(pren); }}
+                    className="px-2 py-1 text-xs rounded border border-amber-300 bg-white hover:bg-amber-100 min-h-[44px] sm:min-h-[32px]">
+                    📋 Apri preventivo
+                  </button>
+                )}
+                {onLiberaTavolo && (
+                  <button onClick={(e) => { e.stopPropagation(); onLiberaTavolo(pren); }}
+                    className="px-2 py-1 text-xs rounded border border-red-300 bg-white text-red-700 hover:bg-red-50 min-h-[44px] sm:min-h-[32px]">
+                    🔓 Libera tavolo
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+        {pren.motivo_cancellazione && ["CANCELED", "REFUSED"].includes(pren.stato) && (
+          <div className="mt-1 text-neutral-500">✖ Cancellata: {pren.motivo_cancellazione}</div>
+        )}
+      </div>
+
+      {/* Colonna 3: azioni */}
+      <div>
+        <div className="font-semibold text-neutral-700 mb-2">Azioni</div>
+        {onModifica && !["LEFT"].includes(pren.stato) && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onModifica(pren); }}
+            className="mb-2 mr-2 px-3 py-1.5 text-xs rounded min-h-[44px] sm:min-h-[36px] border border-indigo-300 text-indigo-700 hover:bg-indigo-50"
+          >
+            ✏️ Modifica
+          </button>
+        )}
+        {pren.telefono && ["RECORDED", "REQUESTED"].includes(pren.stato) && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onRiconferma && onRiconferma(pren); }}
+            className={`mb-2 px-3 py-1.5 text-xs rounded min-h-[44px] sm:min-h-[36px] ${
+              pren.reminder_inviato === 1
+                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                : "bg-emerald-600 text-white hover:bg-emerald-700"
+            }`}
+          >
+            💬 {pren.reminder_inviato === 1 ? "Riconferma inviata — reinvia" : "Riconferma su WhatsApp"}
+          </button>
+        )}
+        {onPreventivo && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onPreventivo(pren); }}
+            title="Crea il preventivo con cliente, data, ora e coperti di questa prenotazione (se c'è già, lo apre)"
+            className="mb-2 ml-1 px-3 py-1.5 text-xs rounded min-h-[44px] sm:min-h-[36px] bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100"
+          >
+            📋 Preventivo
+          </button>
+        )}
+        <div className="flex flex-wrap gap-2">
+          {info(pren.stato).transizioni
+            .map((a) => {
+              const az = azioneStato(pren.stato, a);
+              return (
+                <button
+                  key={a}
+                  onClick={(e) => { e.stopPropagation(); onStatoChange(pren.id, a); }}
+                  className={`px-3 py-1 text-sm sm:text-xs text-white rounded min-h-[44px] sm:min-h-[32px] ${az.cls}`}
+                >
+                  {az.label}
+                </button>
+              );
+            })}
+        </div>
+        {pren.thefork_booking_id && (
+          <div className="mt-2 text-[10px] text-neutral-400">TF: {pren.thefork_booking_id}</div>
+        )}
+        {pren.creato_da && (
+          <div className="mt-1 text-[10px] text-neutral-400">Creato da: {pren.creato_da}</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function RigaPrenotazione({ pren, telefono, motore, onAssegna, onStatoChange, onExpand, expanded, onApriCliente, onRiconferma, onUnisciDoppione, onPreventivo, onModifica, onLiberaTavolo, onTenutoFino }) {
+  const azioni = { onStatoChange, onRiconferma, onUnisciDoppione, onPreventivo, onModifica, onLiberaTavolo, onTenutoFino };
   // pren.nome/cognome sono COALESCE(cliente CRM, snapshot TheFork) lato backend:
   // mostriamo comunque il nome anche quando cliente_id e' NULL (prenotazioni
   // anonimizzate o senza Customer ID import TheFork). Vedi migrazione 068.
@@ -128,6 +351,54 @@ function RigaPrenotazione({ pren, motore, onAssegna, onStatoChange, onExpand, ex
   const nome = nomeCompleto || (pren.canale === "Walk-in" ? "Walk-in" : "—");
 
   const oraShort = pren.ora_pasto ? pren.ora_pasto.slice(0, 5) : "—";
+
+  // Telefono: una scheda al posto della riga a sei colonne. Tutta la scheda apre il
+  // dettaglio (il nome non è un link: troppo facile sbagliare col dito); la scheda
+  // cliente si apre dal tasto dentro il dettaglio.
+  if (telefono) {
+    const nota = pren.nota_ristorante || pren.nota_cliente || pren.occasione || "";
+    return (
+      <div id={`pren-${pren.id}`} className="border-b border-neutral-100 last:border-b-0 scroll-mt-24">
+        <div className={`flex gap-3 px-3 py-2.5 min-h-[56px] cursor-pointer ${rigaClasses(pren)}`} onClick={() => onExpand(pren.id)}>
+          <div className="w-12 flex-shrink-0 text-center">
+            <div className="text-[15px] font-mono font-semibold text-neutral-800 leading-tight">{oraShort}</div>
+            <div className="text-xs text-neutral-500 mt-0.5"><span className="font-semibold text-neutral-700">{pren.pax}</span> pax</div>
+            {isRitardo(pren) && <div className="text-xs text-amber-500 leading-none mt-0.5">⏰</div>}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <CanaleBadge canale={pren.canale} fonte={pren.fonte} />
+                <span className={`text-[15px] leading-tight font-medium truncate ${pren.cliente_id ? "text-indigo-800" : "text-neutral-600"}`}>{nome}</span>
+              </div>
+              <span className="flex-shrink-0"><StatoBadge stato={pren.stato} /></span>
+            </div>
+            <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1">
+              <span className="text-xs text-neutral-600 whitespace-nowrap">
+                🪑 <CellaTavolo pren={pren} motore={motore} onAssegna={onAssegna} />
+                {pren.tavolo_esterno === 1 && <span className="ml-0.5">🌳</span>}
+              </span>
+              {pren.seggioloni && pren.seggioloni !== "0" && <span className="text-xs text-neutral-500">🪑{pren.seggioloni}</span>}
+              <EtichetteCliente pren={pren} />
+            </div>
+            {nota && <div className="mt-1 text-xs text-neutral-500 line-clamp-2">{nota}</div>}
+          </div>
+          <div className="flex-shrink-0 self-center text-neutral-300 text-xs">{expanded ? "▲" : "▼"}</div>
+        </div>
+        {expanded && (
+          <div className="px-3 pt-2 pb-3 bg-neutral-50/80 border-t border-neutral-100">
+            {pren.cliente_id && onApriCliente && (
+              <button type="button" onClick={() => onApriCliente(pren.cliente_id)}
+                className="mb-3 w-full px-3 min-h-[44px] rounded-lg border border-indigo-200 bg-white text-sm font-medium text-indigo-700">
+                👤 Scheda cliente
+              </button>
+            )}
+            <DettaglioPrenotazione pren={pren} {...azioni} />
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <>
@@ -144,7 +415,7 @@ function RigaPrenotazione({ pren, motore, onAssegna, onStatoChange, onExpand, ex
 
         {/* Cliente */}
         <td className="px-3 py-2">
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center flex-wrap gap-x-1.5 gap-y-1">
             <CanaleBadge canale={pren.canale} fonte={pren.fonte} />
             {pren.cliente_id ? (
               <button
@@ -157,50 +428,7 @@ function RigaPrenotazione({ pren, motore, onAssegna, onStatoChange, onExpand, ex
             ) : (
               <span className="text-sm text-neutral-600">{nome}</span>
             )}
-            {pren.profilo && (
-              <>
-                <Stelle nere={pren.profilo.stelle_nere} argento={pren.profilo.stelle_argento} oro={pren.profilo.stella_oro} className="text-xs" />
-                {pren.profilo.segmento && pren.profilo.segmento !== "mai_venuto" && <SegmentoPill segmento={pren.profilo.segmento} compatto />}
-              </>
-            )}
-            {pren.no_show_totali > 0 && (
-              <Tooltip label={`Affidabilità: ${pren.no_show_totali} no-show e ${pren.cancellate_totali || 0} cancellazioni in passato`}>
-                <span className="px-1.5 py-0.5 bg-red-50 text-red-700 border border-red-200 text-[10px] font-semibold rounded-full">
-                  {pren.no_show_totali} no-show
-                </span>
-              </Tooltip>
-            )}
-            {pren.reminder_inviato === 1 && (
-              <Tooltip label="Riconferma WhatsApp inviata"><span className="text-emerald-600 text-xs">✓💬</span></Tooltip>
-            )}
-            {pren.menu_evento && (
-              <Tooltip label="Evento confermato: menù nella riga aperta"><span className="text-xs">🍽️</span></Tooltip>
-            )}
-            {pren.preventivo_attesa && (
-              <Tooltip label={`In attesa di conferma preventivo ${pren.preventivo_attesa.numero}${pren.preventivo_attesa.scadenza ? ` — scade il ${(pren.preventivo_attesa.scadenza || "").split("-").reverse().slice(0, 2).join("/")}` : ""}`}>
-                <span className={`text-xs ${pren.preventivo_attesa.stato === "scaduto" ? "text-red-600" : "text-amber-600"}`}>⏳</span>
-              </Tooltip>
-            )}
-            {pren.bollino && BOLLINI[pren.bollino] && (
-              <Tooltip label={`${pren.visite_precedenti || 0} visite prima di oggi`}>
-                <span className={`px-1.5 py-0.5 border text-[10px] font-medium rounded-full ${BOLLINI[pren.bollino].cls}`}>
-                  {BOLLINI[pren.bollino].label}
-                </span>
-              </Tooltip>
-            )}
-            {(pren.allergie || pren.allergie_segnalate) && (
-              <Tooltip label={pren.allergie || pren.allergie_segnalate}>
-                <span className="text-red-500 text-xs">⚠️</span>
-              </Tooltip>
-            )}
-            {pren.stato === "REQUESTED" && (
-              <span className="px-1.5 py-0.5 bg-blue-500 text-white text-[10px] font-bold rounded-full">NUOVA</span>
-            )}
-            {pren.possibili_doppioni && pren.possibili_doppioni.length > 0 && (
-              <Tooltip label={pren.possibili_doppioni.map((d) => `Uguale a ${d.ora} ${d.nome} (${d.pax} pax${d.thefork ? ", TheFork" : ", a mano"}): ${d.motivi.join(", ")}`).join(" · ")}>
-                <span className="px-1.5 py-0.5 bg-amber-100 text-amber-800 border border-amber-300 text-[10px] font-bold rounded-full">DOPPIONE?</span>
-              </Tooltip>
-            )}
+            <EtichetteCliente pren={pren} />
           </div>
         </td>
 
@@ -231,161 +459,7 @@ function RigaPrenotazione({ pren, motore, onAssegna, onStatoChange, onExpand, ex
       {expanded && (
         <tr className="bg-neutral-50/80">
           <td colSpan={6} className="px-4 py-3">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-              {/* Colonna 1: info cliente */}
-              <div>
-                <div className="font-semibold text-neutral-700 mb-1">Cliente</div>
-                {pren.telefono && <div>📞 {pren.telefono}</div>}
-                {pren.email && <div>✉️ {pren.email}</div>}
-                {pren.visite_totali > 0 && <div>📊 {pren.visite_totali} visite totali</div>}
-                {pren.cliente_id && (pren.no_show_totali > 0 || pren.cancellate_totali > 0) && (
-                  <div className={pren.no_show_totali > 0 ? "text-red-600" : "text-neutral-500"}>
-                    ⚖️ Affidabilità: {pren.no_show_totali || 0} no-show, {pren.cancellate_totali || 0} cancellazioni
-                  </div>
-                )}
-                {pren.tags && pren.tags.length > 0 && (
-                  <div className="flex gap-1 mt-1 flex-wrap">
-                    {pren.tags.map((t) => (
-                      <span key={t.nome} className="px-1.5 py-0.5 rounded text-[10px] font-medium text-white" style={{ backgroundColor: t.colore }}>
-                        {t.nome}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Colonna 2: note e dettagli */}
-              <div>
-                <div className="font-semibold text-neutral-700 mb-1">Dettagli</div>
-                {pren.allergie && <div className="text-red-600">⚠️ Allergie CRM: {pren.allergie}</div>}
-                {pren.allergie_segnalate && <div className="text-red-600">⚠️ Allergie pren.: {pren.allergie_segnalate}</div>}
-                {pren.restrizioni_dietetiche && <div>🥗 {pren.restrizioni_dietetiche}</div>}
-                {pren.pref_cibo && <div>🍽️ {pren.pref_cibo}</div>}
-                {pren.occasione && <div>🎉 {pren.occasione}</div>}
-                {(pren.possibili_doppioni || []).map((d) => (
-                  <div key={d.id} className="text-amber-700">
-                    ⚠️ Possibile doppione: {d.ora} {d.nome}, {d.pax} pax ({d.thefork ? "da TheFork" : "inserita a mano"}) — uguale: {d.motivi.join(", ")}
-                    {d.thefork && !pren.thefork_booking_id && onUnisciDoppione && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); onUnisciDoppione(pren, d); }}
-                        className="ml-2 px-2 py-0.5 rounded border border-amber-400 bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-medium"
-                      >
-                        Tieni quella TheFork, elimina questa
-                      </button>
-                    )}
-                  </div>
-                ))}
-                {pren.nota_ristorante && <div className="mt-1">📝 Nota staff: {pren.nota_ristorante}</div>}
-                {pren.nota_cliente && <div>💬 Nota cliente: {pren.nota_cliente}</div>}
-                {pren.menu_preset && <div>🍴 Menu: {pren.menu_preset}</div>}
-                {pren.menu_evento && (
-                  <div className="mt-1 p-2 rounded bg-emerald-50 border border-emerald-200 text-emerald-900 whitespace-pre-line">
-                    🍽️ <b>Evento confermato</b>{"\n"}{pren.menu_evento}
-                  </div>
-                )}
-                {pren.degustazione && <div>🍷 Degustazione: {pren.degustazione}</div>}
-                {pren.stato === "OPTION" && !pren.preventivo_attesa && (
-                  <div className="mt-1 p-2 rounded border border-dashed border-amber-300 bg-amber-50 text-amber-900">
-                    ⏳ <b>In opzione</b>{pren.tenuto_fino_al ? <> — tavolo tenuto fino al {ggmm(pren.tenuto_fino_al)}</> : " — senza data"}
-                    {pren.tenuto_fino_al && pren.tenuto_fino_al < new Date().toISOString().slice(0, 10) && <span className="ml-1 text-red-700 font-semibold">(scaduta)</span>}
-                    {onTenutoFino && (
-                      <div className="mt-1.5 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                        <label className="text-xs">Proroga al</label>
-                        <input type="date" defaultValue={pren.tenuto_fino_al || ""} max={pren.data_pasto}
-                          onChange={(e) => e.target.value && onTenutoFino(pren, e.target.value)}
-                          className="px-2 py-1 text-xs border border-amber-300 rounded bg-white min-h-[32px]" />
-                      </div>
-                    )}
-                    <div className="mt-1 text-[11px] text-amber-800">Alla scadenza il tavolo resta tenuto: arriva l'avviso e decidi tu.</div>
-                  </div>
-                )}
-                {pren.stato === "WAITLIST" && (
-                  <div className="mt-1 p-2 rounded border border-violet-200 bg-violet-50 text-violet-900">
-                    🕰️ <b>Lista d'attesa</b> — non occupa tavoli. Se nel turno si libera un posto arriva l'avviso nel campanello.
-                  </div>
-                )}
-                {pren.preventivo_attesa && (
-                  <div className={`mt-1 p-2 rounded border ${pren.preventivo_attesa.stato === "scaduto" ? "bg-red-50 border-red-200 text-red-900" : "bg-amber-50 border-amber-200 text-amber-900"}`}>
-                    ⏳ <b>{pren.preventivo_attesa.stato === "scaduto" ? "Preventivo scaduto" : "In attesa di conferma preventivo"}</b> {pren.preventivo_attesa.numero}
-                    {pren.preventivo_attesa.scadenza && <> — {pren.preventivo_attesa.stato === "scaduto" ? "scaduto" : "scade"} il {(pren.preventivo_attesa.scadenza || "").split("-").reverse().slice(0, 2).join("/")}</>}
-                    {(onPreventivo || onLiberaTavolo) && (
-                      <div className="mt-1.5 flex flex-wrap gap-2">
-                        {onPreventivo && (
-                          <button onClick={(e) => { e.stopPropagation(); onPreventivo(pren); }}
-                            className="px-2 py-1 text-xs rounded border border-amber-300 bg-white hover:bg-amber-100 min-h-[32px]">
-                            📋 Apri preventivo
-                          </button>
-                        )}
-                        {onLiberaTavolo && (
-                          <button onClick={(e) => { e.stopPropagation(); onLiberaTavolo(pren); }}
-                            className="px-2 py-1 text-xs rounded border border-red-300 bg-white text-red-700 hover:bg-red-50 min-h-[32px]">
-                            🔓 Libera tavolo
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-                {pren.motivo_cancellazione && ["CANCELED", "REFUSED"].includes(pren.stato) && (
-                  <div className="mt-1 text-neutral-500">✖ Cancellata: {pren.motivo_cancellazione}</div>
-                )}
-              </div>
-
-              {/* Colonna 3: azioni */}
-              <div>
-                <div className="font-semibold text-neutral-700 mb-2">Azioni</div>
-                {onModifica && !["LEFT"].includes(pren.stato) && (
-                  <button
-                    onClick={(e) => { e.stopPropagation(); onModifica(pren); }}
-                    className="mb-2 mr-2 px-3 py-1.5 text-xs rounded min-h-[36px] border border-indigo-300 text-indigo-700 hover:bg-indigo-50"
-                  >
-                    ✏️ Modifica
-                  </button>
-                )}
-                {pren.telefono && ["RECORDED", "REQUESTED"].includes(pren.stato) && (
-                  <button
-                    onClick={(e) => { e.stopPropagation(); onRiconferma && onRiconferma(pren); }}
-                    className={`mb-2 px-3 py-1.5 text-xs rounded min-h-[36px] ${
-                      pren.reminder_inviato === 1
-                        ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                        : "bg-emerald-600 text-white hover:bg-emerald-700"
-                    }`}
-                  >
-                    💬 {pren.reminder_inviato === 1 ? "Riconferma inviata — reinvia" : "Riconferma su WhatsApp"}
-                  </button>
-                )}
-                {onPreventivo && (
-                  <button
-                    onClick={(e) => { e.stopPropagation(); onPreventivo(pren); }}
-                    title="Crea il preventivo con cliente, data, ora e coperti di questa prenotazione (se c'è già, lo apre)"
-                    className="mb-2 ml-1 px-3 py-1.5 text-xs rounded min-h-[36px] bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100"
-                  >
-                    📋 Preventivo
-                  </button>
-                )}
-                <div className="flex flex-wrap gap-2">
-                  {info(pren.stato).transizioni
-                    .map((a) => {
-                      const az = azioneStato(pren.stato, a);
-                      return (
-                        <button
-                          key={a}
-                          onClick={(e) => { e.stopPropagation(); onStatoChange(pren.id, a); }}
-                          className={`px-3 py-1 text-xs text-white rounded min-h-[32px] ${az.cls}`}
-                        >
-                          {az.label}
-                        </button>
-                      );
-                    })}
-                </div>
-                {pren.thefork_booking_id && (
-                  <div className="mt-2 text-[10px] text-neutral-400">TF: {pren.thefork_booking_id}</div>
-                )}
-                {pren.creato_da && (
-                  <div className="mt-1 text-[10px] text-neutral-400">Creato da: {pren.creato_da}</div>
-                )}
-              </div>
-            </div>
+            <DettaglioPrenotazione pren={pren} {...azioni} />
           </td>
         </tr>
       )}
@@ -438,6 +512,7 @@ function TabellaPrenotazioni({ titolo, chiusura, prenotazioni, conteggio, pax, o
   // Gruppi dalla tabella stati (2026-11-13): fuori = cancellate/no-show/rifiutate;
   // lista d'attesa = né occupa né fuori → sezione a parte
   const { gruppo } = usePrenotazioniStati();
+  const telefono = useTelefono();
   const fuori = gruppo("fuori");
   const occupa = gruppo("occupa");
   const cancellate = prenotazioni.filter((p) => fuori.includes(p.stato));
@@ -450,13 +525,22 @@ function TabellaPrenotazioni({ titolo, chiusura, prenotazioni, conteggio, pax, o
   const conta = (motore && motore.conta) || {};
   const suggeriti = ((motore && motore.prenotazioni) || []).filter((v) => v.stato === "suggerito");
   const coloreCapienza = percentuale > 90 ? "text-red-600" : percentuale > 70 ? "text-amber-600" : "text-emerald-600";
+  // Una riga (tabella) o una scheda (telefono): il motore dei tavoli solo sulle attive
+  const riga = (p, conMotore) => (
+    <RigaPrenotazione key={p.id} pren={p} telefono={telefono} expanded={expandedId === p.id}
+      motore={conMotore ? perId[p.id] : undefined} onAssegna={conMotore ? onAssegna : undefined} {...rigaProps} />
+  );
+  const titoloAttesa = `🕰️ Lista d'attesa (${inAttesa.length}) — non occupano tavoli`;
+  const titoloFuori = `Cancellate / No-show (${cancellate.length})`;
 
   return (
     <div className="mb-6">
-      <div className="flex items-center justify-between px-3 py-2 bg-indigo-50 rounded-t-lg border border-indigo-200">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between flex-wrap gap-x-3 gap-y-1.5 px-3 py-2 bg-indigo-50 rounded-t-lg border border-indigo-200">
+        <div className="flex items-center flex-wrap gap-x-2 gap-y-1 w-full sm:w-auto">
           <span className="font-semibold text-indigo-900">{titolo}</span>
-          <span className="text-sm text-indigo-600">{conteggio} prenotazioni</span>
+          <span className="text-sm text-indigo-600">{conteggio} pren<span className="hidden sm:inline">otazioni</span><span className="sm:hidden">.</span></span>
+          {/* Telefono: i coperti stanno in testa, accanto al titolo */}
+          <span className={`sm:hidden ml-auto text-sm font-semibold whitespace-nowrap ${coloreCapienza}`}>{pax} / {capienza} pax</span>
           {(() => {
             const daRic = prenotazioni.filter((p) => p.stato === "RECORDED" && p.telefono && p.reminder_inviato !== 1).length;
             return daRic > 0 ? (
@@ -466,7 +550,7 @@ function TabellaPrenotazioni({ titolo, chiusura, prenotazioni, conteggio, pax, o
             ) : null;
           })()}
         </div>
-        <div className="flex items-center gap-3 text-sm">
+        <div className="flex items-center flex-wrap gap-x-3 gap-y-1.5 text-sm">
           {conta.senza_posto > 0 && (
             <Tooltip label="Con i tavoli e le unioni salvate queste prenotazioni non trovano posto (durata del tavolo compresa): salva l'unione che usate, apri una sala o controlla i doppioni">
               <span className="text-xs px-2 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-300 font-medium">🔴 {conta.senza_posto} non {conta.senza_posto === 1 ? "entra" : "entrano"}</span>
@@ -480,16 +564,16 @@ function TabellaPrenotazioni({ titolo, chiusura, prenotazioni, conteggio, pax, o
           {suggeriti.length > 0 && onAssegna && (
             <button onClick={() => onAssegna(suggeriti)}
               title="Scrive su ogni prenotazione senza tavolo il tavolo suggerito dal motore"
-              className="text-xs px-2 py-0.5 rounded-full border border-indigo-300 bg-white text-indigo-700 hover:bg-indigo-100">
+              className="text-xs px-2 py-0.5 max-sm:px-3 max-sm:py-2 rounded-full border border-indigo-300 bg-white text-indigo-700 hover:bg-indigo-100">
               🪑 Assegna i suggeriti ({suggeriti.length})
             </button>
           )}
           {(sale || []).length > 1 && (
-            <div className="flex items-center gap-1">
+            <div className="flex items-center flex-wrap gap-1">
               {sale.map((s) => (
                 <button key={s.zona} onClick={() => onSala && onSala(s.zona, !s.aperta)}
                   title={s.aperta ? `${s.zona} aperta (${s.posti_max} posti): clicca per chiuderla in questo turno` : `${s.zona} chiusa: clicca per aprirla in questo turno`}
-                  className={`text-xs px-2 py-0.5 rounded-full border ${s.aperta
+                  className={`text-xs px-2 py-0.5 max-sm:px-3 max-sm:py-2 rounded-full border ${s.aperta
                     ? "bg-white border-emerald-300 text-emerald-700"
                     : "bg-neutral-100 border-neutral-200 text-neutral-400 line-through"}`}>
                   {s.zona}{s.eccezione ? " •" : ""}
@@ -503,7 +587,7 @@ function TabellaPrenotazioni({ titolo, chiusura, prenotazioni, conteggio, pax, o
             const errori = (fasce || []).some((f) => String(f.thefork_esito || "").startsWith("errore"));
             return (
               <button onClick={onFasce} title="Fasce orarie: apertura, limiti, vendita online (anche su TheFork)"
-                className="text-xs px-2 py-0.5 rounded-full border border-indigo-200 bg-white text-indigo-700 hover:bg-indigo-100">
+                className="text-xs px-2 py-0.5 max-sm:px-3 max-sm:py-2 rounded-full border border-indigo-200 bg-white text-indigo-700 hover:bg-indigo-100">
                 🕒 Fasce{chiuse > 0 && ` · ${chiuse} chiuse`}{offline > 0 && ` · 🌐✕ ${offline}`}{errori && " ⚠️"}
               </button>
             );
@@ -513,7 +597,7 @@ function TabellaPrenotazioni({ titolo, chiusura, prenotazioni, conteggio, pax, o
               <span className="text-xs px-2 py-0.5 rounded-full bg-violet-50 text-violet-700 border border-violet-200">🕰️ {inAttesa.length} in attesa</span>
             </Tooltip>
           )}
-          <span className={`font-medium ${coloreCapienza}`}>
+          <span className={`hidden sm:inline font-medium ${coloreCapienza}`}>
             {pax} / {capienza} pax ({percentuale}%)
           </span>
           {opzionePax > 0 && (
@@ -535,6 +619,22 @@ function TabellaPrenotazioni({ titolo, chiusura, prenotazioni, conteggio, pax, o
         <div className="border border-t-0 border-neutral-200 rounded-b-lg p-6 text-center text-neutral-400">
           {chiusura?.chiuso ? "Turno chiuso" : "Nessuna prenotazione"}
         </div>
+      ) : telefono ? (
+        <div className="border border-t-0 border-neutral-200 rounded-b-lg overflow-hidden bg-white">
+          {attive.map((p) => riga(p, true))}
+          {inAttesa.length > 0 && (
+            <>
+              <div className="px-3 py-1.5 text-[10px] uppercase text-violet-500 bg-violet-50/60 border-y border-neutral-100">{titoloAttesa}</div>
+              {inAttesa.map((p) => riga(p, false))}
+            </>
+          )}
+          {cancellate.length > 0 && (
+            <>
+              <div className="px-3 py-1.5 text-[10px] uppercase text-neutral-400 bg-neutral-50 border-y border-neutral-100">{titoloFuori}</div>
+              {cancellate.map((p) => riga(p, false))}
+            </>
+          )}
+        </div>
       ) : (
         <div className="border border-t-0 border-neutral-200 rounded-b-lg overflow-hidden">
           <table className="w-full">
@@ -549,58 +649,21 @@ function TabellaPrenotazioni({ titolo, chiusura, prenotazioni, conteggio, pax, o
               </tr>
             </thead>
             <tbody>
-              {attive.map((p) => (
-                <RigaPrenotazione
-                  key={p.id}
-                  pren={p}
-                  motore={perId[p.id]}
-                  onAssegna={onAssegna}
-                  onStatoChange={onStatoChange}
-                  onExpand={onExpand}
-                  expanded={expandedId === p.id}
-                  onApriCliente={onApriCliente}
-                  onRiconferma={onRiconferma}
-                  onUnisciDoppione={onUnisciDoppione}
-                  onPreventivo={onPreventivo}
-                  onLiberaTavolo={onLiberaTavolo}
-                  onModifica={onModifica}
-                  onTenutoFino={onTenutoFino}
-                />
-              ))}
+              {attive.map((p) => riga(p, true))}
               {inAttesa.length > 0 && (
                 <>
                   <tr>
-                    <td colSpan={6} className="px-3 py-1 text-[10px] uppercase text-violet-500 bg-violet-50/60 border-t">
-                      🕰️ Lista d'attesa ({inAttesa.length}) — non occupano tavoli
-                    </td>
+                    <td colSpan={6} className="px-3 py-1 text-[10px] uppercase text-violet-500 bg-violet-50/60 border-t">{titoloAttesa}</td>
                   </tr>
-                  {inAttesa.map((p) => (
-                    <RigaPrenotazione key={p.id} pren={p} expanded={expandedId === p.id} {...rigaProps} />
-                  ))}
+                  {inAttesa.map((p) => riga(p, false))}
                 </>
               )}
               {cancellate.length > 0 && (
                 <>
                   <tr>
-                    <td colSpan={6} className="px-3 py-1 text-[10px] uppercase text-neutral-400 bg-neutral-50 border-t">
-                      Cancellate / No-show ({cancellate.length})
-                    </td>
+                    <td colSpan={6} className="px-3 py-1 text-[10px] uppercase text-neutral-400 bg-neutral-50 border-t">{titoloFuori}</td>
                   </tr>
-                  {cancellate.map((p) => (
-                    <RigaPrenotazione
-                      key={p.id}
-                      pren={p}
-                      onStatoChange={onStatoChange}
-                      onExpand={onExpand}
-                      expanded={expandedId === p.id}
-                      onApriCliente={onApriCliente}
-                      onRiconferma={onRiconferma}
-                      onUnisciDoppione={onUnisciDoppione}
-                      onPreventivo={onPreventivo}
-                      onLiberaTavolo={onLiberaTavolo}
-                      onModifica={onModifica}
-                    />
-                  ))}
+                  {cancellate.map((p) => riga(p, false))}
                 </>
               )}
             </tbody>
@@ -645,6 +708,7 @@ export default function PrenotazioniPlanning() {
     }
   };
   const { info: statiInfo } = usePrenotazioniStati();
+  const telefono = useTelefono();
   const [data, setData] = useState(dataParam || oggi());
   const [planning, setPlanning] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -818,29 +882,29 @@ export default function PrenotazioniPlanning() {
     <div className="min-h-screen bg-brand-cream">
       <PrenotazioniNav current="planning" />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 py-3 sm:py-4">
         {/* Header con navigazione data */}
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3 sm:mb-4">
           <div className="flex items-center gap-2">
-            <Btn variant="secondary" size="sm" onClick={() => setData(shiftDate(data, -1))}>◀</Btn>
-            <div className="text-center min-w-[260px]">
-              <div className="text-lg font-bold text-neutral-800">{formatData(data)}</div>
+            <Btn variant="secondary" size="sm" className="max-sm:min-h-[44px] max-sm:min-w-[44px]" onClick={() => setData(shiftDate(data, -1))}>◀</Btn>
+            <div className="text-center flex-1 min-w-0 sm:flex-none sm:min-w-[260px]">
+              <div className="text-base sm:text-lg font-bold text-neutral-800 truncate">{telefono ? formatDataCorta(data) : formatData(data)}</div>
               {data === oggi() && (
                 <span className="text-xs text-indigo-600 font-medium">Oggi</span>
               )}
             </div>
-            <Btn variant="secondary" size="sm" onClick={() => setData(shiftDate(data, 1))}>▶</Btn>
+            <Btn variant="secondary" size="sm" className="max-sm:min-h-[44px] max-sm:min-w-[44px]" onClick={() => setData(shiftDate(data, 1))}>▶</Btn>
             {data !== oggi() && (
-              <Btn variant="chip" tone="violet" size="sm" onClick={() => setData(oggi())}>
+              <Btn variant="chip" tone="violet" size="sm" className="max-sm:min-h-[44px]" onClick={() => setData(oggi())}>
                 Oggi
               </Btn>
             )}
-            <Btn variant="secondary" size="sm" onClick={() => setShowCalendario(!showCalendario)}>
+            <Btn variant="secondary" size="sm" className="max-sm:min-h-[44px] max-sm:min-w-[44px]" onClick={() => setShowCalendario(!showCalendario)}>
               📅
             </Btn>
           </div>
 
-          <Btn variant="chip" tone="violet" size="md" onClick={() => setShowForm(true)}>
+          <Btn variant="chip" tone="violet" size="md" className="w-full sm:w-auto max-sm:min-h-[44px]" onClick={() => setShowForm(true)}>
             + Nuova Prenotazione
           </Btn>
         </div>
@@ -872,7 +936,7 @@ export default function PrenotazioniPlanning() {
             >
               ← Torna al planning
             </button>
-            <div className="bg-white rounded-xl border border-neutral-200 p-4">
+            <div className="bg-white rounded-xl border border-neutral-200 p-2 sm:p-4">
               <ClientiScheda
                 clienteId={clienteAperto}
                 embedded
@@ -941,7 +1005,7 @@ export default function PrenotazioniPlanning() {
             />
 
             {/* Riepilogo */}
-            <div className="flex items-center justify-between px-4 py-2 bg-white rounded-lg border border-neutral-200 text-sm text-neutral-600">
+            <div className="flex items-center justify-between flex-wrap gap-x-3 gap-y-1 px-3 sm:px-4 py-2 bg-white rounded-lg border border-neutral-200 text-sm text-neutral-600">
               <span>
                 Totale: <strong>{(c.pranzo_count || 0) + (c.cena_count || 0)}</strong> prenotazioni ·{" "}
                 <strong>{(c.pranzo_pax || 0) + (c.cena_pax || 0)}</strong> coperti

@@ -1,0 +1,12 @@
+{
+  "_nota": "Stampanti comande dell'Osteria Tre Gobbi (docs/operativo/rete.md) e valori di partenza del ponte scelti da Marco il 24/11/2026. Riempie solo ciò che manca: dopo comandano le Impostazioni. Le stampanti nascono spente.",
+  "config": {
+    "ogni_secondi": 2,
+    "avviso_minuti": 1,
+    "scadenza_minuti": 10
+  },
+  "stampanti": [
+    {"chiave": "cucina", "nome": "Cucina", "host": "192.168.86.154", "porta": 9100, "colonne": 48},
+    {"chiave": "sala", "nome": "Sala", "host": "192.168.86.153", "porta": 9100, "colonne": 48}
+  ]
+}

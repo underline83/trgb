@@ -3,6 +3,41 @@
 
 ---
 
+## 2026-11-24 — Prenotazioni 2.39: formato iPhone `[core]`
+Marco: «modulo prenotazioni, ottimizzazione formato iPhone… chiaramente deve rimanere ottimizzato anche per iPad». Solo frontend.
+
+**Cambiato**
+- **Planning** sotto i 640 px: schede al posto della tabella, dettaglio a tutta larghezza con «👤 Scheda cliente», intestazione del turno e barra della data che vanno a capo, tasti da pollice. Su iPad dritto le etichette vanno a capo e la colonna «Stato» non esce più dalla tabella.
+- **Nuova/Modifica prenotazione**: sul telefono a tutto schermo, titolo e «Salva» sempre a vista, campi a 16 px (Safari non ingrandisce la pagina).
+- **Settimana**: un giorno per riga. **Archivio**: ricerca e filtri anche sotto i 1024 px (prima mancavano), elenco a schede sul telefono. **Mappa**: riquadri sotto la sala. **Fasce**, **mini-calendario**, **Recensioni**: misure da pollice.
+- Menu del telefono: «Editor Tavoli» sotto «Meglio dal computer».
+
+**Aggiunto**
+- `frontend/src/hooks/useTelefono.js` (platform): vero sotto i 640 px, per le pagine che sul telefono cambiano forma.
+
+---
+
+## 2026-11-24 — Ponte di stampa 1.0 (mattone M.M) + Comanda 2.3: le comande escono sulle stampanti `[mixed]`
+Marco: «poi pensiamo alla stampa». Proposta sulle [tavole](https://claude.ai/artifact/9Qck2hjpJGCXwmi6PY6FuK) (come gira, due fogli, le chiamate); ha scelto il foglio «con le aggiunte» e «sulle chiamate non scrivere STORNO ma ANNULLA». Prova su carta in osteria con un kit a parte: la stampante capisce tutto, per gli accenti serve `FS .`. Poi: «il ponte è già attivo e posso testare il lancio da TRGB?». Sistema 6.10.
+
+**Aggiunto**
+- **Mattone M.M, ponte di stampa** `[core]`: `ponte/ponte.py` gira su un computer nella rete del locale, chiede a TRGB i fogli già impaginati, li porta alla stampante e riferisce l'esito. Chiama sempre lui: sul router non si apre niente. `stampa_escpos` (righe → byte ESC/POS), `ponte_service` (stampanti, tempi, token, coda, fonti), `/ponte`, `ponte.sqlite3` al boot.
+- **Foglio di cucina** della Comanda (`comande_stampa`): comanda intera con la fascia nera sull'uscita che va, «VAI CON LA PREPARAZIONE», «SOLLECITO», «ATTENDI», «ANNULLA»; allergie del tavolo; «PROVA - NON PREPARARE» sui conti in prova.
+- **Comanda › Impostazioni › Stampa**: stato del ponte, «Crea il token», stampanti (indirizzo, accesa), tempi, «Foglio di prova»; in Reparti «stampa su».
+- **Comanda › Invii**: com'è andata la stampa di ogni invio e «Ristampa». **Tavoli e Invii**: «Stampa ferma» se una stampante è accesa e il ponte tace.
+- `POST /comande/invii/{id}/ristampa`; `GET /ponte/lavori/`, `POST /ponte/lavori/esito` (token del ponte); `GET /ponte/stato/`; `GET/PUT /ponte/impostazioni/`, `POST /ponte/token/`, `POST /ponte/prova/` (admin).
+- Seme `locali/tregobbi/seeds/ponte.json` `[locale:tregobbi]`: le due SOL801 (spente) e i tempi scelti da Marco (2 s, 1 min, 10 min).
+
+**Note**
+- **Le stampanti nascono spente**: dopo il push non esce niente finché non si crea il token, si avvia il ponte e si accende una stampante. Un invio fatto a stampante spenta non esce nemmeno accendendola dopo.
+- Un foglio più vecchio di `scadenza_minuti` non esce più da solo: resta «non stampato» e si ristampa a mano.
+- Il ponte stampa solo verso indirizzi della rete del locale. Del token TRGB tiene l'impronta, non il valore.
+- **Senza internet in osteria non stampa niente** (la Comanda vive sul server). Avviso con notifica e Raspberry: da fare.
+- Nessuna migrazione numerata: `ponte.sqlite3` e le colonne `comande_invii.stampa_*`, `comande_reparti.stampante` nascono al boot (solo ADD COLUMN). Mattone nuovo → sistema 6.10, comande 2.3.
+- Provato: coda, token, ruoli, foglio, ristampa, scadenza e il programma del ponte vero contro una stampante finta (TestClient + server di prova); pagine in un browser; i fogli su carta col kit del 24/11 (`claude/ponte_prova/`). **Non provato:** il ponte vero contro il server vero e una stampante vera, e la stampa insieme a iPratico.
+
+---
+
 ## 2026-11-24 — Comanda 2.2: tutto lo schermo su iPad e telefono, chi è al tavolo anche senza prenotazione `[core]`
 Marco, dopo la 2.1: «ottimizza lo spazio sull'iPad e sull'iPhone nelle due versioni»; «"batti qui" è brutto, metti o i puntini oppure modifica»; «se non c'è la prenotazione dammi la possibilità di inserirla come walk-in, oppure di scegliere altro cliente, oppure di creare nuovo cliente, oppure di selezionarne uno tra gli altri prenotati; in ogni caso dovresti sistemare la cosa anche sulle prenotazioni». Sempre in prova.
 
