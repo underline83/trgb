@@ -587,8 +587,12 @@ def elimina_menu(preventivo_id: int, menu_id: int) -> bool:
         conn.close()
 
 
-def duplica_menu(preventivo_id: int, menu_id: int, nuovo_nome: str | None = None) -> dict | None:
-    """Duplica un menu esistente con tutte le sue righe, in coda."""
+def duplica_menu(preventivo_id: int, menu_id: int, nuovo_nome: str | None = None,
+                 verso_preventivo_id: int | None = None) -> dict | None:
+    """Duplica un menu esistente con tutte le sue righe, in coda.
+    verso_preventivo_id (2026-11-24, connettore 1.22): copia il menù in un ALTRO
+    preventivo (es. «Quadri» di PRE-2026-018 in un preventivo nuovo), col suo nome
+    se nuovo_nome manca. None = nello stesso preventivo, come «Duplica» della pagina."""
     conn = get_clienti_conn()
     try:
         if not _menu_appartiene_a(conn, menu_id, preventivo_id):
@@ -598,12 +602,19 @@ def duplica_menu(preventivo_id: int, menu_id: int, nuovo_nome: str | None = None
         ).fetchone()
         if not orig:
             return None
+        sorgente = preventivo_id
+        if verso_preventivo_id and int(verso_preventivo_id) != int(preventivo_id):
+            if not conn.execute("SELECT 1 FROM clienti_preventivi WHERE id = ?",
+                                (int(verso_preventivo_id),)).fetchone():
+                return None
+            preventivo_id = int(verso_preventivo_id)
 
         max_order = conn.execute(
             "SELECT COALESCE(MAX(sort_order), -1) FROM clienti_preventivi_menu WHERE preventivo_id = ?",
             (preventivo_id,),
         ).fetchone()[0]
-        nome = (nuovo_nome or "").strip() or f"{orig['nome']} (copia)"
+        nome = (nuovo_nome or "").strip() or (
+            orig["nome"] if preventivo_id != sorgente else f"{orig['nome']} (copia)")
 
         cur = conn.execute(
             "INSERT INTO clienti_preventivi_menu (preventivo_id, nome, sort_order, sconto, subtotale, prezzo_persona) "
