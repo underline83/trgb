@@ -1,15 +1,15 @@
 # -*- coding: utf-8 -*-
-# @version: v1.0 — tavoli, conto, righe, invio, via, storno; tutto in prova (2026-11-24)
+# @version: v1.1 — coperto in conto da solo (con omaggio), tasti rapidi a 0 €; tutto in prova (2026-11-24)
 """
 Modulo: comande — comande prese in sala da TRGB. Doc: docs/modulo_comande.md.
 
 Manifesto (core/moduli/comande/module.json):
-    id: comande · nome: Comanda · versione: 1.0
+    id: comande · nome: Comanda · versione: 1.1
     dipendenze platform: auth, permessi, ui_primitives, catalogo_vendita, tavoli_sala
     dipendenze opzionali: menu_carta, ricette, vini, clienti, prenotazioni (solo lettura,
                           via i servizi platform catalogo_vendita e tavoli_sala_service)
     router: comande_router · tabelle: comande_conti, comande_righe, comande_invii,
-            comande_reparti, comande_gruppi_reparto, comande_config
+            comande_reparti, comande_gruppi_reparto, comande_config, comande_tasti_rapidi
     DB: comande.sqlite3 · route FE: /comande · menu key: comande
 
 Finché non c'è la Cassa ogni conto è di prova: in servizio resta iPratico
@@ -22,8 +22,9 @@ le impostazioni solo admin):
     GET    /comande/conti/                    conti aperti
     POST   /comande/conti/                    apre un tavolo {tavolo_id, coperti, nota}
     GET    /comande/conti/{id}                conto con righe e invii
-    PATCH  /comande/conti/{id}                coperti, nota, cambio tavolo
-    POST   /comande/conti/{id}/righe          aggiunge righe (prezzo dal catalogo)
+    PATCH  /comande/conti/{id}                coperti (il coperto in conto li segue), nota, cambio tavolo
+    POST   /comande/conti/{id}/coperto        coperto in omaggio o di nuovo a prezzo {omaggio}
+    POST   /comande/conti/{id}/righe          aggiunge righe (prezzo dal catalogo) o un tasto rapido {tasto}
     POST   /comande/conti/{id}/invia          manda le righe nuove ai reparti
     POST   /comande/conti/{id}/via            «via la Nª» {uscita}
     POST   /comande/conti/{id}/chiudi         libera il tavolo {annulla}
@@ -31,7 +32,8 @@ le impostazioni solo admin):
     DELETE /comande/righe/{id}                toglie una riga non inviata
     POST   /comande/righe/{id}/storna         storna una riga inviata {motivo}
     GET    /comande/invii/                    ultimi invii ai reparti (?reparto=cucina)
-    GET    /comande/impostazioni/ · PUT       uscite, reparti, gruppo → reparto (PUT solo admin)
+    GET    /comande/impostazioni/ · PUT       uscite, reparti, gruppo → reparto, coperto, tasti rapidi
+                                              (PUT solo admin)
 
 Logica tutta in app/services/comande_service.py: qui solo HTTP ⇄ service.
 """
@@ -85,7 +87,8 @@ class AggiornaConto(BaseModel):
 
 class Riga(BaseModel):
     codice: Optional[str] = None
-    quantita: int = 1
+    tasto: Optional[int] = None          # tasto rapido (comande_tasti_rapidi.id): 0 €, avvisa un reparto
+    quantita: Optional[int] = None       # se manca: 1, o la quantità proposta dal tasto rapido
     uscita: Optional[int] = None
     nota: Optional[str] = None
     varianti: Optional[List[str]] = None
@@ -107,6 +110,10 @@ class ModificaRiga(BaseModel):
 
 class Via(BaseModel):
     uscita: int
+
+
+class CopertoOmaggio(BaseModel):
+    omaggio: bool
 
 
 class Chiudi(BaseModel):
@@ -149,6 +156,11 @@ def get_conto(conto_id: int):
 @router.patch("/conti/{conto_id}")
 def patch_conto(conto_id: int, body: AggiornaConto, user=Depends(richiede_ruoli(*RUOLI_COMANDE))):
     return _errori(svc.aggiorna_conto, conto_id, body.model_dump(exclude_unset=True), _utente(user))
+
+
+@router.post("/conti/{conto_id}/coperto")
+def post_coperto(conto_id: int, body: CopertoOmaggio, user=Depends(richiede_ruoli(*RUOLI_COMANDE))):
+    return _errori(svc.coperto_omaggio, conto_id, body.omaggio, _utente(user))
 
 
 @router.post("/conti/{conto_id}/righe")

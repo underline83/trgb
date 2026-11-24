@@ -1,4 +1,4 @@
-# @version: v1.0 (2026-11-24) — tavoli, righe, invii, via, storni (in prova)
+# @version: v1.1 (2026-11-24) — coperto messo in conto da solo, tasti rapidi a 0 € (in prova)
 # -*- coding: utf-8 -*-
 """
 Comande — logica. Modulo: comande. [core]
@@ -17,6 +17,13 @@ Il giro di un tavolo:
     storna      → una riga già inviata si storna con un motivo, e il reparto lo sa
     chiudi / annulla → libera il tavolo. Finché non c'è la Cassa ogni conto è
                   di prova (decisione di Marco del 24/11/2026)
+
+Dalla v1.1 (come si lavora oggi in cassa, docs/studio_ipratico_comanda.md §2):
+    coperto     → una riga che nasce con l'apertura e segue i coperti (quantità =
+                  coperti); non va a nessun reparto, non si invia e non si storna:
+                  si cambia dai coperti o si mette in omaggio (prezzo 0)
+    tasti rapidi → righe a 0 € che dicono a un reparto di far partire qualcosa
+                  («Stuzzico», «Pane»); partono col prossimo «Invia»
 """
 
 from __future__ import annotations
@@ -28,6 +35,8 @@ from app.models.comande_db import get_comande_conn
 from app.services import catalogo_vendita, tavoli_sala_service
 
 FAMIGLIE = ("food", "beverage", "servizio")
+COPERTO, COPERTO_OMAGGIO = "COPERTO", "COPERTO-OMAGGIO"   # articolo_codice della riga del coperto
+GRUPPO_TASTI = "Tasti rapidi"
 
 
 class ComandaErrore(Exception):
@@ -63,6 +72,41 @@ def _mappa_gruppi(conn) -> Dict[str, Optional[str]]:
         "SELECT gruppo, reparto_key FROM comande_gruppi_reparto")}
 
 
+def _prezzo_cfg(v) -> Optional[float]:
+    """Un prezzo scritto in Impostazioni («5», «5,50»): None se non è un prezzo."""
+    try:
+        f = float(str(v).replace(",", "."))
+    except (TypeError, ValueError):
+        return None
+    return round(f, 2) if 0 <= f <= 1000 else None
+
+
+def _coperto_cfg(cfg: Dict[str, str]) -> Dict[str, Any]:
+    return {
+        "attivo": cfg.get("coperto_attivo") == "1",
+        "nome": (cfg.get("coperto_nome") or "").strip() or "Coperto",
+        "prezzo": _prezzo_cfg(cfg.get("coperto_prezzo")) or 0.0,
+    }
+
+
+def _tasti(conn, solo_attivi: bool = False) -> List[Dict[str, Any]]:
+    sql = "SELECT id, nome, reparto_key, ogni_coperti, ordine, attivo FROM comande_tasti_rapidi"
+    if solo_attivi:
+        sql += " WHERE attivo = 1"
+    return [dict(r) for r in conn.execute(sql + " ORDER BY ordine, id")]
+
+
+def _codice_tasto(tasto_id: int) -> str:
+    return f"T{tasto_id:03d}"
+
+
+def _quantita_tasto(ogni_coperti: int, coperti: int) -> int:
+    """0 = una; 1 = una a coperto; 2 = una ogni due coperti (per difetto, almeno una)."""
+    if not ogni_coperti or ogni_coperti <= 0:
+        return 1
+    return max(1, min((coperti or 0) // ogni_coperti, 99))
+
+
 def impostazioni() -> Dict[str, Any]:
     conn = get_comande_conn()
     try:
@@ -72,6 +116,8 @@ def impostazioni() -> Dict[str, Any]:
             "uscite_numero": _int(cfg.get("uscite_numero"), 4),
             "reparti": _reparti(conn),
             "gruppi_reparto": _mappa_gruppi(conn),
+            "coperto": _coperto_cfg(cfg),
+            "tasti_rapidi": _tasti(conn),
         }
     finally:
         conn.close()
@@ -81,11 +127,14 @@ CHIAVI_CONFIG = {
     "uscite_numero": "int:1:9",
     "uscita_food": "int:0:9", "uscita_beverage": "int:0:9", "uscita_servizio": "int:0:9",
     "reparto_food": "reparto", "reparto_beverage": "reparto", "reparto_servizio": "reparto",
+    "coperto_attivo": "bool", "coperto_nome": "testo", "coperto_prezzo": "prezzo",
 }
 
 
 def salva_impostazioni(dati: Dict[str, Any]) -> Dict[str, Any]:
-    """Accetta config (chiavi note), reparti [{key,nome,attivo,ordine}] e gruppi_reparto {gruppo: key|None}."""
+    """Accetta config (chiavi note), reparti [{key,nome,attivo,ordine}], gruppi_reparto
+    {gruppo: key|None} e tasti_rapidi [{id?,nome,reparto_key,ogni_coperti,attivo,ordine}].
+    Un tasto rapido non si cancella: si spegne (il suo codice resta nelle righe già battute)."""
     conn = get_comande_conn()
     try:
         reparti_noti = {r["key"] for r in _reparti(conn)}
@@ -112,6 +161,17 @@ def salva_impostazioni(dati: Dict[str, Any]) -> Dict[str, Any]:
                 if not int(lo) <= n <= int(hi):
                     raise ComandaErrore(f"{chiave}: da {lo} a {hi}")
                 valore = str(n)
+            elif regola == "bool":
+                valore = "1" if str(valore).strip().lower() in ("1", "true", "si", "sì") else "0"
+            elif regola == "testo":
+                valore = " ".join(str(valore or "").split())[:60]
+                if not valore:
+                    raise ComandaErrore(f"{chiave}: serve un nome")
+            elif regola == "prezzo":
+                prezzo = _prezzo_cfg(valore)
+                if prezzo is None:
+                    raise ComandaErrore(f"{chiave}: prezzo da 0 a 1000")
+                valore = f"{prezzo:.2f}".rstrip("0").rstrip(".")
             else:
                 valore = (str(valore).strip().lower() or "") if valore is not None else ""
                 if valore and valore not in reparti_noti:
@@ -133,6 +193,28 @@ def salva_impostazioni(dati: Dict[str, Any]) -> Dict[str, Any]:
             conn.execute(
                 "INSERT INTO comande_gruppi_reparto (gruppo, reparto_key) VALUES (?, ?) "
                 "ON CONFLICT(gruppo) DO UPDATE SET reparto_key = excluded.reparto_key", (gruppo, key))
+
+        for i, t in enumerate(dati.get("tasti_rapidi") or [], start=1):
+            nome = " ".join(str(t.get("nome") or "").split())[:60]
+            if not nome:
+                raise ComandaErrore("Ogni tasto rapido vuole un nome")
+            key = str(t.get("reparto_key") or "").strip().lower() or None
+            if key and key not in reparti_noti:
+                raise ComandaErrore(f"{nome}: reparto «{key}» inesistente")
+            ogni = _int(t.get("ogni_coperti"), 0)
+            if not 0 <= ogni <= 20:
+                raise ComandaErrore(f"{nome}: «una ogni N coperti» va da 0 a 20")
+            valori = (nome, key, ogni, _int(t.get("ordine"), i), 1 if t.get("attivo", True) else 0)
+            if t.get("id"):
+                fatto = conn.execute(
+                    "UPDATE comande_tasti_rapidi SET nome = ?, reparto_key = ?, ogni_coperti = ?, "
+                    "ordine = ?, attivo = ? WHERE id = ?", (*valori, _int(t["id"], -1)))
+                if fatto.rowcount == 0:
+                    raise ComandaErrore(f"{nome}: tasto rapido inesistente")
+            else:
+                conn.execute(
+                    "INSERT INTO comande_tasti_rapidi (nome, reparto_key, ogni_coperti, ordine, attivo) "
+                    "VALUES (?, ?, ?, ?, ?)", valori)
         conn.commit()
     finally:
         conn.close()
@@ -181,7 +263,8 @@ def _riepilogo_conti(conn, ids: Iterable[int]) -> Dict[int, Dict[str, Any]]:
         SELECT conto_id,
                SUM(CASE WHEN stato != 'stornata' THEN prezzo_unitario * quantita ELSE 0 END) AS totale,
                SUM(CASE WHEN stato = 'da_inviare' THEN quantita ELSE 0 END) AS da_inviare,
-               SUM(CASE WHEN stato = 'inviata' THEN quantita ELSE 0 END) AS inviate
+               SUM(CASE WHEN stato = 'inviata' AND COALESCE(articolo_tipo, '') != 'coperto'
+                        THEN quantita ELSE 0 END) AS inviate
           FROM comande_righe WHERE conto_id IN ({segni}) GROUP BY conto_id
     """, ids):
         out[r["conto_id"]] = {"totale": round(r["totale"] or 0, 2),
@@ -230,8 +313,19 @@ def conto(conto_id: int) -> Dict[str, Any]:
             "WHERE conto_id = ? ORDER BY id", (conto_id,))]
         reparti = {r["key"]: r["nome"] for r in _reparti(conn)}
         uscite_numero = _int(_config(conn).get("uscite_numero"), 4)
+        tasti = _tasti(conn, solo_attivi=True)
     finally:
         conn.close()
+    cop = next((r for r in righe if r["articolo_tipo"] == "coperto" and r["stato"] != "stornata"), None)
+    c["coperto"] = {
+        "riga_id": cop["id"], "nome": cop["nome"], "prezzo": cop["prezzo_unitario"],
+        "omaggio": cop["articolo_codice"] == COPERTO_OMAGGIO,
+    } if cop else None
+    c["tasti_rapidi"] = [{
+        "id": t["id"], "nome": t["nome"], "codice": _codice_tasto(t["id"]),
+        "reparto": t["reparto_key"] if t["reparto_key"] in reparti else None,
+        "quantita": _quantita_tasto(t["ogni_coperti"], c["coperti"]),
+    } for t in tasti]
     c["righe"] = righe
     c["invii"] = invii
     c["totale"] = round(sum(r["totale"] for r in righe), 2)
@@ -246,6 +340,39 @@ def conto(conto_id: int) -> Dict[str, Any]:
 def _aperto(c) -> None:
     if c["stato"] != "aperto":
         raise ComandaErrore("Il conto è già chiuso")
+
+
+def _riga_coperto(conn, conto_id: int):
+    return conn.execute(
+        "SELECT * FROM comande_righe WHERE conto_id = ? AND articolo_tipo = 'coperto' "
+        "AND stato != 'stornata' ORDER BY id LIMIT 1", (conto_id,)).fetchone()
+
+
+def _sincronizza_coperto(conn, conto_id: int, coperti: int, utente: Optional[str]) -> None:
+    """La riga del coperto segue i coperti. Nasce se l'impostazione è accesa; una volta
+    nata si aggiorna da sola (e sparisce a 0 coperti). Non va a nessun reparto: nasce
+    già «inviata», così non entra in «Invia» e non blocca la chiusura."""
+    riga = _riga_coperto(conn, conto_id)
+    if riga:
+        if coperti <= 0:
+            conn.execute("DELETE FROM comande_righe WHERE id = ?", (riga["id"],))
+        elif riga["quantita"] != coperti:
+            conn.execute(
+                "UPDATE comande_righe SET quantita = ?, aggiornata_at = datetime('now','localtime') "
+                "WHERE id = ?", (coperti, riga["id"]))
+        return
+    cop = _coperto_cfg(_config(conn))
+    if cop["attivo"] and coperti > 0:
+        conn.execute("""
+            INSERT INTO comande_righe (conto_id, articolo_codice, articolo_tipo, nome, gruppo, famiglia,
+                                       reparto, prezzo_unitario, quantita, uscita, stato, creata_da)
+            VALUES (?, ?, 'coperto', ?, 'Servizio', 'servizio', NULL, ?, ?, 0, 'inviata', ?)
+        """, (conto_id, COPERTO, cop["nome"], cop["prezzo"], coperti, utente))
+
+
+def _non_coperto(r) -> None:
+    if r["articolo_tipo"] == "coperto":
+        raise ComandaErrore("Il coperto segue i coperti: cambia quelli, o mettilo in omaggio")
 
 
 def apri_conto(tavolo_id: int, coperti: int, nota: Optional[str], utente: Optional[str]) -> Dict[str, Any]:
@@ -265,8 +392,9 @@ def apri_conto(tavolo_id: int, coperti: int, nota: Optional[str], utente: Option
             "INSERT INTO comande_conti (tavolo_id, tavolo, zona, coperti, nota, aperto_da, prova) "
             "VALUES (?, ?, ?, ?, ?, ?, 1)",
             (tavolo_id, t["nome"], t.get("zona"), coperti, (nota or "").strip() or None, utente))
-        conn.commit()
         nuovo = cur.lastrowid
+        _sincronizza_coperto(conn, nuovo, coperti, utente)
+        conn.commit()
     finally:
         conn.close()
     return conto(nuovo)
@@ -278,11 +406,13 @@ def aggiorna_conto(conto_id: int, dati: Dict[str, Any], utente: Optional[str]) -
         c = _testata(conn, conto_id)
         _aperto(c)
         campi, valori = [], []
+        nuovi_coperti = None
         if "coperti" in dati and dati["coperti"] is not None:
             n = _int(dati["coperti"], -1)
             if n < 0 or n > 200:
                 raise ComandaErrore("Coperti da 0 a 200")
             campi.append("coperti = ?"); valori.append(n)
+            nuovi_coperti = n
         if "nota" in dati:
             campi.append("nota = ?"); valori.append((dati.get("nota") or "").strip() or None)
         if dati.get("tavolo_id") and int(dati["tavolo_id"]) != c["tavolo_id"]:
@@ -297,7 +427,33 @@ def aggiorna_conto(conto_id: int, dati: Dict[str, Any], utente: Optional[str]) -
         if campi:
             campi.append("aggiornato_at = datetime('now','localtime')")
             conn.execute(f"UPDATE comande_conti SET {', '.join(campi)} WHERE id = ?", (*valori, conto_id))
+            if nuovi_coperti is not None and nuovi_coperti != c["coperti"]:
+                _sincronizza_coperto(conn, conto_id, nuovi_coperti, utente)
             conn.commit()
+    finally:
+        conn.close()
+    return conto(conto_id)
+
+
+def coperto_omaggio(conto_id: int, omaggio: bool, utente: Optional[str]) -> Dict[str, Any]:
+    """Coperto in omaggio (prezzo 0) o di nuovo a prezzo pieno. Chi l'ha messo resta in nota."""
+    conn = get_comande_conn()
+    try:
+        _aperto(_testata(conn, conto_id))
+        riga = _riga_coperto(conn, conto_id)
+        if not riga:
+            raise ComandaErrore("Questo conto non ha il coperto")
+        cop = _coperto_cfg(_config(conn))
+        if omaggio:
+            valori = (COPERTO_OMAGGIO, f"{cop['nome']} - omaggio", 0.0, f"omaggio da {utente}" if utente else "omaggio")
+        else:
+            valori = (COPERTO, cop["nome"], cop["prezzo"], None)
+        conn.execute(
+            "UPDATE comande_righe SET articolo_codice = ?, nome = ?, prezzo_unitario = ?, nota = ?, "
+            "aggiornata_at = datetime('now','localtime') WHERE id = ?", (*valori, riga["id"]))
+        conn.execute("UPDATE comande_conti SET aggiornato_at = datetime('now','localtime') WHERE id = ?",
+                     (conto_id,))
+        conn.commit()
     finally:
         conn.close()
     return conto(conto_id)
@@ -314,10 +470,11 @@ def _varianti(v) -> Optional[str]:
 
 def aggiungi_righe(conto_id: int, righe: List[Dict[str, Any]], utente: Optional[str]) -> Dict[str, Any]:
     """righe: [{codice, quantita, uscita?, nota?, varianti?, prezzo? (solo prezzo libero)}]
-    oppure riga libera {nome, prezzo, famiglia, quantita, uscita?, nota?} (fuori carta)."""
+    oppure riga libera {nome, prezzo, famiglia, quantita, uscita?, nota?} (fuori carta)
+    oppure tasto rapido {tasto, quantita?, nota?}: 0 €, quantità proposta dai coperti."""
     if not righe:
         raise ComandaErrore("Nessuna riga")
-    idx = catalogo_vendita.indice()
+    idx = catalogo_vendita.indice() if any((r.get("codice") or "").strip() for r in righe) else {}
     conn = get_comande_conn()
     try:
         c = _testata(conn, conto_id)
@@ -325,13 +482,26 @@ def aggiungi_righe(conto_id: int, righe: List[Dict[str, Any]], utente: Optional[
         cfg = _config(conn)
         mappa = _mappa_gruppi(conn)
         attivi = {r["key"] for r in _reparti(conn, solo_attivi=True)}
+        tasti = {t["id"]: t for t in _tasti(conn, solo_attivi=True)}
         da_scrivere = []
         for r in righe:
-            q = _int(r.get("quantita", 1), 0)
+            codice = (r.get("codice") or "").strip()
+            tasto = tasti.get(_int(r.get("tasto"), -1)) if r.get("tasto") is not None else None
+            if r.get("tasto") is not None and not tasto:
+                raise ComandaErrore("Tasto rapido inesistente o spento")
+            proposta = _quantita_tasto(tasto["ogni_coperti"], c["coperti"]) if tasto else 1
+            q = proposta if r.get("quantita") is None else _int(r.get("quantita"), 0)
             if q < 1 or q > 99:
                 raise ComandaErrore("Quantità da 1 a 99")
-            codice = (r.get("codice") or "").strip()
-            if codice:
+            reparto_fisso = False
+            if tasto:
+                codice = _codice_tasto(tasto["id"])
+                nome, gruppo, famiglia, tipo, prezzo = tasto["nome"], GRUPPO_TASTI, "servizio", "tasto_rapido", 0.0
+                reparto = tasto["reparto_key"] if tasto["reparto_key"] in attivi else None
+                reparto_fisso = True
+                if r.get("uscita") is None:
+                    r = {**r, "uscita": 0}   # un tasto rapido parte «subito»
+            elif codice:
                 a = idx.get(codice)
                 if not a:
                     raise ComandaErrore(f"Articolo {codice} non più in catalogo")
@@ -362,9 +532,11 @@ def aggiungi_righe(conto_id: int, righe: List[Dict[str, Any]], utente: Optional[
             uscita = _uscita_per(famiglia, cfg) if uscita is None else _int(uscita, -1)
             if uscita < 0 or uscita > 9:
                 raise ComandaErrore("Uscita da 0 a 9")
+            if not reparto_fisso:
+                reparto = _reparto_per(gruppo, famiglia, cfg, mappa, attivi)
             da_scrivere.append((
                 conto_id, codice or None, tipo, nome, gruppo, famiglia,
-                _reparto_per(gruppo, famiglia, cfg, mappa, attivi), round(prezzo, 2), q, uscita,
+                reparto, round(prezzo, 2), q, uscita,
                 _varianti(r.get("varianti")), (r.get("nota") or "").strip()[:200] or None, utente,
             ))
         conn.executemany("""
@@ -393,6 +565,7 @@ def modifica_riga(riga_id: int, dati: Dict[str, Any]) -> Dict[str, Any]:
     conn = get_comande_conn()
     try:
         r = _riga_db(conn, riga_id)
+        _non_coperto(r)
         if r["stato"] != "da_inviare":
             raise ComandaErrore("La riga è già partita: si può solo stornare")
         campi, valori = [], []
@@ -424,6 +597,7 @@ def elimina_riga(riga_id: int) -> Dict[str, Any]:
     conn = get_comande_conn()
     try:
         r = _riga_db(conn, riga_id)
+        _non_coperto(r)
         if r["stato"] != "da_inviare":
             raise ComandaErrore("La riga è già partita: si può solo stornare")
         conn.execute("DELETE FROM comande_righe WHERE id = ?", (riga_id,))
@@ -511,6 +685,7 @@ def storna_riga(riga_id: int, motivo: str, utente: Optional[str]) -> Dict[str, A
     conn = get_comande_conn()
     try:
         r = _riga_db(conn, riga_id)
+        _non_coperto(r)
         if r["stato"] != "inviata":
             raise ComandaErrore("Si storna solo una riga già inviata (le altre si tolgono)")
         conn.execute(

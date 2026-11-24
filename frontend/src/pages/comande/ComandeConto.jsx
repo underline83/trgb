@@ -1,4 +1,4 @@
-// @version: v1.0 — conto del tavolo: righe per uscita, catalogo, invio, via, storno (2026-11-24)
+// @version: v1.1 — coperto in conto da solo (con omaggio), tasti rapidi a 0 € (2026-11-24)
 // Modulo: comande
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
@@ -12,6 +12,9 @@ const STATO = {
   inviata: { label: "inviata", cls: "bg-emerald-100 text-emerald-900 border-emerald-200" },
   stornata: { label: "stornata", cls: "bg-neutral-100 text-neutral-500 border-neutral-200 line-through" },
 };
+// Il coperto non è una riga da inviare: segue i coperti e si cambia da lì.
+const eCoperto = (r) => r.articolo_tipo === "coperto";
+const BADGE_COPERTO = "bg-rose-50 text-rose-900 border-rose-200";
 const FAMIGLIE_FUORI_CARTA = [
   { key: "food", label: "Cucina" },
   { key: "beverage", label: "Da bere" },
@@ -40,6 +43,7 @@ export default function ComandeConto() {
   const [notaRiga, setNotaRiga] = useState("");
   const [motivo, setMotivo] = useState("");
   const [copertiEdit, setCopertiEdit] = useState(null);
+  const [omaggioEdit, setOmaggioEdit] = useState(false);
   const [chiudi, setChiudi] = useState(false);
 
   const mostra = (msg) => {
@@ -118,6 +122,42 @@ export default function ComandeConto() {
     );
   };
 
+  // Tasto rapido («Stuzzico», «Pane»): 0 €, quantità proposta dai coperti; un secondo tocco ne aggiunge uno.
+  const toccaTasto = (t) => {
+    const uguale = conto.righe.find(
+      (r) => r.stato === "da_inviare" && r.articolo_codice === t.codice && !r.nota
+    );
+    if (uguale) {
+      return esegui(
+        () => api(`/comande/righe/${uguale.id}`, { method: "PATCH", body: { quantita: uguale.quantita + 1 } }),
+        `${t.nome} ×${uguale.quantita + 1}`
+      );
+    }
+    return esegui(
+      () => api(`/comande/conti/${id}/righe`, { method: "POST", body: { righe: [{ tasto: t.id }] } }),
+      `+ ${t.nome} ×${t.quantita}`
+    );
+  };
+
+  const apriCoperti = () => {
+    setCopertiEdit(conto.coperti);
+    setOmaggioEdit(!!(conto.coperto && conto.coperto.omaggio));
+  };
+
+  const salvaCoperti = async () => {
+    let ok = true;
+    if (copertiEdit !== conto.coperti) {
+      ok = await esegui(() => api(`/comande/conti/${id}`, { method: "PATCH", body: { coperti: copertiEdit } }));
+    }
+    if (ok && conto.coperto && copertiEdit > 0 && omaggioEdit !== conto.coperto.omaggio) {
+      ok = await esegui(
+        () => api(`/comande/conti/${id}/coperto`, { method: "POST", body: { omaggio: omaggioEdit } }),
+        omaggioEdit ? "Coperto in omaggio" : "Coperto a prezzo"
+      );
+    }
+    if (ok) setCopertiEdit(null);
+  };
+
   const tocca = (a) => {
     if (a.prezzo_libero) {
       setPrezzo(a.prezzo ? String(a.prezzo) : "");
@@ -145,6 +185,13 @@ export default function ComandeConto() {
   }
 
   const aperto = conto.stato === "aperto";
+  const tasti = conto.tasti_rapidi || [];
+  // Prezzo del coperto a prezzo pieno: quello della riga, o delle Impostazioni se ora è in omaggio.
+  const prezzoCoperto = !conto.coperto
+    ? null
+    : !conto.coperto.omaggio
+      ? conto.coperto.prezzo
+      : imp && imp.coperto ? imp.coperto.prezzo : null;
   const uscite = Array.from(new Set(conto.righe.map((r) => r.uscita))).sort((a, b) => a - b);
   const usciteVia = Array.from(
     new Set(conto.righe.filter((r) => r.stato === "inviata" && r.uscita >= 1 && r.reparto).map((r) => r.uscita))
@@ -168,10 +215,10 @@ export default function ComandeConto() {
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <button
           disabled={!aperto}
-          onClick={() => setCopertiEdit(conto.coperti)}
-          className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-900"
+          onClick={apriCoperti}
+          className="min-h-[44px] rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-900"
         >
-          👤 {conto.coperti} coperti
+          👤 {conto.coperti} coperti{conto.coperto && conto.coperto.omaggio ? " · coperto omaggio" : ""}
         </button>
         <span className="rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm font-semibold text-brand-ink">
           Totale {euro(conto.totale)}
@@ -182,6 +229,22 @@ export default function ComandeConto() {
           </span>
         )}
       </div>
+
+      {aperto && tasti.length > 0 && (
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          {tasti.map((t) => (
+            <button
+              key={t.id}
+              disabled={busy}
+              onClick={() => toccaTasto(t)}
+              className="min-h-[44px] rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900 active:scale-[0.98] disabled:opacity-50"
+            >
+              {t.nome} <span className="font-normal opacity-70">×{t.quantita}</span>
+            </button>
+          ))}
+          <span className="text-xs text-neutral-500">a 0 €, partono col prossimo «Invia»</span>
+        </div>
+      )}
 
       {conto.righe.length === 0 && (
         <div className="mb-4 rounded-2xl border border-dashed border-neutral-300 bg-white p-6 text-center text-sm text-neutral-500">
@@ -224,6 +287,7 @@ export default function ComandeConto() {
                     className="min-w-0 flex-1 text-left"
                     disabled={!aperto || r.stato === "stornata"}
                     onClick={() => {
+                      if (eCoperto(r)) return apriCoperti();
                       setNotaRiga(r.nota || "");
                       setMotivo("");
                       setRigaAperta(r);
@@ -234,13 +298,19 @@ export default function ComandeConto() {
                     </div>
                     <div className="truncate text-xs text-neutral-500">
                       {r.nota ? `📝 ${r.nota} · ` : ""}
-                      {r.reparto ? (conto.reparti[r.reparto] || r.reparto) : "nessun reparto"}
+                      {eCoperto(r)
+                        ? "segue i coperti · tocca per cambiarli"
+                        : r.reparto ? (conto.reparti[r.reparto] || r.reparto) : "nessun reparto"}
                       {r.stato === "stornata" && r.motivo_storno ? ` · ${r.motivo_storno}` : ""}
                     </div>
                   </button>
                   <div className="text-right">
                     <div className="text-sm tabular-nums">{euro(r.totale)}</div>
-                    <span className={`rounded-full border px-1.5 text-[10px] ${STATO[r.stato].cls}`}>{STATO[r.stato].label}</span>
+                    {eCoperto(r) && r.stato !== "stornata" ? (
+                      <span className={`rounded-full border px-1.5 text-[10px] ${BADGE_COPERTO}`}>coperto</span>
+                    ) : (
+                      <span className={`rounded-full border px-1.5 text-[10px] ${STATO[r.stato].cls}`}>{STATO[r.stato].label}</span>
+                    )}
                   </div>
                 </div>
               ))}
@@ -532,14 +602,7 @@ export default function ComandeConto() {
         footer={
           <>
             <Btn variant="secondary" onClick={() => setCopertiEdit(null)}>Annulla</Btn>
-            <Btn
-              onClick={async () => {
-                const ok = await esegui(() => api(`/comande/conti/${id}`, { method: "PATCH", body: { coperti: copertiEdit } }));
-                if (ok) setCopertiEdit(null);
-              }}
-            >
-              Salva
-            </Btn>
+            <Btn disabled={busy} onClick={salvaCoperti}>Salva</Btn>
           </>
         }
       >
@@ -548,6 +611,26 @@ export default function ComandeConto() {
           <span className="w-14 text-center text-4xl font-bold tabular-nums text-brand-ink">{copertiEdit}</span>
           <Btn variant="secondary" size="lg" onClick={() => setCopertiEdit((n) => Math.min(200, n + 1))}>+</Btn>
         </div>
+        {conto.coperto && copertiEdit > 0 && (
+          <label className="mt-3 flex min-h-[44px] cursor-pointer items-center gap-3 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm">
+            <input
+              type="checkbox"
+              className="h-5 w-5"
+              checked={omaggioEdit}
+              onChange={(e) => setOmaggioEdit(e.target.checked)}
+            />
+            <span>
+              Coperto in omaggio
+              <span className="block text-xs text-neutral-500">
+                {omaggioEdit
+                  ? "In conto a 0 €"
+                  : prezzoCoperto !== null
+                    ? `In conto: ${copertiEdit} × ${euro(prezzoCoperto)}`
+                    : "In conto al prezzo delle Impostazioni"}
+              </span>
+            </span>
+          </label>
+        )}
       </Modal>
 
       {/* Chiudi */}

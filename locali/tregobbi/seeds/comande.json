@@ -1,0 +1,14 @@
+{
+  "_cosa": "Seme del modulo Comanda per l'Osteria Tre Gobbi [locale:tregobbi]. Letto da app/models/comande_db.py alla prima partenza: riempie solo ciò che manca, poi comanda Comanda › Impostazioni. Valori presi dai conti iPratico 1/9→23/11/2026 (docs/studio_ipratico_comanda.md §2).",
+  "config": {
+    "coperto_attivo": "1",
+    "coperto_nome": "Servizio, pane e stuzzico",
+    "coperto_prezzo": "5"
+  },
+  "tasti_rapidi": [
+    {"nome": "Stuzzico", "reparto": "cucina", "ogni_coperti": 1},
+    {"nome": "Pane e Grissini", "reparto": "cucina", "ogni_coperti": 2},
+    {"nome": "Pane senza glutine", "reparto": "cucina", "ogni_coperti": 0},
+    {"nome": "Rimpiazzo Pane", "reparto": "cucina", "ogni_coperti": 0}
+  ]
+}

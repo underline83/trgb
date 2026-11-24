@@ -1,4 +1,4 @@
-// @version: v1.0 — uscite, reparti, dove va ogni gruppo del catalogo (2026-11-24)
+// @version: v1.1 — coperto in conto da solo, tasti rapidi a 0 € (2026-11-24)
 // Modulo: comande
 import React, { useEffect, useState } from "react";
 import { Btn, PageLayout, TextInput } from "../../components/ui";
@@ -12,6 +12,14 @@ const FAMIGLIE = [
   { key: "servizio", label: "Servizio (caffè, acqua, coperto)" },
 ];
 const sel = "border border-neutral-300 rounded-lg px-3 py-2 text-sm bg-white";
+// Quantità proposta da un tasto rapido: 0 = una, N = una ogni N coperti (per difetto, almeno una).
+const QUANTITA_TASTO = [
+  { v: 0, label: "una" },
+  { v: 1, label: "una a coperto" },
+  { v: 2, label: "una ogni 2 coperti" },
+  { v: 3, label: "una ogni 3 coperti" },
+  { v: 4, label: "una ogni 4 coperti" },
+];
 
 export default function ComandeImpostazioni() {
   const [imp, setImp] = useState(null);
@@ -19,6 +27,7 @@ export default function ComandeImpostazioni() {
   const [config, setConfig] = useState({});
   const [reparti, setReparti] = useState([]);
   const [mappa, setMappa] = useState({});
+  const [tasti, setTasti] = useState([]);
   const [msg, setMsg] = useState(null);
   const [salvo, setSalvo] = useState(false);
 
@@ -27,6 +36,7 @@ export default function ComandeImpostazioni() {
     setConfig({ ...d.config });
     setReparti(d.reparti.map((r) => ({ ...r })));
     setMappa({ ...d.gruppi_reparto });
+    setTasti((d.tasti_rapidi || []).map((t) => ({ ...t })));
   };
 
   useEffect(() => {
@@ -43,12 +53,17 @@ export default function ComandeImpostazioni() {
         else if (imp.gruppi_reparto && g.nome in imp.gruppi_reparto) gruppiReparto[g.nome] = "__default__";
       });
       const chiavi = ["uscite_numero", "uscita_food", "uscita_beverage", "uscita_servizio",
-        "reparto_food", "reparto_beverage", "reparto_servizio"];
+        "reparto_food", "reparto_beverage", "reparto_servizio",
+        "coperto_attivo", "coperto_nome", "coperto_prezzo"];
       const cfg = {};
       chiavi.forEach((k) => { cfg[k] = config[k] ?? ""; });
+      // i tasti nuovi lasciati senza nome non si salvano; l'ordine è quello della lista
+      const tastiRapidi = tasti
+        .map((t, i) => ({ ...t, ordine: i + 1 }))
+        .filter((t) => t.id || String(t.nome || "").trim());
       riempi(await api("/comande/impostazioni/", {
         method: "PUT",
-        body: { config: cfg, reparti, gruppi_reparto: gruppiReparto },
+        body: { config: cfg, reparti, gruppi_reparto: gruppiReparto, tasti_rapidi: tastiRapidi },
       }));
       setMsg("Salvato");
     } catch (e) {
@@ -75,6 +90,7 @@ export default function ComandeImpostazioni() {
       ))}
     </select>
   );
+  const cambiaTasto = (i, campi) => setTasti(tasti.map((t, j) => (j === i ? { ...t, ...campi } : t)));
   const nUscite = Number(config.uscite_numero) || 4;
   const usciteOpzioni = [0, ...Array.from({ length: nUscite }, (_, i) => i + 1)];
 
@@ -104,6 +120,63 @@ export default function ComandeImpostazioni() {
             </select>
           </label>
         ))}
+      </section>
+
+      <section className="mb-5 rounded-3xl border border-neutral-200 bg-white p-4 shadow-sm">
+        <h2 className="mb-1 font-semibold text-brand-ink">Coperto</h2>
+        <p className="mb-3 text-xs text-neutral-500">
+          Entra in conto da solo quando si apre il tavolo, una volta per coperto, e segue i coperti se cambiano.
+          Non va a nessun reparto. Dal conto si può mettere in omaggio.
+        </p>
+        <label className="mb-3 flex min-h-[44px] items-center gap-2 text-sm">
+          <input type="checkbox" className="h-5 w-5" checked={config.coperto_attivo === "1"}
+            onChange={(e) => setConfig({ ...config, coperto_attivo: e.target.checked ? "1" : "0" })} />
+          Metti il coperto in conto all'apertura
+        </label>
+        <div className="flex flex-wrap items-center gap-3 text-sm">
+          <span>Come si chiama sul conto</span>
+          <div className="w-72">
+            <TextInput value={config.coperto_nome ?? ""} onChange={(v) => setConfig({ ...config, coperto_nome: v })} placeholder="Coperto" />
+          </div>
+          <span>Prezzo a coperto (€)</span>
+          <div className="w-24">
+            <TextInput value={config.coperto_prezzo ?? ""} onChange={(v) => setConfig({ ...config, coperto_prezzo: v })} placeholder="0" inputMode="decimal" />
+          </div>
+        </div>
+      </section>
+
+      <section className="mb-5 rounded-3xl border border-neutral-200 bg-white p-4 shadow-sm">
+        <h2 className="mb-1 font-semibold text-brand-ink">Tasti rapidi</h2>
+        <p className="mb-3 text-xs text-neutral-500">
+          Tasti in cima al conto, a 0 €: dicono a un reparto di far partire qualcosa (lo stuzzico, il pane).
+          Un tasto non si cancella: si spegne.
+        </p>
+        {tasti.length === 0 && <p className="mb-2 text-sm text-neutral-500">Nessun tasto rapido.</p>}
+        {tasti.map((t, i) => (
+          <div key={t.id || `nuovo-${i}`} className="mb-2 flex flex-wrap items-center gap-2">
+            <div className="w-56">
+              <TextInput value={t.nome ?? ""} onChange={(v) => cambiaTasto(i, { nome: v })} placeholder="Nome (es. Pane)" />
+            </div>
+            <span className="text-sm">va a</span>
+            {repartoSelect(t.reparto_key ?? "", (v) => cambiaTasto(i, { reparto_key: v || null }), false)}
+            <select className={sel} value={t.ogni_coperti ?? 0}
+              onChange={(e) => cambiaTasto(i, { ogni_coperti: Number(e.target.value) })}>
+              {QUANTITA_TASTO.map((q) => <option key={q.v} value={q.v}>{q.label}</option>)}
+              {!QUANTITA_TASTO.some((q) => q.v === (t.ogni_coperti ?? 0)) && (
+                <option value={t.ogni_coperti}>una ogni {t.ogni_coperti} coperti</option>
+              )}
+            </select>
+            <label className="flex items-center gap-1 text-sm">
+              <input type="checkbox" checked={t.attivo === undefined ? true : !!t.attivo}
+                onChange={(e) => cambiaTasto(i, { attivo: e.target.checked ? 1 : 0 })} />
+              attivo
+            </label>
+          </div>
+        ))}
+        <Btn variant="secondary" size="md"
+          onClick={() => setTasti([...tasti, { nome: "", reparto_key: config.reparto_food || null, ogni_coperti: 0, attivo: 1 }])}>
+          ＋ Aggiungi tasto
+        </Btn>
       </section>
 
       <section className="mb-5 rounded-3xl border border-neutral-200 bg-white p-4 shadow-sm">

@@ -1,4 +1,4 @@
-# @version: v1.0 (2026-11-24) — comande prese da TRGB, in prova
+# @version: v1.1 (2026-11-24) — coperto automatico e tasti rapidi; seme del locale
 # -*- coding: utf-8 -*-
 """
 Database Comande — TRGB Gestionale. Modulo: comande. [core]
@@ -17,16 +17,27 @@ Contiene:
 - comande_reparti          — dove vanno le comande (seme: cucina e sala, come le stampanti)
 - comande_gruppi_reparto   — gruppo del catalogo → reparto, quando la regola
                              cibo/bevande/servizio non basta
-- comande_config           — impostazioni del modulo (uscite, reparti di default)
+- comande_config           — impostazioni del modulo (uscite, reparti di default, coperto)
+- comande_tasti_rapidi     — tasti a 0 € che avvisano un reparto («Stuzzico», «Pane»):
+                             non sono articoli, sono segnali (v1.1)
 
 DB separato `comande.sqlite3` nella cartella dati del locale. Niente
 migrazioni numerate: schema al boot (CREATE TABLE IF NOT EXISTS), come
 pratiche_db.py e cassa_conti_db.py. Orari in ora italiana.
+
+Seme del locale (v1.1): se esiste `locali/<locale>/seeds/comande.json`, alla
+prima partenza dà i valori del locale (nome e prezzo del coperto, tasti rapidi)
+al posto di quelli neutri qui sotto. Vale solo per ciò che ancora non c'è: dopo,
+comanda Impostazioni. Nel codice non c'è niente di un locale preciso.
 """
 
+import json
+import logging
 import sqlite3
 
-from app.utils.locale_data import locale_data_path
+from app.utils.locale_data import locale_data_dir, locale_data_path
+
+logger = logging.getLogger(__name__)
 
 DB_PATH = locale_data_path("comande.sqlite3")
 
@@ -39,6 +50,11 @@ CONFIG_INIZIALE = {
     "reparto_food": "cucina",    # dove va il cibo se il gruppo non dice altro
     "reparto_beverage": "sala",  # dove vanno le bevande se il gruppo non dice altro
     "reparto_servizio": "sala",  # caffè, acqua, tè (sezione «servizio» della carta)
+    # Coperto messo in conto da solo all'apertura (quantità = coperti). Neutro e
+    # spento: nome e prezzo li dà il seme del locale o Impostazioni.
+    "coperto_attivo": "0",
+    "coperto_nome": "Coperto",
+    "coperto_prezzo": "0",
 }
 # I reparti seguono le due stampanti comande dell'osteria (SALA e CUCINA).
 REPARTI_INIZIALI = (
@@ -63,6 +79,19 @@ def _indice(cur, nome: str, sql: str) -> None:
         "SELECT 1 FROM sqlite_master WHERE type='index' AND name=?", (nome,)
     ).fetchone():
         cur.execute(sql)
+
+
+def _seme_locale() -> dict:
+    """locali/<locale>/seeds/comande.json, se c'è: {config: {...}, tasti_rapidi: [...]}."""
+    try:
+        f = locale_data_dir().parent / "seeds" / "comande.json"
+        if not f.exists():
+            return {}
+        dati = json.loads(f.read_text(encoding="utf-8"))
+        return dati if isinstance(dati, dict) else {}
+    except Exception as e:  # un seme rotto non ferma l'avvio
+        logger.warning("Seme comande del locale non leggibile: %s", e)
+        return {}
 
 
 def init_comande_db() -> None:
@@ -168,10 +197,46 @@ def init_comande_db() -> None:
             )
         """)
 
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS comande_tasti_rapidi (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                nome          TEXT NOT NULL,                 -- come esce in comanda («Stuzzico»)
+                reparto_key   TEXT,                          -- comande_reparti.key; NULL = nessun reparto
+                ogni_coperti  INTEGER NOT NULL DEFAULT 0,    -- quantità proposta: 0 = una; 1 = una a coperto;
+                                                             -- 2 = una ogni due coperti (per difetto, almeno una)…
+                ordine        INTEGER NOT NULL DEFAULT 0,
+                attivo        INTEGER NOT NULL DEFAULT 1
+            )
+        """)
+
         if not cur.execute("SELECT 1 FROM comande_reparti LIMIT 1").fetchone():
             cur.executemany(
                 "INSERT INTO comande_reparti (key, nome, ordine) VALUES (?, ?, ?)", REPARTI_INIZIALI
             )
+
+        # Il seme del locale passa PRIMA dei valori neutri: riempie solo ciò che manca.
+        seme = _seme_locale()
+        for chiave, valore in (seme.get("config") or {}).items():
+            if chiave in CONFIG_INIZIALE and valore is not None:
+                cur.execute(
+                    "INSERT OR IGNORE INTO comande_config (chiave, valore) VALUES (?, ?)",
+                    (chiave, str(valore)),
+                )
+        if not cur.execute("SELECT 1 FROM comande_tasti_rapidi LIMIT 1").fetchone():
+            for i, t in enumerate(seme.get("tasti_rapidi") or [], start=1):
+                nome = " ".join(str((t or {}).get("nome") or "").split())
+                if not nome:
+                    continue
+                try:
+                    ogni = max(0, min(int(t.get("ogni_coperti") or 0), 20))
+                except (TypeError, ValueError):
+                    ogni = 0
+                cur.execute(
+                    "INSERT INTO comande_tasti_rapidi (nome, reparto_key, ogni_coperti, ordine) "
+                    "VALUES (?, ?, ?, ?)",
+                    (nome[:60], (str(t.get("reparto") or "").strip().lower() or None), ogni, i),
+                )
+
         for chiave, valore in CONFIG_INIZIALE.items():
             cur.execute(
                 "INSERT OR IGNORE INTO comande_config (chiave, valore) VALUES (?, ?)", (chiave, valore)

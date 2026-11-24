@@ -835,12 +835,17 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   comande: {
+    // 1.1 (2026-11-24): come si lavora oggi in cassa (studio docs/studio_ipratico_comanda.md, «sistema quello che
+    //   hai già capito» di Marco): il coperto entra in conto da solo all'apertura e segue i coperti, con l'omaggio;
+    //   tasti rapidi a 0 € in cima al conto («Stuzzico», «Pane») che avvisano la cucina; i Calici sono le bottiglie
+    //   in mescita di TRGB (BOTTIGLIA_APERTA), non più i soli vini con VENDITA_CALICE. Tabella comande_tasti_rapidi
+    //   al boot, nessuna migrazione numerata; valori dell'osteria in locali/tregobbi/seeds/comande.json.
     // 1.0 (2026-11-24): nascita, IN PROVA finché non c'è la Cassa (Marco). Tavoli per sala con apertura e
     //   coperti, conto del tavolo con righe per uscita (Subito, 1ª…), catalogo letto da TRGB (carta del momento,
     //   degustazioni, piatti del giorno, Menù Business, vini a bottiglia e calice, Carta Bevande, menu template),
     //   prezzo libero e fuori carta, invio ai reparti (cucina, sala), «Via la Nª», storno con motivo, pagina Invii
     //   (quello che il ponte stamperà), Impostazioni (uscite, reparti, gruppo → reparto). DB comande.sqlite3 al boot.
-    version: "1.0",
+    version: "1.1",
     label: "Comanda",
     status: "alpha",
     color: "orange",

@@ -77,9 +77,11 @@ Messi in fila, i sistemi usano quattro modi.
 
 ## 6. Altre scelte che lo studio apre (da decidere con le schermate davanti)
 
-1. Coperto automatico a 5 € a coperto, con «omaggio»: sì come oggi?
-2. «Stuzzico» e «Pane»: due tasti fissi in alto nel conto?
-3. Calici: tasti a prezzo come oggi, o tasto a prezzo + il vino scelto (per scaricare la cantina)?
+> **Aggiornamento del 24/11/2026 (sera).** Marco: «mettiamo i calici così perché al momento non sono linkati col sistema; in futuro tramite TRGB selezioneremmo il calice aperto. Sistema quello che già hai capito». I punti 1, 2 e 3 sono **chiusi e fatti** nella Comanda 1.1 ([modulo_comande.md](modulo_comande.md)); gli altri aspettano gli screen di iPratico.
+
+1. ~~Coperto automatico a 5 € a coperto, con «omaggio»: sì come oggi?~~ ✅ Fatto (1.1): entra in conto all'apertura, segue i coperti, omaggio dal tasto dei coperti; nome e prezzo in Impostazioni.
+2. ~~«Stuzzico» e «Pane»: due tasti fissi in alto nel conto?~~ ✅ Fatto (1.1): tasti rapidi a 0 € in cima al conto, quantità proposta dai coperti (stuzzico = coperti, pane = uno ogni due, come nei conti). Resta da vedere se devono partire da soli al tocco invece che col prossimo «Invia».
+3. ~~Calici: tasti a prezzo come oggi, o tasto a prezzo + il vino scelto?~~ ✅ Deciso da Marco e fatto (1.1): si sceglie il calice aperto, cioè una delle bottiglie in mescita di TRGB (9 al 24/11, da 7 a 18 €: le stesse fasce dei tasti «Calice N €» di iPratico). Lo scarico della cantina arriva con la Cassa.
 4. Piatti del giorno: col nome vero preso da TRGB (proposta) o a prezzo come oggi?
 5. Menu gruppi e degustazioni: l'articolo apre da solo i suoi piatti a 0 € per la cucina?
 6. Pranzo: N portate + scelta dei piatti della settimana (già così nella 1.0)?

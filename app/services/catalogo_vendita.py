@@ -1,4 +1,4 @@
-# @version: v1.0 (2026-11-24) — catalogo di vendita per la Comanda
+# @version: v1.1 (2026-11-24) — calici = bottiglie in mescita (decisione di Marco)
 # -*- coding: utf-8 -*-
 """
 Catalogo di vendita — Modulo: platform — [core]
@@ -13,13 +13,14 @@ regola 4 dell'architettura modulare):
                          + percorsi degustazione (menu_tasting_paths)          → ricette / menu_carta
     piatti del giorno    piatti_giorno attivi e non archiviati                  → ricette
     pranzo               Menù Business della settimana (pranzo_menu + righe)    → menu_carta (pranzo)
-    vini                 vini_bottiglie con IPRATICO=1, in giacenza, a bottiglia
-                         e a calice (VENDITA_CALICE)                            → vini
+    vini                 a bottiglia: vini_bottiglie con IPRATICO=1 e in giacenza;
+                         a calice: le bottiglie in mescita (BOTTIGLIA_APERTA=1,
+                         quelle del widget Calici), col loro prezzo al calice   → vini
     bevande              voci attive delle sezioni Carta Bevande sincronizzate  → vini (carta bevande)
     menu template        template dei preventivi con «iPratico» acceso          → clienti (preventivi)
 
 Codici (lo SKU di iPratico dove esiste già, così Cassa e statistiche si parlano):
-    0123   vino a bottiglia (vini_bottiglie.id)     0123C  lo stesso vino a calice
+    0123   vino a bottiglia (vini_bottiglie.id)     0123C  lo stesso vino a calice (se in mescita)
     B0045  voce Carta Bevande                        M0012 / M0012V  menu template (con vino)
     C0031  piatto della carta (pubblicazione)        C0031P / C0031G  porzione piccola / grande
     D0006  percorso degustazione                     G0010  piatto del giorno
@@ -181,31 +182,54 @@ def _pranzo(out: List[Dict[str, Any]], info: Dict[str, Any], oggi: date) -> None
 
 # ── sala: vini, bevande, menu template ─────────────────────────────
 
+def _nome_vino(v) -> str:
+    return " ".join(str(x) for x in (v["DESCRIZIONE"], v["PRODUTTORE"], v["ANNATA"]) if x)
+
+
 def _vini(out: List[Dict[str, Any]]) -> None:
+    """Bottiglie: i vini che vanno in cassa (IPRATICO=1) e sono in giacenza.
+    Calici: le bottiglie in mescita adesso (BOTTIGLIA_APERTA=1), qualunque vino sia —
+    decisione di Marco del 24/11/2026: «tramite TRGB selezioneremmo il calice aperto».
+    Il vino si apre e si chiude dal widget Calici, come già si fa."""
     from app.models.vini_magazzino_db import get_magazzino_connection
     conn = get_magazzino_connection()
     try:
-        righe = conn.execute("""
-            SELECT id, TIPOLOGIA, DESCRIZIONE, PRODUTTORE, ANNATA, FORMATO,
-                   PREZZO_CARTA, PREZZO_CALICE, VENDITA_CALICE, BOTTIGLIA_APERTA, QTA_TOTALE
+        bottiglie = conn.execute("""
+            SELECT id, TIPOLOGIA, DESCRIZIONE, PRODUTTORE, ANNATA, FORMATO, PREZZO_CARTA, QTA_TOTALE
               FROM vini_bottiglie
              WHERE COALESCE(IPRATICO, 0) = 1
              ORDER BY TIPOLOGIA, DESCRIZIONE, ANNATA
         """).fetchall()
+        aperte = conn.execute("""
+            SELECT id, TIPOLOGIA, DESCRIZIONE, PRODUTTORE, ANNATA, PREZZO_CARTA, PREZZO_CALICE, DATA_APERTURA
+              FROM vini_bottiglie
+             WHERE BOTTIGLIA_APERTA = 1 AND TIPOLOGIA IS NOT NULL AND TIPOLOGIA <> 'ERRORE'
+             ORDER BY TIPOLOGIA, DESCRIZIONE, ANNATA
+        """).fetchall()
     finally:
         conn.close()
-    for v in righe:
-        nome = " ".join(x for x in (v["DESCRIZIONE"], v["PRODUTTORE"], v["ANNATA"]) if x)
+    for v in bottiglie:
         det = " · ".join(x for x in (v["TIPOLOGIA"], v["FORMATO"]) if x)
         qta = v["QTA_TOTALE"] or 0
         bott = _num(v["PREZZO_CARTA"])
         if qta > 0 and bott is not None:
-            out.append(_art(f"{v['id']:04d}", "vino_bottiglia", nome, "Bottiglie", "beverage", bott,
+            out.append(_art(f"{v['id']:04d}", "vino_bottiglia", _nome_vino(v), "Bottiglie", "beverage", bott,
                             f"{det} · {qta} bt" if det else f"{qta} bt", v["id"]))
+    if not aperte:
+        return
+    # Senza PREZZO_CALICE vale la regola del widget Calici (prezzo di carta diviso, da Impostazioni Vini).
+    from app.services.vini_widget_settings_service import calcola_prezzo_calice_default
+    for v in aperte:
         calice = _num(v["PREZZO_CALICE"])
-        if v["VENDITA_CALICE"] and calice is not None and (qta > 0 or v["BOTTIGLIA_APERTA"]):
-            out.append(_art(f"{v['id']:04d}C", "vino_calice", f"Calice {nome}", "Calici", "beverage",
-                            calice, det, v["id"]))
+        if calice is None:
+            try:
+                calice = _num(calcola_prezzo_calice_default(_num(v["PREZZO_CARTA"])))
+            except Exception:
+                calice = None   # resta «prezzo a voce»
+        dal = str(v["DATA_APERTURA"] or "")[:10]
+        aperta = f"aperta il {dal[8:10]}/{dal[5:7]}" if len(dal) == 10 else "in mescita"
+        out.append(_art(f"{v['id']:04d}C", "vino_calice", f"Calice {_nome_vino(v)}", "Calici", "beverage",
+                        calice, " · ".join(x for x in (v["TIPOLOGIA"], aperta) if x), v["id"]))
 
 
 def _bevande(out: List[Dict[str, Any]], ordine_extra: List[str]) -> None:

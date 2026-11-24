@@ -3,6 +3,23 @@
 
 ---
 
+## 2026-11-24 — Comanda 1.1: coperto in conto da solo, tasti «Stuzzico» e «Pane», calici dalle bottiglie in mescita `[mixed]`
+Marco, dopo lo studio su come l'osteria usa iPratico ([studio_ipratico_comanda.md](studio_ipratico_comanda.md)): «mettiamo i calici così perché al momento non sono linkati col sistema; in futuro tramite TRGB selezioneremmo il calice aperto. Sistema quello che già hai capito». Sempre in prova.
+
+**Aggiunto**
+- **Coperto**: all'apertura del tavolo entra in conto da solo (quantità = coperti) e li segue se cambiano; non va a nessun reparto e non blocca la chiusura. Dal tasto dei coperti si mette in omaggio o si rimette a prezzo (`POST /comande/conti/{id}/coperto`). Nome, prezzo e acceso/spento in Impostazioni.
+- **Tasti rapidi** in cima al conto: righe a 0 € che avvisano un reparto («Stuzzico ×4», «Pane e Grissini ×2»), quantità proposta dai coperti. Tabella `comande_tasti_rapidi` (al boot, nessuna migrazione numerata), gestiti da Impostazioni.
+- Seme del locale `locali/tregobbi/seeds/comande.json` `[locale:tregobbi]`: coperto «Servizio, pane e stuzzico» a 5 €, tasti Stuzzico, Pane e Grissini, Pane senza glutine, Rimpiazzo Pane. Riempie solo ciò che manca; nel codice i valori sono neutri (coperto spento, nessun tasto).
+
+**Cambiato**
+- **Calici** del catalogo = le bottiglie in mescita (`BOTTIGLIA_APERTA`), qualunque vino sia, col prezzo al calice (o la regola del widget Calici se manca). Prima: solo i vini con `VENDITA_CALICE` e IPRATICO (3 articoli; oggi 9).
+
+**Note**
+- Provato: router con TestClient (apertura, coperti, omaggio, tasti, invio, impostazioni, errori), service e catalogo coi DB veri su un DB comande di prova, parse delle pagine. **Non provato** dal vivo nel browser.
+- Come escono i piatti e le schermate restano come nella 1.0: si decidono con gli screen di iPratico (roadmap CO.8).
+
+---
+
 ## 2026-11-24 — Clienti 3.49 + sistema 6.9: si risponde su WhatsApp da TRGB `[core]`
 Marco, dopo la pagina «💬 WhatsApp» (3.47): «possiamo inviare messaggi da lì?» → «procedi».
 
