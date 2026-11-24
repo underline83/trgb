@@ -1,4 +1,5 @@
-# @version: v1.5 — POST /email/posta/{id}/cestina: «🗑 Cestina» dalla pagina Posta (2026-11-21)
+# @version: v1.6 — posta letta e lavorata da chi ha Clienti › Posta nella matrice Moduli (admin + capo sala); configurazione caselle solo admin (2026-11-24)
+# v1.5 — POST /email/posta/{id}/cestina: «🗑 Cestina» dalla pagina Posta (2026-11-21)
 # v1.4 — bozze e invii: /email/bozze (crea, elenco, invia, annulla) (2026-11-20)
 # v1.3 — le altre caselle del locale in sola lettura: /email/caselle/, /email/posta (2026-11-19)
 # v1.2 — «Rispondi» dalla Posta: /email/in/{id}/bozza-risposta e /rispondi (2026-11-16)
@@ -73,7 +74,7 @@ from pydantic import BaseModel
 
 from app.services import email_caselle_service, email_in_service, email_scrittura_service, email_service
 from app.services.auth_service import get_current_user, is_admin
-from app.services.permessi import richiede_ruoli
+from app.services.permessi import richiede_ruoli, richiede_sotto_modulo
 
 router = APIRouter(prefix="/email", tags=["Email"])
 
@@ -127,7 +128,11 @@ def test_ep(
 # POSTA IN ARRIVO (sola lettura della casella) — 2026-11-13
 # ─────────────────────────────────────────────
 
-_ADMIN_POSTA = richiede_ruoli("admin", cosa="la posta in arrivo del gestionale")
+# Leggere e lavorare la posta: chi ha Gestione Clienti › Posta nella matrice Moduli
+# (2026-11-24: admin + capo sala, si cambia da Impostazioni Sistema › Moduli).
+# Configurare le caselle (server, password, prova, giro automatico) resta solo admin.
+_POSTA = richiede_sotto_modulo("clienti", "posta", cosa="la posta del locale")
+_ADMIN_POSTA = richiede_ruoli("admin", cosa="la configurazione delle caselle")
 
 
 class StatoMailIn(BaseModel):
@@ -155,7 +160,7 @@ def elenco_in_ep(
     q: Optional[str] = Query(None, max_length=200),
     anche_nuove: bool = Query(False, description="In più tutte le mail ancora «nuova»"),
     limite: int = Query(100, ge=1, le=500),
-    user: Dict[str, Any] = Depends(_ADMIN_POSTA),
+    user: Dict[str, Any] = Depends(_POSTA),
 ):
     """Mail arrivate nella casella del gestionale, dalla più recente, col preventivo
     abbinato (numero, cliente, evento, scadenza della conferma) e un estratto."""
@@ -168,7 +173,7 @@ def elenco_in_ep(
 
 
 @router.get("/in/{email_id}")
-def leggi_in_ep(email_id: int, user: Dict[str, Any] = Depends(_ADMIN_POSTA)):
+def leggi_in_ep(email_id: int, user: Dict[str, Any] = Depends(_POSTA)):
     m = email_in_service.leggi(email_id)
     if not m:
         raise HTTPException(status_code=404, detail="Mail non trovata")
@@ -176,7 +181,7 @@ def leggi_in_ep(email_id: int, user: Dict[str, Any] = Depends(_ADMIN_POSTA)):
 
 
 @router.post("/in/{email_id}/stato")
-def stato_in_ep(email_id: int, payload: StatoMailIn, user: Dict[str, Any] = Depends(_ADMIN_POSTA)):
+def stato_in_ep(email_id: int, payload: StatoMailIn, user: Dict[str, Any] = Depends(_POSTA)):
     try:
         m = email_in_service.imposta_stato(email_id, payload.stato, user["username"])
     except ValueError as e:
@@ -196,7 +201,7 @@ class RispostaIn(BaseModel):
 
 
 @router.get("/in/{email_id}/bozza-risposta")
-def bozza_risposta_ep(email_id: int, user: Dict[str, Any] = Depends(_ADMIN_POSTA)):
+def bozza_risposta_ep(email_id: int, user: Dict[str, Any] = Depends(_POSTA)):
     b = email_in_service.bozza_risposta(email_id)
     if not b:
         raise HTTPException(status_code=404, detail="Mail non trovata")
@@ -204,7 +209,7 @@ def bozza_risposta_ep(email_id: int, user: Dict[str, Any] = Depends(_ADMIN_POSTA
 
 
 @router.post("/in/{email_id}/rispondi")
-def rispondi_ep(email_id: int, payload: RispostaIn, user: Dict[str, Any] = Depends(_ADMIN_POSTA)):
+def rispondi_ep(email_id: int, payload: RispostaIn, user: Dict[str, Any] = Depends(_POSTA)):
     """Manda la risposta dalla casella del gestionale come risposta vera (stessa
     conversazione). Un errore SMTP non è un 500: torna ok=false ed è registrato."""
     try:
@@ -220,7 +225,7 @@ def rispondi_ep(email_id: int, payload: RispostaIn, user: Dict[str, Any] = Depen
 
 
 @router.get("/lettura/")
-def lettura_stato_ep(user: Dict[str, Any] = Depends(_ADMIN_POSTA)):
+def lettura_stato_ep(user: Dict[str, Any] = Depends(_POSTA)):
     return email_in_service.stato()
 
 
@@ -233,7 +238,7 @@ def lettura_config_ep(payload: LetturaConfigIn, user: Dict[str, Any] = Depends(_
 
 
 @router.post("/lettura/giro")
-def lettura_giro_ep(user: Dict[str, Any] = Depends(_ADMIN_POSTA)):
+def lettura_giro_ep(user: Dict[str, Any] = Depends(_POSTA)):
     """Un giro di lettura adesso (lo stesso che gira da solo ogni N minuti)."""
     return email_in_service.esegui_giro()
 
@@ -268,7 +273,7 @@ class CasellaIn(BaseModel):
 
 
 @router.get("/caselle/")
-def caselle_stato_ep(user: Dict[str, Any] = Depends(_ADMIN_POSTA)):
+def caselle_stato_ep(user: Dict[str, Any] = Depends(_POSTA)):
     return email_caselle_service.stato()
 
 
@@ -290,7 +295,7 @@ def casella_salva_ep(payload: CasellaIn, user: Dict[str, Any] = Depends(_ADMIN_P
 
 @router.post("/caselle/giro")
 def caselle_giro_ep(casella: Optional[str] = Query(None, max_length=200),
-                    user: Dict[str, Any] = Depends(_ADMIN_POSTA)):
+                    user: Dict[str, Any] = Depends(_POSTA)):
     """Un giro adesso (lo stesso che gira da solo ogni N minuti)."""
     return email_caselle_service.esegui_giro(solo=casella)
 
@@ -311,7 +316,7 @@ def posta_elenco_ep(
     anche_massive: bool = Query(True),
     anche_trgb: bool = Query(True),
     limite: int = Query(100, ge=1, le=500),
-    user: Dict[str, Any] = Depends(_ADMIN_POSTA),
+    user: Dict[str, Any] = Depends(_POSTA),
 ):
     try:
         return email_caselle_service.elenco(
@@ -323,7 +328,7 @@ def posta_elenco_ep(
 
 
 @router.get("/posta/{email_id}")
-def posta_leggi_ep(email_id: int, user: Dict[str, Any] = Depends(_ADMIN_POSTA)):
+def posta_leggi_ep(email_id: int, user: Dict[str, Any] = Depends(_POSTA)):
     m = email_caselle_service.leggi(email_id)
     if not m:
         raise HTTPException(status_code=404, detail="Mail non trovata")
@@ -331,7 +336,7 @@ def posta_leggi_ep(email_id: int, user: Dict[str, Any] = Depends(_ADMIN_POSTA)):
 
 
 @router.post("/posta/{email_id}/cestina")
-def posta_cestina_ep(email_id: int, user: Dict[str, Any] = Depends(_ADMIN_POSTA)):
+def posta_cestina_ep(email_id: int, user: Dict[str, Any] = Depends(_POSTA)):
     """Sposta la mail nel Cestino della sua casella (anche in Mail sul Mac: le caselle sono IMAP)."""
     try:
         return email_scrittura_service.cestina(email_id, user["username"])
@@ -356,7 +361,7 @@ class BozzaIn(BaseModel):
 
 @router.get("/bozze")
 def bozze_ep(stato: Optional[str] = Query("bozza"), rif_fonte: Optional[str] = Query(None, pattern="^(casella|trgb)$"),
-             rif_id: Optional[int] = Query(None, ge=1), user: Dict[str, Any] = Depends(_ADMIN_POSTA)):
+             rif_id: Optional[int] = Query(None, ge=1), user: Dict[str, Any] = Depends(_POSTA)):
     try:
         return {"bozze": email_scrittura_service.bozze(stato=stato or None, rif_fonte=rif_fonte, rif_id=rif_id)}
     except email_scrittura_service.ErroreScrittura as e:
@@ -364,7 +369,7 @@ def bozze_ep(stato: Optional[str] = Query("bozza"), rif_fonte: Optional[str] = Q
 
 
 @router.post("/bozze")
-def bozza_crea_ep(payload: BozzaIn, user: Dict[str, Any] = Depends(_ADMIN_POSTA)):
+def bozza_crea_ep(payload: BozzaIn, user: Dict[str, Any] = Depends(_POSTA)):
     try:
         return email_scrittura_service.crea_bozza(
             payload.testo, user["username"], rif_fonte=payload.rif_fonte, rif_id=payload.rif_id,
@@ -375,7 +380,7 @@ def bozza_crea_ep(payload: BozzaIn, user: Dict[str, Any] = Depends(_ADMIN_POSTA)
 
 
 @router.post("/bozze/{bozza_id}/invia")
-def bozza_invia_ep(bozza_id: int, user: Dict[str, Any] = Depends(_ADMIN_POSTA)):
+def bozza_invia_ep(bozza_id: int, user: Dict[str, Any] = Depends(_POSTA)):
     """Un errore SMTP non è un 500: torna ok=false e la bozza resta da mandare."""
     try:
         return email_scrittura_service.invia_bozza(bozza_id, user["username"])
@@ -384,7 +389,7 @@ def bozza_invia_ep(bozza_id: int, user: Dict[str, Any] = Depends(_ADMIN_POSTA)):
 
 
 @router.post("/bozze/{bozza_id}/annulla")
-def bozza_annulla_ep(bozza_id: int, user: Dict[str, Any] = Depends(_ADMIN_POSTA)):
+def bozza_annulla_ep(bozza_id: int, user: Dict[str, Any] = Depends(_POSTA)):
     try:
         return email_scrittura_service.annulla_bozza(bozza_id, user["username"])
     except email_scrittura_service.ErroreScrittura as e:

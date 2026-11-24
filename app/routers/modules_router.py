@@ -196,6 +196,10 @@ DEFAULT_MODULES = [
             {"key": "lista",        "label": "Anagrafica",   "roles": ["superadmin", "admin", "sala", "sommelier", "capo_sala", "contabile"]},
             {"key": "prenotazioni", "label": "Prenotazioni", "roles": ["superadmin", "admin", "sala", "sommelier", "capo_sala", "contabile"]},
             {"key": "preventivi",   "label": "Preventivi",   "roles": ["superadmin", "admin", "sala", "sommelier", "capo_sala", "contabile"]},
+            # Posta e WhatsApp del locale (2026-11-24, Marco: admin + capo sala). Il backend
+            # segue questa matrice (permessi.richiede_sotto_modulo): si cambia da Impostazioni.
+            {"key": "posta",        "label": "Posta",        "roles": ["superadmin", "admin", "capo_sala"]},
+            {"key": "whatsapp",     "label": "WhatsApp",     "roles": ["superadmin", "admin", "capo_sala"]},
             {"key": "giftcard",     "label": "Gift Card",    "roles": ["superadmin", "admin", "sala", "sommelier", "capo_sala", "contabile"]},
             {"key": "dashboard",    "label": "Dashboard",    "roles": ["superadmin", "admin", "sala", "sommelier", "capo_sala", "contabile"]},
             {"key": "import",       "label": "Import",       "roles": ["superadmin", "admin"]},
@@ -209,6 +213,18 @@ DEFAULT_MODULES = [
         "roles": ["superadmin", "admin"],
     },
     {
+        # Modulo comande (2026-11-24): comande prese in sala, in prova finché non c'è la Cassa.
+        # Ruoli decisi da Marco: admin, capo sala, sala, sommelier; impostazioni solo admin.
+        "key": "comande", "label": "Comanda", "icon": "\U0001f4dd",
+        "description": "Tavoli aperti e comande in sala (in prova finché non c'è la Cassa)",
+        "roles": ["superadmin", "admin", "capo_sala", "sala", "sommelier"],
+        "sub": [
+            {"key": "tavoli",       "label": "Tavoli",       "roles": ["superadmin", "admin", "capo_sala", "sala", "sommelier"]},
+            {"key": "invii",        "label": "Invii",        "roles": ["superadmin", "admin", "capo_sala", "sala", "sommelier"]},
+            {"key": "impostazioni", "label": "Impostazioni", "roles": ["superadmin", "admin"]},
+        ],
+    },
+    {
         "key": "impostazioni", "label": "Impostazioni", "icon": "\u2699\ufe0f",
         "description": "Utenti, ruoli, configurazione sistema",
         "roles": ["superadmin", "admin"],
@@ -219,12 +235,12 @@ DEFAULT_MODULES = [
 # Moduli nati dopo il primo deploy: se il runtime (o il seed sul VPS, che non
 # e' in git) non li ha, _load() li aggiunge da DEFAULT_MODULES. Si aggiungono
 # soltanto: una voce gia' presente non si tocca, i ruoli scelti da UI restano.
-MODULI_DA_AGGIUNGERE = ("pratiche",)
+MODULI_DA_AGGIUNGERE = ("pratiche", "comande")
 
 # Stessa cosa per i sotto-moduli nati dopo (modulo, sub). Va aggiunto anche al
 # runtime: una sub che manca fa ricadere canAccessSub sui ruoli del MODULO
 # (per dipendenti: anche sala, chef, sommelier...) e la protezione salta.
-SUB_DA_AGGIUNGERE = (("dipendenti", "candidati"),)
+SUB_DA_AGGIUNGERE = (("dipendenti", "candidati"), ("clienti", "posta"), ("clienti", "whatsapp"))
 
 
 def _aggiungi_sub_nuove(data: list) -> bool:

@@ -340,6 +340,7 @@ Implementa il monolite modulare. Ogni modulo TRGB diventa accendibile/spegnibile
   | `task_manager` | Task Manager / HACCP loop | tasks, haccp_*, ... | /tasks |
   | `statistiche` | Statistiche (cross-modulo) | — | /statistiche |
   | `pratiche` | Pratiche (enti, fornitori, creditori) — dal 2026-10-08 | pratiche, pratiche_passi, pratiche_collegamenti (`pratiche.sqlite3`) | /pratiche |
+  | `comande` | Comanda (comande in sala, in prova) — dal 2026-11-24 | comande_conti, comande_righe, comande_invii, comande_reparti, comande_gruppi_reparto, comande_config (`comande.sqlite3`) | /comande |
 
   Più la **platform** (sempre inclusa, non vendibile da sola): auth, utenti, M.A notifiche, M.B PDF, M.C WA, M.D email, M.E calendar, M.F alert, M.G permessi, M.H import, M.I UI primitives.
 

@@ -1,4 +1,5 @@
-# @version: v1.1 (2026-11-23) — ingresso YCloud + impostazioni chat «chiuse dal cliente»
+# @version: v1.2 (2026-11-24) — pagina «💬 WhatsApp»: chat, gestita, ricerca; permessi dalla matrice Moduli (clienti/whatsapp)
+# v1.1 (2026-11-23) — ingresso YCloud + impostazioni chat «chiuse dal cliente»
 # v1.0 (2026-11-02) — check WhatsApp in sola lettura
 # Modulo: clienti — [core]
 # -*- coding: utf-8 -*-
@@ -14,8 +15,10 @@ Manifesto (per module.json a R8):
     POST /clienti/whatsapp/ycloud    PUBBLICO (YCloud): firma YCloud-Signature con YCLOUD_WEBHOOK_SECRET
     GET  /clienti/whatsapp/stato              admin
     POST /clienti/whatsapp/collega            admin (Embedded Signup: codice → iscrizione + sync)
-    GET  /clienti/whatsapp/conversazioni      admin
-    GET  /clienti/whatsapp/cerca              admin
+    GET  /clienti/whatsapp/conversazioni      Clienti › WhatsApp nella matrice Moduli (admin + capo sala)
+    GET  /clienti/whatsapp/cerca              idem
+    GET  /clienti/whatsapp/chat/{numero}      idem — una chat intera per la pagina «💬 WhatsApp»
+    POST /clienti/whatsapp/chat/{numero}/gestita  idem — «✓ Gestita» / tolta
     PUT  /clienti/whatsapp/conservazione      admin
     PUT  /clienti/whatsapp/chiusura           admin (parole e lunghezza delle chat «chiuse dal cliente»)
   Nessun endpoint manda messaggi ai clienti.
@@ -34,7 +37,7 @@ from pydantic import BaseModel, Field
 from typing import List
 
 from app.services import clienti_whatsapp_service as wa
-from app.services.permessi import solo_admin
+from app.services.permessi import richiede_sotto_modulo, solo_admin
 
 logger = logging.getLogger("trgb.whatsapp")
 
@@ -129,19 +132,6 @@ def collega(body: CollegaIn):
         raise HTTPException(502, str(e))
 
 
-@router.get("/conversazioni")
-def conversazioni(giorni: int = Query(7, ge=1, le=730), solo_da_rispondere: bool = False):
-    return wa.conversazioni(giorni=giorni, solo_da_rispondere=solo_da_rispondere)
-
-
-@router.get("/cerca")
-def cerca(chi: Optional[str] = None, testo: Optional[str] = None, giorni: int = Query(180, ge=1, le=730)):
-    try:
-        return wa.cerca(chi=chi, testo=testo, giorni=giorni)
-    except ValueError as e:
-        raise HTTPException(400, str(e))
-
-
 @router.put("/conservazione")
 def conservazione(body: ConservazioneIn):
     return {"giorni": wa.imposta_conservazione(body.giorni)}
@@ -151,5 +141,52 @@ def conservazione(body: ConservazioneIn):
 def chiusura(body: ChiusuraIn):
     try:
         return wa.imposta_chiusura(body.parole, body.max_caratteri)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+# ── Pagina «💬 WhatsApp» (Gestione Clienti) ──────────────────
+# Chi la apre lo decide la matrice Moduli (Impostazioni Sistema › Moduli, clienti/whatsapp):
+# dal 24/11/2026 admin + capo sala. Configurazione e collegamento restano nel router admin.
+_PAGINA = richiede_sotto_modulo("clienti", "whatsapp", cosa="WhatsApp del locale")
+pagina_router = APIRouter(
+    prefix="/clienti/whatsapp",
+    tags=["Clienti · WhatsApp"],
+    dependencies=[Depends(_PAGINA)],
+)
+
+
+class GestitaIn(BaseModel):
+    gestita: bool = True
+
+
+@pagina_router.get("/conversazioni")
+def conversazioni(giorni: int = Query(7, ge=1, le=730), solo_da_rispondere: bool = False,
+                  q: Optional[str] = Query(None, max_length=200), limite: int = Query(100, ge=1, le=500)):
+    return wa.conversazioni(giorni=giorni, solo_da_rispondere=solo_da_rispondere, q=q, limite=limite)
+
+
+@pagina_router.get("/cerca")
+def cerca(chi: Optional[str] = None, testo: Optional[str] = None, giorni: int = Query(180, ge=1, le=730)):
+    try:
+        return wa.cerca(chi=chi, testo=testo, giorni=giorni)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@pagina_router.get("/chat/{numero}")
+def chat(numero: str, giorni: int = Query(180, ge=1, le=730)):
+    try:
+        return wa.chat(numero, giorni=giorni)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except LookupError as e:
+        raise HTTPException(404, str(e))
+
+
+@pagina_router.post("/chat/{numero}/gestita")
+def gestita(numero: str, body: GestitaIn, user: dict = Depends(_PAGINA)):
+    try:
+        return wa.imposta_gestita(numero, body.gestita, chi=(user or {}).get("username"))
     except ValueError as e:
         raise HTTPException(400, str(e))

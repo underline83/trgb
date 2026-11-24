@@ -1,4 +1,5 @@
-# @version: v1.1 (2026-11-23) — ingresso YCloud (provider scelto) + chat «chiuse dal cliente»
+# @version: v1.2 (2026-11-24) — pagina «💬 WhatsApp»: chat(), «gestita» a mano (mig 244), ricerca q in conversazioni
+# v1.1 (2026-11-23) — ingresso YCloud (provider scelto) + chat «chiuse dal cliente»
 # v1.0 (2026-11-02) — check WhatsApp in sola lettura (coexistence Meta)
 # Modulo: clienti — [core]
 # -*- coding: utf-8 -*-
@@ -44,6 +45,7 @@ import json
 import logging
 import os
 import re
+import sqlite3
 import threading
 import time
 import unicodedata
@@ -739,13 +741,65 @@ def imposta_chiusura(parole: List[str], max_caratteri: int) -> Dict[str, Any]:
         conn.close()
 
 
-def conversazioni(giorni: int = 7, solo_da_rispondere: bool = False, limite: int = 100) -> Dict[str, Any]:
+def _gestite(conn) -> Dict[str, int]:
+    """numero → fino_ts delle chat segnate «gestite» a mano (mig 244)."""
+    try:
+        return {r["numero"]: int(r["fino_ts"]) for r in conn.execute("SELECT numero, fino_ts FROM clienti_wa_gestite")}
+    except sqlite3.OperationalError:  # migrazione 244 non ancora girata
+        return {}
+
+
+def _stato_numero(conn, numero: str, regola: Dict[str, Any], gestite: Dict[str, int], ora: int) -> Optional[Dict[str, Any]]:
+    """Stato di una chat: ultimo messaggio del cliente e del locale (reazioni escluse),
+    da_rispondere / gestita / chiusa_dal_cliente / risposto / scritto_solo_io."""
+    segnaposto = ",".join("?" * len(TIPI_SENZA_RISPOSTA))
+    ultimi = {}
+    for direzione in ("in", "out"):
+        ultimi[direzione] = conn.execute(
+            f"""SELECT ts, tipo, testo, fonte FROM clienti_wa_messaggi
+                WHERE numero = ? AND direzione = ? AND tipo NOT IN ({segnaposto})
+                ORDER BY ts DESC, id DESC LIMIT 1""",
+            (numero, direzione, *TIPI_SENZA_RISPOSTA),
+        ).fetchone()
+    suo, mio = ultimi["in"], ultimi["out"]
+    if not suo and not mio:
+        return None  # solo reazioni
+    da_rispondere = bool(suo and (not mio or suo["ts"] > mio["ts"]))
+    chiusa = gestita = False
+    if da_rispondere and gestite.get(numero, -1) >= suo["ts"]:
+        # segnata gestita a mano dopo l'ultimo messaggio del cliente (telefonata, di persona…)
+        gestita, da_rispondere = True, False
+    elif da_rispondere:
+        # tutti i messaggi del cliente dopo il nostro ultimo sono saluti/grazie → chiusa da lui
+        dopo = conn.execute(
+            f"""SELECT testo FROM clienti_wa_messaggi
+                WHERE numero = ? AND direzione = 'in' AND ts > ? AND tipo NOT IN ({segnaposto})""",
+            (numero, mio["ts"] if mio else -1, *TIPI_SENZA_RISPOSTA),
+        ).fetchall()
+        chiusa = bool(dopo) and all(e_chiusura(r["testo"], regola) for r in dopo)
+        da_rispondere = not chiusa
+    ultimo = suo if (suo and (not mio or suo["ts"] >= mio["ts"])) else mio
+    return {
+        "stato": ("da_rispondere" if da_rispondere else "gestita" if gestita
+                  else "chiusa_dal_cliente" if chiusa else "risposto" if suo else "scritto_solo_io"),
+        "ultimo_suo": {"quando": _quando(suo["ts"]), "testo": suo["testo"]} if suo else None,
+        "ultimo_mio": {"quando": _quando(mio["ts"]), "testo": mio["testo"]} if mio else None,
+        "ultimo": {"quando": _quando(ultimo["ts"]), "testo": ultimo["testo"],
+                   "chi": "cliente" if ultimo is suo else "locale"},
+        "ultimo_ts": ultimo["ts"],
+        "attesa_ore": round((ora - suo["ts"]) / 3600, 1) if da_rispondere else None,
+    }
+
+
+def conversazioni(giorni: int = 7, solo_da_rispondere: bool = False, limite: int = 100,
+                  q: Optional[str] = None) -> Dict[str, Any]:
     """Le chat con almeno un messaggio negli ultimi `giorni`: ultimo messaggio del cliente,
     ultimo del locale e se tocca a noi rispondere. Prima quelle da rispondere, poi quelle
     «chiuse dal cliente» (dopo la nostra ultima risposta ha scritto solo grazie/ok/emoji,
-    vedi regola_chiusura), poi le altre."""
+    vedi regola_chiusura), poi le altre dalla più recente. Le chat segnate «gestite» a mano
+    (clienti_wa_gestite) non sono da rispondere finché il cliente non riscrive.
+    `q`: nome (cliente TRGB, rubrica, WhatsApp), numero o parole dei messaggi del periodo."""
     dal = int(time.time()) - giorni * 86400
-    segnaposto = ",".join("?" * len(TIPI_SENZA_RISPOSTA))
     conn = get_clienti_conn()
     try:
         _pulizia(conn)
@@ -754,52 +808,114 @@ def conversazioni(giorni: int = 7, solo_da_rispondere: bool = False, limite: int
             (dal,),
         )]
         contatti, clienti = _contatti(conn), _mappa_clienti(conn)
-        regola = regola_chiusura(conn)
+        if (q or "").strip():
+            cifre = _cifre(q)
+            parole = _piano(q).split()
+            nel_testo = set()
+            for r in conn.execute("SELECT numero, testo FROM clienti_wa_messaggi WHERE ts >= ?", (dal,)):
+                if r["numero"] not in nel_testo and all(p in _piano(r["testo"]) for p in parole):
+                    nel_testo.add(r["numero"])
+            scelti = []
+            for numero in numeri:
+                info = _info_numero(numero, contatti, clienti)
+                nomi = _piano(" ".join(x for x in (info["nome"], info["nome_rubrica"], info["nome_whatsapp"]) if x))
+                if ((len(cifre) >= 4 and cifre in numero) or (parole and all(p in nomi for p in parole))
+                        or numero in nel_testo):
+                    scelti.append(numero)
+            numeri = scelti
+        regola, gestite = regola_chiusura(conn), _gestite(conn)
         ora = int(time.time())
         out = []
         for numero in numeri:
-            ultimi = {}
-            for direzione in ("in", "out"):
-                ultimi[direzione] = conn.execute(
-                    f"""SELECT ts, tipo, testo FROM clienti_wa_messaggi
-                        WHERE numero = ? AND direzione = ? AND tipo NOT IN ({segnaposto})
-                        ORDER BY ts DESC, id DESC LIMIT 1""",
-                    (numero, direzione, *TIPI_SENZA_RISPOSTA),
-                ).fetchone()
-            suo, mio = ultimi["in"], ultimi["out"]
-            if not suo and not mio:
-                continue  # solo reazioni
-            da_rispondere = bool(suo and (not mio or suo["ts"] > mio["ts"]))
-            chiusa = False
-            if da_rispondere:
-                # tutti i messaggi del cliente dopo il nostro ultimo sono saluti/grazie → chiusa da lui
-                dopo = conn.execute(
-                    f"""SELECT testo FROM clienti_wa_messaggi
-                        WHERE numero = ? AND direzione = 'in' AND ts > ? AND tipo NOT IN ({segnaposto})""",
-                    (numero, mio["ts"] if mio else -1, *TIPI_SENZA_RISPOSTA),
-                ).fetchall()
-                chiusa = bool(dopo) and all(e_chiusura(r["testo"], regola) for r in dopo)
-                da_rispondere = not chiusa
-            if solo_da_rispondere and not da_rispondere:
+            st = _stato_numero(conn, numero, regola, gestite, ora)
+            if st is None or (solo_da_rispondere and st["stato"] != "da_rispondere"):
                 continue
             voce = _info_numero(numero, contatti, clienti)
-            voce.update({
-                "stato": ("da_rispondere" if da_rispondere else "chiusa_dal_cliente" if chiusa
-                          else "risposto" if suo else "scritto_solo_io"),
-                "ultimo_suo": {"quando": _quando(suo["ts"]), "testo": suo["testo"]} if suo else None,
-                "ultimo_mio": {"quando": _quando(mio["ts"]), "testo": mio["testo"]} if mio else None,
-                "attesa_ore": round((ora - suo["ts"]) / 3600, 1) if da_rispondere else None,
-            })
+            voce.update(st)
             out.append(voce)
         ordine = {"da_rispondere": 0, "chiusa_dal_cliente": 1}
-        out.sort(key=lambda v: (ordine.get(v["stato"], 2), -(v["attesa_ore"] or 0)))
+        out.sort(key=lambda v: (ordine.get(v["stato"], 2), -(v["attesa_ore"] or 0), -v["ultimo_ts"]))
         return {
             "periodo_giorni": giorni,
             "aggiornamento": _aggiornamento(conn),
             "da_rispondere": sum(1 for v in out if v["stato"] == "da_rispondere"),
             "chiuse_dal_cliente": sum(1 for v in out if v["stato"] == "chiusa_dal_cliente"),
+            "gestite": sum(1 for v in out if v["stato"] == "gestita"),
+            "totale": len(out),
             "conversazioni": out[:limite],
         }
+    finally:
+        conn.close()
+
+
+FONTI_ETICHETTA = {"webhook": None, "eco": "dal telefono", "ycloud": "dalla casella YCloud",
+                   "storico": "storico"}
+
+
+def chat(numero: str, giorni: int = 180, limite: int = 500) -> Dict[str, Any]:
+    """Una chat intera per la pagina «💬 WhatsApp»: chi è, stato, messaggi dal più vecchio."""
+    numero = _cifre(numero)
+    if not numero:
+        raise ValueError("Numero non valido")
+    dal = int(time.time()) - giorni * 86400
+    conn = get_clienti_conn()
+    try:
+        righe = conn.execute(
+            """SELECT * FROM (SELECT id, ts, direzione, tipo, testo, fonte FROM clienti_wa_messaggi
+                              WHERE numero = ? AND ts >= ? ORDER BY ts DESC, id DESC LIMIT ?)
+               ORDER BY ts ASC, id ASC""",
+            (numero, dal, limite),
+        ).fetchall()
+        if not righe:
+            raise LookupError("Nessun messaggio con questo numero nel periodo")
+        voce = _info_numero(numero, _contatti(conn), _mappa_clienti(conn))
+        voce.update(_stato_numero(conn, numero, regola_chiusura(conn), _gestite(conn), int(time.time())) or {})
+        g = None
+        try:
+            g = conn.execute("SELECT fino_ts, da, at FROM clienti_wa_gestite WHERE numero = ?", (numero,)).fetchone()
+        except sqlite3.OperationalError:
+            pass
+        voce["gestita_da"] = {"da": g["da"], "at": g["at"]} if g and voce.get("stato") == "gestita" else None
+        voce["messaggi"] = [
+            {"id": r["id"], "quando": _quando(r["ts"]), "ts": r["ts"],
+             "chi": "cliente" if r["direzione"] == "in" else "locale",
+             "tipo": r["tipo"], "testo": r["testo"],
+             "fonte": FONTI_ETICHETTA.get(r["fonte"]) if r["direzione"] == "out" else
+                      ("storico" if r["fonte"] == "storico" else None)}
+            for r in righe
+        ]
+        voce["periodo_giorni"] = giorni
+        return voce
+    finally:
+        conn.close()
+
+
+def imposta_gestita(numero: str, gestita: bool, chi: Optional[str] = None) -> Dict[str, Any]:
+    """«✓ Gestita»: la chat esce da «da rispondere» fino al prossimo messaggio del cliente.
+    gestita=False la rimette com'era (decide di nuovo l'ultimo messaggio)."""
+    numero = _cifre(numero)
+    if not numero:
+        raise ValueError("Numero non valido")
+    segnaposto = ",".join("?" * len(TIPI_SENZA_RISPOSTA))
+    conn = get_clienti_conn()
+    try:
+        if gestita:
+            r = conn.execute(
+                f"""SELECT MAX(ts) AS u FROM clienti_wa_messaggi
+                    WHERE numero = ? AND direzione = 'in' AND tipo NOT IN ({segnaposto})""",
+                (numero, *TIPI_SENZA_RISPOSTA),
+            ).fetchone()
+            fino = int(r["u"]) if r and r["u"] else int(time.time())
+            conn.execute(
+                """INSERT INTO clienti_wa_gestite (numero, fino_ts, da, at) VALUES (?, ?, ?, datetime('now','localtime'))
+                   ON CONFLICT(numero) DO UPDATE SET fino_ts = excluded.fino_ts, da = excluded.da, at = excluded.at""",
+                (numero, fino, (chi or "")[:80] or None),
+            )
+        else:
+            conn.execute("DELETE FROM clienti_wa_gestite WHERE numero = ?", (numero,))
+        conn.commit()
+        st = _stato_numero(conn, numero, regola_chiusura(conn), _gestite(conn), int(time.time())) or {}
+        return {"numero": "+" + numero, "stato": st.get("stato")}
     finally:
         conn.close()
 

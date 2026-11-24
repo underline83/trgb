@@ -107,6 +107,11 @@ const TodoBoard = lazy(() => import("./pages/TodoBoard"));
 // PRATICHE — modulo pratiche (2026-10-08), solo admin/superadmin
 const PraticheElenco = lazy(() => import("./pages/pratiche/PraticheElenco"));
 const PraticaScheda = lazy(() => import("./pages/pratiche/PraticaScheda"));
+// COMANDA — modulo comande (2026-11-24), in prova finché non c'è la Cassa
+const ComandeTavoli = lazy(() => import("./pages/comande/ComandeTavoli"));
+const ComandeConto = lazy(() => import("./pages/comande/ComandeConto"));
+const ComandeInvii = lazy(() => import("./pages/comande/ComandeInvii"));
+const ComandeImpostazioni = lazy(() => import("./pages/comande/ComandeImpostazioni"));
 const GestioneReparti = lazy(() => import("./pages/dipendenti/GestioneReparti"));
 const DipendentiImpostazioni = lazy(() => import("./pages/dipendenti/DipendentiImpostazioni"));
 const DipendentiCosti = lazy(() => import("./pages/dipendenti/DipendentiCosti"));
@@ -124,6 +129,7 @@ const ClientiPreventivi = lazy(() => import("./pages/clienti/ClientiPreventivi")
 const ClientiPreventivoScheda = lazy(() => import("./pages/clienti/ClientiPreventivoScheda"));
 const ClientiGiftCard = lazy(() => import("./pages/clienti/ClientiGiftCard"));
 const ClientiPosta = lazy(() => import("./pages/clienti/ClientiPosta"));
+const ClientiWhatsAppChat = lazy(() => import("./pages/clienti/ClientiWhatsAppChat"));
 const ClientiImport = lazy(() => import("./pages/clienti/ClientiImport"));
 const ClientiDuplicati = lazy(() => import("./pages/clienti/ClientiDuplicati"));
 const ClientiMailchimp = lazy(() => import("./pages/clienti/ClientiMailchimp"));
@@ -570,6 +576,12 @@ export default function App() {
         <Route path="/pratiche" element={<ProtectedRoute module="pratiche" roles={["admin"]}><PraticheElenco /></ProtectedRoute>} />
         <Route path="/pratiche/:id" element={<ProtectedRoute module="pratiche" roles={["admin"]}><PraticaScheda /></ProtectedRoute>} />
 
+        {/* --- COMANDA (comande in sala, in prova) — admin, capo sala, sala, sommelier --- */}
+        <Route path="/comande" element={<ProtectedRoute module="comande" sub="tavoli"><ComandeTavoli /></ProtectedRoute>} />
+        <Route path="/comande/conto/:id" element={<ProtectedRoute module="comande" sub="tavoli"><ComandeConto /></ProtectedRoute>} />
+        <Route path="/comande/invii" element={<ProtectedRoute module="comande" sub="invii"><ComandeInvii /></ProtectedRoute>} />
+        <Route path="/comande/impostazioni" element={<ProtectedRoute module="comande" sub="impostazioni" roles={["admin"]}><ComandeImpostazioni /></ProtectedRoute>} />
+
         {/* --- GESTIONE CLIENTI CRM --- */}
         <Route path="/clienti" element={
           <ModuleRedirect module="clienti" targets={[
@@ -584,7 +596,8 @@ export default function App() {
         <Route path="/clienti/preventivi" element={<ProtectedRoute module="clienti"><ClientiPreventivi /></ProtectedRoute>} />
         <Route path="/clienti/preventivi/:id" element={<ProtectedRoute module="clienti"><ClientiPreventivoScheda /></ProtectedRoute>} />
         <Route path="/clienti/giftcard" element={<ProtectedRoute module="clienti"><ClientiGiftCard /></ProtectedRoute>} />
-        <Route path="/clienti/posta" element={<ProtectedRoute module="clienti" roles={["admin"]}><ClientiPosta /></ProtectedRoute>} />
+        <Route path="/clienti/posta" element={<ProtectedRoute module="clienti" sub="posta"><ClientiPosta /></ProtectedRoute>} />
+        <Route path="/clienti/whatsapp" element={<ProtectedRoute module="clienti" sub="whatsapp"><ClientiWhatsAppChat /></ProtectedRoute>} />
         <Route path="/clienti/dashboard" element={<ProtectedRoute module="clienti" sub="dashboard"><ClientiDashboard /></ProtectedRoute>} />
         <Route path="/clienti/impostazioni" element={<ProtectedRoute module="clienti" sub="import"><ClientiImpostazioni /></ProtectedRoute>} />
         <Route path="/clienti/impostazioni/:section" element={<ProtectedRoute module="clienti" sub="import"><ClientiImpostazioni /></ProtectedRoute>} />

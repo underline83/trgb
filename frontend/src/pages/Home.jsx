@@ -42,6 +42,7 @@ const MODULE_FALLBACK = {
   "controllo-gestione":{ sub1: "Dashboard P&L, scadenzario, confronto", sub2: "" },
   statistiche:         { sub1: "Cucina, coperti, trend, grafici", sub2: "" },
   prenotazioni:        { sub1: "Planning, mappa tavoli, settimana", sub2: "" },
+  comande:             { sub1: "Tavoli e comande in sala", sub2: "in prova" },
   clienti:             { sub1: "Anagrafica, CRM, dashboard", sub2: "" },
   dipendenti:          { sub1: "Buste paga, turni, scadenze", sub2: "" },
   pratiche:            { sub1: "Enti, fornitori, studi, creditori", sub2: "" },

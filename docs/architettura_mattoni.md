@@ -15,7 +15,7 @@
 - ✅ **M.I UI primitives** (sessione 2026-04-18) — `frontend/src/components/ui/`: `<Btn>`, `<PageLayout>`, `<StatusBadge>`, `<EmptyState>`. Opt-in per pagine nuove.
 - ✅ **QrScanner** (2026-10-06) — `frontend/src/components/QrScanner.jsx`: scanner QR a tutto schermo con fotocamera posteriore, `onResult(text)`. BarcodeDetector dove c'è, altrimenti jsQR vendorizzato (`utils/vendor/jsqr.js`, serve su iPhone). Riusarlo per ogni scansione, non riscriverlo.
 - ✅ **M.E Calendar** (sessione 48, 2026-04-19) — `frontend/src/components/calendar/`: `<CalendarView>` stateless controllato con 3 viste (mese/settimana/giorno), palette brand, tastiera ←/→/T/M/S/G, demo su `/calendario-demo` (admin only). Spec: [`docs/mattone_calendar.md`](mattone_calendar.md).
-- 🟡 **M.G Permessi — FASE 1 FATTA** (2026-09-01) — `app/services/permessi.py`: `richiede_ruoli()` / `solo_admin()` / `solo_superadmin()` come dependency FastAPI, `verifica_ruoli()` / `ha_ruoli()` in forma imperativa. `superadmin` implicito dove c'è `admin`; i nomi ruolo sono **validati all'import**, così un typo fa fallire il boot invece di aprire una porta in silenzio. Sostituisce gli 8 helper reinventati router per router. **Manca** la fase 2 (matrice ruolo × azione configurabile da UI + `<CanDo>` lato frontend): quando arriverà cambierà l'implementazione, non le chiamate. Nato dall'[audit permessi 2026-09-01](audit_permessi_2026-09-01.md).
+- 🟡 **M.G Permessi — FASE 1 FATTA** (2026-09-01) — `app/services/permessi.py`: `richiede_ruoli()` / `solo_admin()` / `solo_superadmin()` come dependency FastAPI, `verifica_ruoli()` / `ha_ruoli()` in forma imperativa. `superadmin` implicito dove c'è `admin`; i nomi ruolo sono **validati all'import**, così un typo fa fallire il boot invece di aprire una porta in silenzio. Sostituisce gli 8 helper reinventati router per router. Dal 2026-11-24 anche `richiede_sotto_modulo(modulo, sub)`: ruoli letti dalla matrice Moduli (fase 1.5, sotto). **Manca** la fase 2 (matrice ruolo × azione configurabile da UI + `<CanDo>` lato frontend): quando arriverà cambierà l'implementazione, non le chiamate. Nato dall'[audit permessi 2026-09-01](audit_permessi_2026-09-01.md).
 - ⏳ M.H Import engine — DA FARE
 - ✅ **M.K Connettore MCP** (2026-10-08) — `app/connettore/` (`server.py`, `oauth.py`) + `connettore.sqlite3`: TRGB come connettore personalizzato di claude.ai su `/mcp`, OAuth 2.1 con utente e PIN TRGB (solo admin). Gli strumenti chiamano i service dei moduli (oggi `pratiche_service`), mai copie; ogni strumento rifà il controllo M.G e vive solo se il suo modulo è attivo. Per un modulo nuovo: logica nel service senza `Request`, poi lo strumento in `server.py`. Spec: [`connettore_mcp.md`](connettore_mcp.md).
 - ✅ **M.L Calendario chiusure** (2026-11-19) — `app/services/calendario_chiusure.py`: UNA risposta a «quel giorno/turno siamo aperti?» dal calendario di Vendite › Chiusure (giorno fisso, giorni chiusi, aperture straordinarie `giorni_aperti`, turni chiusi; pranzo+cena chiusi = giorno chiuso; un giorno chiuso esplicitamente vince sull'apertura). `turni_chiusi(data)`, `chiuso(data, turno)`, `giorni_chiusi(range)`, `turni_chiusi_parziali(range)`, `descrivi()`, `date_esplicite()`. Chi deve reagire a un cambio si iscrive con `al_cambio(fn)` (oggi Prenotazioni → TheFork); il router `closures_config` chiama `notifica_cambio` dopo il salvataggio. Lo usano Turni, Prenotazioni, sito. MAI rileggere `closures_config` a mano.
@@ -215,6 +215,23 @@ Due scelte da conoscere:
 - **I nomi ruolo sono validati all'import**, contro `VALID_ROLES`: `richiede_ruoli("sommellier")` fa fallire il boot con un messaggio chiaro. È il vantaggio pratico principale su un `if` scritto a mano, dove un typo diventa un permesso che non matcha mai — o, in un `not in` scritto male, una porta aperta silenziosa.
 
 **Chi lo usa già:** `foodcost_router`, `menu_router`, e i 4 router del modulo Dipendenti (`dipendenti`, `turni_router`, `intermittenti_router`, `reparti`), che mantengono i loro `_require_admin()` come nomi parlanti ma delegano qui la logica del 403.
+
+#### Fase 1.5 — il backend segue la matrice Moduli ✅ (2026-11-24, permessi 1.1)
+
+Per le pagine che stanno in un **sotto-modulo** della matrice Moduli (Impostazioni Sistema › Moduli, `modules.json` + `modules.runtime.json`) il backend legge i ruoli **da lì**, gli stessi che il frontend usa con `canAccessSub`: chi li cambia dalla UI cambia anche le rotte, senza toccare codice.
+
+```python
+from app.services.permessi import richiede_sotto_modulo, ha_sotto_modulo, ruoli_sotto_modulo
+
+_POSTA = richiede_sotto_modulo("clienti", "posta", cosa="la posta del locale")   # dependency, ritorna l'utente
+router = APIRouter(prefix="/clienti/whatsapp", dependencies=[Depends(richiede_sotto_modulo("clienti", "whatsapp"))])
+if ha_sotto_modulo(user, "clienti", "posta"): ...
+```
+
+- `admin` e `superadmin` passano sempre (la matrice non può chiudere fuori l'amministratore).
+- Sub che non c'è → ruoli del modulo; modulo che non c'è → solo admin. Per questo una sub nata dopo il primo deploy va in `SUB_DA_AGGIUNGERE` di `modules_router.py`: senza, la protezione ricadrebbe sui ruoli larghi del modulo.
+- Le azioni di configurazione (caselle, collegamenti) restano su `richiede_ruoli("admin")`: la matrice decide chi **usa** la pagina, non chi la configura.
+- Primi a usarlo: Posta (`email_router`, sub `clienti/posta`) e WhatsApp (`clienti_whatsapp_router.pagina_router`, sub `clienti/whatsapp`), admin + capo sala dal 24/11/2026.
 
 #### Fase 2 — matrice configurabile ⏳ DA FARE
 

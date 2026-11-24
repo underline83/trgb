@@ -59,9 +59,9 @@ TRGB è strutturato come **monolite modulare con feature flags per locale**. Cli
 
 ### I moduli vendibili (mappa attuale)
 
-14 moduli + platform. Vedi tabella in `docs/refactor_monorepo.md` §3 R8 per dettagli (id, nome utente, tabelle DB, endpoint prefix):
+15 moduli + platform. Vedi tabella in `docs/refactor_monorepo.md` §3 R8 per dettagli (id, nome utente, tabelle DB, endpoint prefix):
 
-`vini`, `ricette`, `acquisti`, `controllo_gestione`, `banca`, `dipendenti`, `prenotazioni`, `clienti`, `cassa`, `menu_carta`, `cucina`, `task_manager`, `statistiche`, `pratiche` (dal 2026-10-08).
+`vini`, `ricette`, `acquisti`, `controllo_gestione`, `banca`, `dipendenti`, `prenotazioni`, `clienti`, `cassa`, `menu_carta`, `cucina`, `task_manager`, `statistiche`, `pratiche` (dal 2026-10-08), `comande` (dal 2026-11-24, in prova finché non c'è la Cassa).
 
 **Platform** (sempre inclusa, non vendibile da sola): auth + utenti + M.A notifiche + M.B PDF + M.C WA + M.D email + M.E calendar + M.F alert + M.G permessi + M.H import + M.I UI primitives + M.K connettore MCP.
 
@@ -71,7 +71,7 @@ Da rispettare per OGNI feature nuova, anche prima di R8:
 
 1. **Ogni feature appartiene a UN modulo dichiarato.** All'inizio del file backend o del componente frontend, dichiarare in commento: `# Modulo: vini` o `// Modulo: cucina`. Se non sai a quale modulo appartiene, CHIEDI a Marco prima di scrivere.
 2. **Niente import diretti tra router di moduli diversi.** `app/routers/vini_router.py` non importa da `app/routers/foodcost_router.py`. Se serve dato cross-modulo, passare via servizio platform (`app/services/`) o via evento.
-3. **Tabelle DB iniziano col prefisso del modulo.** `vini_*`, `dipendenti_*`, `cg_*` (Controllo Gestione), `pranzo_*`, `menu_carta_*`, `cucina_*`, `lista_spesa_*`, `tasks_*`, `pratiche*`. Tabelle generiche cross-modulo (es. `audit_log`, `notifiche`, `users`) vivono in platform.
+3. **Tabelle DB iniziano col prefisso del modulo.** `vini_*`, `dipendenti_*`, `cg_*` (Controllo Gestione), `pranzo_*`, `menu_carta_*`, `cucina_*`, `lista_spesa_*`, `tasks_*`, `pratiche*`, `comande_*`. Tabelle generiche cross-modulo (es. `audit_log`, `notifiche`, `users`) vivono in platform.
 4. **Comunicazione cross-modulo via servizi platform o eventi.** Se modulo A ha bisogno di dato del modulo B, NON chiamare direttamente l'altro modulo: o si passa via un servizio platform condiviso, o via evento (`crea_notifica`, `import_engine`, ecc.). Eccezione: il modulo cross-aggregatore `statistiche` può leggere dati di altri moduli read-only.
 5. **Ogni modulo ha (o avrà a R8) un `module.json` di manifesto** con: id, nome, versione, dipendenze platform, dipendenze opzionali, tabelle DB, endpoint prefix, frontend route. Pre-R8: scrivere queste informazioni in commento all'inizio del router principale del modulo, così a R8 si raccolgono in un sol colpo.
 
@@ -120,7 +120,7 @@ Servizi riutilizzabili gia' implementati. Prima di scrivere codice che fa queste
 - **M.C WA composer** (sessione 31):
   - Frontend: `import { openWhatsApp, buildWaLink, fillTemplate, WA_TEMPLATES } from "../utils/whatsapp"`. MAI costruire `wa.me/` a mano.
   - Backend: `from app.utils.whatsapp import build_wa_link, normalize_phone, fill_template`. MAI fare `.replace(" ","").replace("-","")` sul telefono a mano.
-- **M.G Permessi — fase 1** (2026-09-01): `from app.services.permessi import richiede_ruoli, solo_admin, verifica_ruoli, ha_ruoli`. **Ogni endpoint nuovo dichiara chi puo' chiamarlo.** `Depends(get_current_user)` da solo NON e' un permesso: e' "qualsiasi ruolo autenticato", viewer compreso. Nella firma `user=Depends(richiede_ruoli("admin","contabile"))`, su tutto il router `APIRouter(dependencies=[Depends(solo_admin())])`, nel corpo `verifica_ruoli(user, "admin", cosa="...")`. MAI riscrivere un `if role != "admin"` a mano. `superadmin` e' implicito dove c'e' `admin`; i nomi ruolo sono validati al boot. Se non sai quale ruolo va su un endpoint nuovo, CHIEDI a Marco. Contesto: `docs/audit_permessi_2026-09-01.md`.
+- **M.G Permessi — fase 1** (2026-09-01): `from app.services.permessi import richiede_ruoli, solo_admin, verifica_ruoli, ha_ruoli`. **Ogni endpoint nuovo dichiara chi puo' chiamarlo.** `Depends(get_current_user)` da solo NON e' un permesso: e' "qualsiasi ruolo autenticato", viewer compreso. Nella firma `user=Depends(richiede_ruoli("admin","contabile"))`, su tutto il router `APIRouter(dependencies=[Depends(solo_admin())])`, nel corpo `verifica_ruoli(user, "admin", cosa="...")`. MAI riscrivere un `if role != "admin"` a mano. `superadmin` e' implicito dove c'e' `admin`; i nomi ruolo sono validati al boot. Se non sai quale ruolo va su un endpoint nuovo, CHIEDI a Marco. Per una pagina che è un sotto-modulo della matrice Moduli: `richiede_sotto_modulo("clienti","posta")` (ruoli dalla matrice, cambiabili da Impostazioni › Moduli; sub nuova anche in `SUB_DA_AGGIUNGERE`). Contesto: `docs/audit_permessi_2026-09-01.md`, `docs/architettura_mattoni.md` §M.G.
 - **M.K Connettore MCP** (2026-10-08): `app/connettore/server.py` + `oauth.py`, `/mcp` per claude.ai. Uno strumento nuovo chiama una funzione del service del modulo (mai logica propria), dichiara i ruoli con `_utente()` + M.G, e si registra solo se il modulo è attivo. Doc: `docs/connettore_mcp.md`.
 - **M.L Calendario chiusure** (2026-11-19): `from app.services import calendario_chiusure` → `chiuso(data, turno)`, `turni_chiusi(data)`, `giorni_chiusi(range)`, `turni_chiusi_parziali(range)`. Giorno fisso + giorni chiusi + turni chiusi di Vendite › Chiusure in un posto solo. MAI rileggere `closures_config` a mano. Per reagire a un cambio: `@calendario_chiusure.al_cambio`.
 - **M.B PDF brand**: DA FARE. Quando serve generare PDF, attendere questo mattone.
@@ -213,6 +213,7 @@ La riga «Ultimo aggiornamento» contiene SOLO: cosa è da pushare adesso, cosa 
 - `task_manager` → oggi in `docs/modulo_cucina.md` §3+§4+§9+§10 (split previsto)
 - `statistiche` → `docs/modulo_statistiche.md`
 - `pratiche` → `docs/modulo_pratiche.md`
+- `comande` → `docs/modulo_comande.md`
 
 Se non sai a quale `modulo_*.md` appartiene la capability, CHIEDI a Marco prima di scrivere.
 

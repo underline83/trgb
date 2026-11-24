@@ -596,6 +596,13 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   clienti: {
+    // 3.47 (2026-11-24): pagina «💬 WhatsApp» (Clienti › WhatsApp) come la Posta — chat del numero dell'osteria in sola
+    //   lettura: Da rispondere · Chiuse dal cliente · Tutte, periodo, ricerca (nome, numero, parole); chat a fumetti con
+    //   «✓ Gestita» (mig 244 clienti_wa_gestite: fuori da «da rispondere», ci torna se il cliente riscrive; vale anche per
+    //   il giro), «💬 Apri in WhatsApp» (wa.me, TRGB non manda niente), «👤 Scheda cliente». Posta e WhatsApp per admin +
+    //   capo sala dalla matrice Moduli (sub clienti/posta e clienti/whatsapp, backend con permessi.richiede_sotto_modulo;
+    //   configurare le caselle resta solo admin). clienti_whatsapp_service 1.2, router 1.2, email_router 1.6, ClientiNav 1.6,
+    //   connettore 1.21.
     // 3.46 (2026-11-24): rubrica del telefono — ogni contatto ha il link «TRGB» alla scheda del cliente
     //   (<app>/clienti/<id>, item1.URL + X-ABLabel): dal telefono non si scrive, si corregge in TRGB dietro al login
     //   (clienti_rubrica_service, tests/test_rubrica_vcard.py; nessuna migrazione).
@@ -717,7 +724,7 @@ const MODULE_VERSIONS = {
     //   annullo/riattiva con storico movimenti, PDF buono A5 con identita'
     //   del locale, alert M.F sulle card in scadenza. Nessun impatto su
     //   corrispettivi/chiusure: registro informativo separato dalla cassa.
-    version: "3.46",
+    version: "3.47",
     label: "Gestione Clienti",
     status: "beta",
     color: "blue",
@@ -817,6 +824,17 @@ const MODULE_VERSIONS = {
     status: "beta",
     color: "blue",
   },
+  comande: {
+    // 1.0 (2026-11-24): nascita, IN PROVA finché non c'è la Cassa (Marco). Tavoli per sala con apertura e
+    //   coperti, conto del tavolo con righe per uscita (Subito, 1ª…), catalogo letto da TRGB (carta del momento,
+    //   degustazioni, piatti del giorno, Menù Business, vini a bottiglia e calice, Carta Bevande, menu template),
+    //   prezzo libero e fuori carta, invio ai reparti (cucina, sala), «Via la Nª», storno con motivo, pagina Invii
+    //   (quello che il ponte stamperà), Impostazioni (uscite, reparti, gruppo → reparto). DB comande.sqlite3 al boot.
+    version: "1.0",
+    label: "Comanda",
+    status: "alpha",
+    color: "orange",
+  },
   haccp: {
     version: "1.0",
     label: "Report HACCP",
@@ -885,6 +903,11 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 6.8 (2026-11-24): mig 244 clienti_wa_gestite («✓ Gestita» nella pagina 💬 WhatsApp) + M.G permessi 1.1:
+    //   richiede_sotto_modulo / ha_sotto_modulo / ruoli_sotto_modulo, il backend segue la matrice Moduli (Posta e WhatsApp
+    //   di Clienti per admin + capo sala). Stesso push del modulo comande qui sotto (un solo bump).
+    // 6.8 (2026-11-24): modulo nuovo «comande» (Comanda, in prova) — comande.sqlite3 creato al boot, servizi platform
+    //   catalogo_vendita (tutto ciò che si batte in sala) e tavoli_sala_service (tavoli per chi non è Prenotazioni).
     // 6.7 (2026-11-20): mig 241 — email_bozze: TRGB scrive le mail delle caselle del locale (email_scrittura_service): bozze
     //   nelle Bozze della casella o nella pagina Posta per trgb@, invio solo dopo il «manda» di Marco (SMTP della casella,
     //   copia nell'Inviata); PEC solo bozza. Connettore 1.19: posta_bozza, posta_invia, posta_bozze, posta_bozza_annulla.
@@ -1054,7 +1077,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "6.7",
+    version: "6.8",
     label: "Sistema",
     status: "stabile",
     color: "green",

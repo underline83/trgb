@@ -304,6 +304,21 @@ Tutti i lettori (dashboard, stats mensili/annuali, export Excel, PDF commerciali
 | IP.8 | **Allergeni** — prodotti iPratico ↔ carta TRGB | Segnala dove i due elenchi non coincidono | S | BASSA | `/products` → `allergenIds` |
 | IP.10 | **Cliente scelto in cassa** come abbinamento sicuro | Meno conti da sistemare a mano | XS | BASSA | Oggi il cameriere lo fa quasi solo per le fatture |
 
+## CO — COMANDA (comande in sala da TRGB) — poi Cassa e Fatture in uscita
+
+> Deciso da Marco il 2026-11-24 dopo lo studio di fattibilità (Q #383, #385): tre moduli — **Comanda** (`comande`), **Cassa** (conto, scontrino sull'Epson RT, chiusura), **Fatture in uscita** (fatture elettroniche ai clienti) — e si parte dalla Comanda. **In prova** finché non c'è la Cassa: in servizio resta iPratico. Doc: [`modulo_comande.md`](modulo_comande.md).
+
+| # | Cosa | Effort | Stato | Note |
+|---|---|---|---|---|
+| CO.1 | **Comanda 1.0 in prova** — tavoli per sala, conto con righe per uscita, catalogo da TRGB, prezzo a voce e fuori carta, invio ai reparti, via, storno, pagina Invii, Impostazioni | L | ✅ FATTO 2026-11-24 (da pushare, comande 1.0, sistema 6.8) | Servizi platform `catalogo_vendita` e `tavoli_sala_service`; `comande.sqlite3` al boot |
+| CO.2 | **Mattone Ponte locale** — Raspberry Pi in osteria che stampa gli invii sulle SOL801 (ESC/POS, 9100) e scrive `stampato_at` | M | DA FARE — prossima | Servirà anche alla Cassa per l'Epson RT (fpmate). Da decidere con Marco: hardware e come si collega al VPS |
+| CO.3 | **Prova sul campo** a locale chiuso, poi un tavolo | S | DA FARE | Raccogliere le correzioni della sala |
+| CO.4 | Pranzo e calici: confermare come si battono | XS | DA DECIDERE | Oggi Menù Business N portate + piatti a 0 €; calici solo dei 3 vini con VENDITA_CALICE |
+| CO.5 | Varianti predefinite per gruppo o piatto | S | DA FARE | Il campo `varianti` c'è già, oggi solo nota libera |
+| CO.6 | Piantina della sala (`Piantina.jsx`) e schermo cucina | M | DA DECIDERE | Oggi griglia di tavoli per sala |
+| CA.1 | **Cassa** — preconto, alla romana, sconti e omaggi, pagamento, scontrino sull'Epson, reso/annullo, chiusura; i conti finiscono in `cassa_conti` come oggi da iPratico | L | DA FARE — dopo la Comanda | Da decidere: allargare il modulo `cassa` esistente o nuovo modulo |
+| FU.1 | **Fatture in uscita** — fatture elettroniche ai clienti via intermediario (Fatture in Cloud già collegato o Openapi), copia al cliente, note di credito | M | DA FARE — dopo | Usabile anche da sola (eventi, preventivi); toglie i crediti iPratico |
+
 ## B — BANCA (flussi + riconciliazione)
 
 | ID | Cosa | Effort | Stato | Note |
@@ -702,6 +717,7 @@ Sezione storica/piano qui sotto preservata per riferimento.
 | CL.15 | Gift Card — emissione, codici, scarico a uso unico, annullo, PDF, alert scadenza | M | ✅ FATTO | 2026-08-08, clienti 3.1. Sostituisce l'Excel. Vedi `modulo_clienti_crm.md` §16 |
 | CL.16 | Storico gift card dall'Excel — travaso one-shot | S | ✅ FATTO | 2026-08-08, mig 167 (TRGB_SPECIFIC). 90 card su 174 (74 attive, 12.825 €). **Niente funzione di import nel prodotto**: scelta di Marco, era un travaso. Regole in `modulo_clienti_crm.md` §16.9 |
 | CL.19 | WhatsApp del locale in sola lettura per il giro (coexistence, webhook, chat da rispondere, strumenti MCP) | M | ✅ FATTO 2026-11-24 (05b161a7, clienti 3.45): numero in coexistence su YCloud (23/11), webhook YCloud → TRGB attivo dal 24/11 14:04 (prima risposta 204); chat «chiuse dal cliente» | Doc `modulo_clienti_crm.md` §17, guida `guida_whatsapp_meta.md` § Y. Strada diretta Meta scartata: serve Tech Provider |
+| CL.20 | Pagina «💬 WhatsApp» come la Posta: chat da rispondere / chiuse dal cliente / tutte, «✓ Gestita», «Apri in WhatsApp»; Posta e WhatsApp per admin + capo sala dalla matrice Moduli | M | ✅ FATTO 2026-11-24 (da pushare, mig 244, clienti 3.47, sistema 6.8) | Doc `modulo_clienti_crm.md` §17 (C-CL-W09/W10), M.G fase 1.5 in `architettura_mattoni.md`. Da valutare: filtro per casella nella Posta se una casella non deve vederla il capo sala |
 | CL.17 | Tab Gift Card nella scheda cliente | S | BASSA | Oggi si filtra dalla pagina Gift Card |
 | CL.18 | Gift card: etichetta QR sul buono stampato + pagina /regalo (cliente vede il regalo, staff scarica) | S | ✅ FATTO | 2026-10-25, clienti 3.16, mig 213. `modulo_clienti_crm.md` §16.6b |
 

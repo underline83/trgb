@@ -1,0 +1,25 @@
+{
+  "id": "comande",
+  "nome": "Comanda",
+  "versione": "1.0",
+  "descrizione": "Comande prese in sala: tavoli aperti con coperti, righe per uscita con varianti e note, invio ai reparti (cucina, sala), via dell'uscita, storni. In prova finché non c'è la Cassa",
+  "vendibile": true,
+  "dipendenze_platform": ["auth", "permessi", "ui_primitives", "catalogo_vendita", "tavoli_sala"],
+  "dipendenze_opzionali": ["menu_carta", "ricette", "vini", "clienti", "prenotazioni"],
+  "router_files": [
+    "comande_router"
+  ],
+  "endpoint_prefix": [
+    "/comande"
+  ],
+  "tabelle_db": [
+    "comande_conti",
+    "comande_righe",
+    "comande_invii",
+    "comande_reparti",
+    "comande_gruppi_reparto",
+    "comande_config"
+  ],
+  "frontend_route": ["/comande"],
+  "frontend_menu_key": "comande"
+}

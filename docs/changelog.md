@@ -3,6 +3,35 @@
 
 ---
 
+## 2026-11-24 — Clienti 3.47 + sistema 6.8: la pagina «💬 WhatsApp» e Posta/WhatsApp dalla matrice Moduli `[core]`
+Marco: «costruiamo una pagina come Posta per WhatsApp», per admin + capo sala «(anche la posta)», con i flag della matrice Moduli per accendere e spegnere tutto a tutti.
+
+**Aggiunto**
+- Clienti › 💬 WhatsApp (`/clienti/whatsapp`): elenco chat Da rispondere · Chiuse dal cliente · Tutte, periodo, ricerca per nome, numero o parole; chat a fumetti con la fonte di ogni messaggio; si aggiorna da sola ogni minuto; tab col numero da rispondere.
+- «✓ Gestita» (mig 244, `clienti_wa_gestite`): la chat esce da «da rispondere» finché il cliente non riscrive; vale anche per il giro (stato `gestita`, connettore 1.21).
+- «💬 Apri in WhatsApp» (wa.me, TRGB non manda niente) e «👤 Scheda cliente».
+- M.G 1.1: `richiede_sotto_modulo` / `ha_sotto_modulo` / `ruoli_sotto_modulo` — il backend segue la matrice Moduli come il frontend.
+
+**Cambiato**
+- Posta: da solo admin a sotto-modulo `clienti/posta` (admin + capo sala), backend e frontend; configurare le caselle resta admin. Sotto-moduli `clienti/posta` e `clienti/whatsapp` aggiunti da soli al runtime.
+- Le rotte di lettura WhatsApp (`conversazioni`, `cerca`, nuove `chat/{numero}` e `…/gestita`) seguono il sotto-modulo `clienti/whatsapp`; collegamento, conservazione e chiusure restano admin.
+
+---
+
+## 2026-11-24 — Comanda 1.0 (in prova) + sistema 6.8: TRGB prende le comande `[core]`
+Marco, dopo lo studio di fattibilità sulla cassa: il progetto si divide in tre moduli (Comanda, Cassa, Fatture in uscita) e si parte dalla Comanda. Finché non c'è la Cassa resta **in prova**: in servizio si usa iPratico.
+
+**Aggiunto**
+- Modulo nuovo `comande` (manifesto `core/moduli/comande/module.json`, DB `comande.sqlite3` creato al boot): conti aperti per tavolo con coperti, righe per uscita (Subito, 1ª…), invii ai reparti con la fotografia delle righe, «via» dell'uscita, storni con motivo, chiusura e annullo. Ruoli: admin, capo sala, sala, sommelier; impostazioni solo admin.
+- Servizio platform `catalogo_vendita`: tutto ciò che si batte in sala, riletto ogni volta da carta del momento, degustazioni, piatti del giorno, Menù Business, menu template, vini (bottiglia e calice) e Carta Bevande, con gli SKU di iPratico dove esistono (0123, B0045, M0012). 500 articoli al 24/11.
+- Servizio platform `tavoli_sala_service`: i tavoli di Prenotazioni per gli altri moduli.
+- Pagine `/comande` (tavoli per sala), `/comande/conto/:id` (conto da telefono, catalogo con ricerca, prezzo a voce, fuori carta), `/comande/invii`, `/comande/impostazioni` (uscite, reparti cucina/sala, famiglia e gruppo → reparto). Voce «📝 Comanda» nel menu e in Home.
+
+**Note**
+- Nessuna stampa ancora: gli invii aspettano il ponte locale (prossima sessione, CO.2).
+- Il seed `modules.json` non è toccato: il modulo entra nei permessi da `DEFAULT_MODULES` + `MODULI_DA_AGGIUNGERE`, senza riscrivere i ruoli scelti da Impostazioni.
+- Test: logica provata con i DB veri del locale su un `comande.sqlite3` temporaneo (catalogo, apertura, doppio tavolo, righe, prezzo a voce, fuori carta, invio, via, storno, impostazioni, chiusura); router provato con TestClient (dipendenze finte: ruoli, 403, 404, 400); JSX controllati col parser Babel. Nessuna migrazione numerata.
+
 ## 2026-11-24 — Login 2.4: dopo il PIN si arriva al link aperto `[core]`
 Segnalazione di Marco: aprendo un link senza essere entrati (contatto della rubrica, QR, tag NFC del frigo) compariva il PIN e poi si finiva in Home, mai sulla pagina del link; da entrati il link andava diretto.
 

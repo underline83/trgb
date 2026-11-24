@@ -137,13 +137,24 @@ const MODULES_MENU = {
       { label: "Impostazioni",  go: "/prenotazioni/impostazioni", check: "admin" },
     ],
   },
+  // Comanda (2026-11-24): comande prese in sala da TRGB. In prova finché non c'è la Cassa.
+  comande: {
+    title: "Comanda", icon: "\uD83D\uDCDD", go: "/comande",
+    color: "bg-rose-50 border-rose-200 text-rose-900", hoverBg: "hover:bg-rose-50",
+    sub: [
+      { label: "Tavoli",        go: "/comande" },
+      { label: "Invii",         go: "/comande/invii" },
+      { label: "Impostazioni",  go: "/comande/impostazioni", check: "admin" },
+    ],
+  },
   clienti: {
     title: "Gestione Clienti", icon: "\uD83E\uDD1D", go: "/clienti",
     color: "bg-teal-50 border-teal-200 text-teal-900", hoverBg: "hover:bg-teal-50",
     sub: [
       { label: "Clienti",       go: "/clienti/lista" },
       { label: "Preventivi",    go: "/clienti/preventivi" },
-      { label: "Posta",         go: "/clienti/posta", check: "admin" },
+      { label: "Posta",         go: "/clienti/posta" },
+      { label: "WhatsApp",      go: "/clienti/whatsapp" },
       { label: "Gift Card",     go: "/clienti/giftcard" },
       { label: "Statistiche",   go: "/clienti/dashboard" },
       { label: "Impostazioni",  go: "/clienti/impostazioni", check: "admin" },

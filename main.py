@@ -76,9 +76,10 @@ from app.routers import ipratico_products_router
 
 # CLIENTI CRM
 from app.routers.clienti_router import router as clienti_router
-from app.routers.clienti_whatsapp_router import (  # WhatsApp in sola lettura (coexistence Meta)
+from app.routers.clienti_whatsapp_router import (  # WhatsApp in sola lettura (coexistence, via YCloud)
     router as clienti_whatsapp_router,
     public_router as clienti_whatsapp_public_router,
+    pagina_router as clienti_whatsapp_pagina_router,
 )
 from app.routers.clienti_giftcard_router import router as clienti_giftcard_router
 from app.routers.clienti_rubrica_router import (  # rubrica dei clienti sul telefono (CardDAV, mig 238)
@@ -164,6 +165,9 @@ from app.routers.sito_pubblico_router import router as sito_pubblico_router  # v
 from app.routers.cassa_ipratico_router import router as cassa_ipratico_router
 # CUCINA › Piatti che vanno (modulo ricette) — porzioni dai conti di cassa (IP.1, 2026-10-28)
 from app.routers.cucina_vendite_router import router as cucina_vendite_router
+# COMANDA (modulo comande) — comande prese in sala da TRGB, in prova finché non c'è la Cassa (2026-11-24)
+# Doc: docs/modulo_comande.md
+from app.routers.comande_router import router as comande_router
 
 # R8b — module loader: feature flags per locale.
 # Legge locali/<TRGB_LOCALE>/moduli_attivi.json + core/moduli/<id>/module.json
@@ -777,6 +781,7 @@ _mount("ipratico_products_router", ipratico_products_router.router)
 # WhatsApp (webhook pubblico Meta + pagina admin) PRIMA di clienti_router, che ha rotte /clienti/{id}
 _mount("clienti_whatsapp_router", clienti_whatsapp_public_router)
 _mount("clienti_whatsapp_router", clienti_whatsapp_router)
+_mount("clienti_whatsapp_router", clienti_whatsapp_pagina_router)  # pagina «💬 WhatsApp» (matrice Moduli)
 # Rubrica del telefono (CardDAV pubblico con Basic auth + pagina admin) PRIMA di clienti_router
 _mount("clienti_rubrica_router", clienti_rubrica_public_router)
 _mount("clienti_rubrica_router", clienti_rubrica_router)
@@ -895,6 +900,9 @@ if module_loader.is_router_active("cassa_ipratico_router"):
 
 # CUCINA › Piatti che vanno (modulo ricette) — legge i conti via vendite_conti_service
 _mount("cucina_vendite_router", cucina_vendite_router)
+
+# COMANDA (modulo comande) — schema al boot (init_comande_db); catalogo e tavoli dai servizi platform
+_mount("comande_router", comande_router)
 
 
 # Banner finale del module loader

@@ -1,4 +1,5 @@
-# @version: v1.0 — M.G fase 1 (2026-09-01)
+# @version: v1.1 — ruoli dalla matrice Moduli: richiede_sotto_modulo / ha_sotto_modulo (2026-11-24)
+# v1.0 — M.G fase 1 (2026-09-01)
 # -*- coding: utf-8 -*-
 """
 M.G Permessi — guardie di ruolo riutilizzabili (fase 1)
@@ -213,3 +214,55 @@ def solo_superadmin(cosa: str | None = None) -> Callable:
     """Solo superadmin, admin ESCLUSO. Per le funzioni davvero riservate
     (es. preconti). Qui `superadmin` non è implicito: è l'unico consentito."""
     return richiede_ruoli("superadmin", cosa=cosa)
+
+
+# ============================================================
+# DALLA MATRICE MODULI — ruoli che si cambiano da Impostazioni (2026-11-24)
+# ============================================================
+# Marco (24/11): «ragionare modularmente ed avere dei flag per attivare e
+# disattivare tutto a tutti». La matrice ruoli × moduli/sotto-moduli c'è già
+# (modules.json del locale, Impostazioni Sistema › Moduli, la usa il frontend
+# con useModuleAccess): queste guardie fanno sì che anche il BACKEND la segua,
+# invece di avere i ruoli scritti nel router. Admin e superadmin passano sempre
+# (la matrice non può chiudere fuori l'amministratore).
+
+def ruoli_sotto_modulo(modulo: str, sub: str, ripiego: Iterable[str] = ("admin",)) -> FrozenSet[str]:
+    """Ruoli che oggi aprono `modulo/sub` secondo la matrice Moduli del locale.
+
+    Come `canAccessSub` del frontend: se il sotto-modulo non è nella matrice
+    valgono i ruoli del modulo. Se la matrice non si legge o il modulo non c'è,
+    `ripiego` (di solito solo admin: si resta chiusi).
+    """
+    try:
+        # platform → platform: la matrice e il suo caricamento (seed, runtime,
+        # sotto-moduli nuovi aggiunti da soli) vivono in modules_router.
+        from app.routers.modules_router import _load as _carica_moduli
+        mod = next((m for m in _carica_moduli() if m.get("key") == modulo), None)
+    except Exception:
+        mod = None
+    if not mod:
+        return _normalizza(ripiego)
+    voce = next((s for s in (mod.get("sub") or []) if s.get("key") == sub), None) or mod
+    ruoli = {r for r in (voce.get("roles") or []) if r in VALID_ROLES}
+    return frozenset(ruoli | {"admin", "superadmin"})
+
+
+def ha_sotto_modulo(user: Dict[str, Any] | None, modulo: str, sub: str) -> bool:
+    return _ruolo_flessibile(user) in ruoli_sotto_modulo(modulo, sub)
+
+
+def richiede_sotto_modulo(modulo: str, sub: str, cosa: str | None = None) -> Callable:
+    """Dependency: passa chi ha `modulo/sub` nella matrice Moduli (letta a ogni
+    richiesta, così un cambio da Impostazioni vale subito). Ritorna l'utente."""
+
+    def _guardia(current_user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
+        consentiti = ruoli_sotto_modulo(modulo, sub)
+        if _ruolo(current_user) not in consentiti:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=_messaggio(consentiti, cosa),
+            )
+        return current_user
+
+    _guardia.__doc__ = f"Richiede il sotto-modulo {modulo}/{sub} nella matrice Moduli"
+    return _guardia
