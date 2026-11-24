@@ -57,7 +57,7 @@ Bug noti chiusi: incidente 4 mag (S60-INC1 in [`problemi.md`](problemi.md)), R6.
 | ID | Cosa | Effort | Stato | Note |
 |----|------|--------|-------|------|
 | M.A | Notifiche infrastruttura + DB notifiche | M | ✅ FATTO (S31) | `app/services/notifiche_service.py`, usato da M.F, push.sh, backup_db.sh |
-| M.A.2 | **Notifiche push sui dispositivi** — fase 1: dispositivi, chiavi, invio web push, attiva/spegni/prova dal campanello | M | 🔨 2026-11-24 (backend in produzione 85878008, frontend da pushare; prova su iPhone da fare) | [spec_notifiche_push.md](spec_notifiche_push.md). A canali: `webpush` oggi, `apns` con l'app nativa (obiettivo). Fase 2: interruttori per tipo e destinatari, aggancio a `crea_notifica`, strumento `notifica_crea` nel connettore |
+| M.A.2 | **Notifiche push sui dispositivi** — fase 1: dispositivi, chiavi, invio web push, attiva/spegni/prova dal campanello | M | ✅ fase 1 FATTA 2026-11-24 (85878008 backend, 60c38e44 frontend) — push di prova arrivata sull'iPhone di Marco; fase 2 da decidere | [spec_notifiche_push.md](spec_notifiche_push.md). A canali: `webpush` oggi, `apns` con l'app nativa (obiettivo). Fase 2: interruttori per tipo e destinatari, aggancio a `crea_notifica`, strumento `notifica_crea` nel connettore |
 | M.B | PDF brand service | M | ✅ FATTO (S34) | `app/services/pdf_brand.py`. Carta vini esclusa (motore separato) |
 | M.C | WhatsApp composer | S | ✅ FATTO (S31) | `frontend/src/utils/whatsapp.js`, `app/utils/whatsapp.py`, `WA_TEMPLATES` |
 | M.E | Calendar component | M | ✅ FATTO (S48 2026-04-19) | `components/calendar/CalendarView.jsx`, demo `/calendario-demo` |
@@ -839,7 +839,7 @@ Ordine dentro ogni fase: prima sola lettura → poi bozze (finiscono nelle Bozze
 | T.4 | WAL mode coverage 6 DB rimanenti (batch cleanup) | S | MEDIA | |
 | T.5 | Migrazioni unificate ai 9 DB non-foodcost | M | MEDIA | |
 | T.6 | Endpoint /system/maintenance + banner FE | M | MEDIA | |
-| T.7 | Restore test settimanale automatico (sicurezza_backup TODO) | M | MEDIA | Safety |
+| T.7 | Restore test settimanale automatico (sicurezza_backup TODO) | M | ✅ FATTO 2026-11-24 (da pushare) | `scripts/restore_test.py`, lanciato da `backup_db.sh` 2.4 dopo il daily delle 03:00; check 7 del watchdog, riquadro nella card Backup. [sicurezza_backup.md](sicurezza_backup.md) §2.6, [ripristino_backup.md](ripristino_backup.md) |
 | T.8 | Pulizia backup forensi vini_magazzino (S52-1 chiuso) | XS | BASSA | |
 | T.9 | Cleanup file morti (run_server.py, update_vps.sh orfano) | XS | BASSA | |
 | T.10 | Aruba snapshot manuale settimanale | XS | BASSA | "Da ricordare" — Marco gestisce manuale dal pannello |

@@ -12,6 +12,9 @@
 #   4. last_known_good/:    contiene tutti i DB con size > 8KB e integrity ok
 #   5. Backup hourly count: almeno N backup recenti per ogni DB
 #
+# v1.4 (2026-11-24): check 7 — restore di prova (scripts/restore_test.py):
+#    fallito, oppure più vecchio di 8 giorni.
+#
 # v1.3 (2026-11-24):
 #  - Lista DB DINAMICA, come backup_db.sh dal 15/5: la lista fissa dei 10 DB di
 #    maggio lasciava senza sorveglianza i 7 nati dopo (accessi, cassa_conti,
@@ -52,6 +55,8 @@ DRIVE_SYNC_STAMP="$BACKUP_DIR/.last_drive_sync"
 HEALTH_STATUS_FILE="$BACKUP_DIR/.last_health_status.json"
 NOTIFY_STAMP_FILE="$BACKUP_DIR/.last_health_notified"
 UPLOADS_STAMP="$BACKUP_DIR/.last_uploads_backup"
+RESTORE_STATUS="$BACKUP_DIR/.last_restore_test.json"
+RESTORE_MAX_AGE_HOURS=192  # 8 giorni: la prova è settimanale
 VENV_PYTHON="/home/marco/trgb/venv-trgb/bin/python"
 
 RENOTIFY_AFTER_SECONDS=21600  # 6h: re-remind se il problema persiste
@@ -282,6 +287,27 @@ if [ -f "$UPLOADS_STAMP" ]; then
     fi
 else
     echo "ℹ️  Nessuna copia dei file caricati ancora (parte col prossimo --daily)"
+fi
+
+# ── 7. Restore di prova (restore_test.py, settimanale) ──────────────────────
+# Finché il file non esiste (prima prova: il daily delle 03:00 dopo il deploy)
+# non è un allarme.
+echo ""
+echo "--- Check 7: restore di prova ---"
+if [ -f "$RESTORE_STATUS" ]; then
+    RT_EPOCH=$(grep -o '"epoch": [0-9]*' "$RESTORE_STATUS" | grep -o '[0-9]*' | head -1)
+    RT_AGE_H=$(( (NOW - ${RT_EPOCH:-0}) / 3600 ))
+    if ! grep -q '"status": "ok"' "$RESTORE_STATUS"; then
+        ISSUES+=("restore_test_fallito")
+        echo "❌ Ultimo restore di prova FALLITO (${RT_AGE_H}h fa)"
+    elif [ "$RT_AGE_H" -gt "$RESTORE_MAX_AGE_HOURS" ]; then
+        ISSUES+=("restore_test_stale_${RT_AGE_H}h")
+        echo "❌ Restore di prova di ${RT_AGE_H}h fa (soglia $RESTORE_MAX_AGE_HOURS h)"
+    else
+        echo "✅ Restore di prova riuscito: ${RT_AGE_H}h fa"
+    fi
+else
+    echo "ℹ️  Nessun restore di prova ancora (parte col prossimo daily delle 03:00)"
 fi
 
 # ── Riepilogo + notifica se issues ──────────────────────────────────────────

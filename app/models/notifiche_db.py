@@ -1,4 +1,4 @@
-# @version: v1.2 (2026-11-24) — tabelle notifiche_dispositivi e notifiche_push_config (push sui dispositivi); v1.1-wal-protected
+# @version: v1.3 (2026-11-24) — tabella notifiche_push_regole (quali tipi diventano push); v1.2 (2026-11-24) — tabelle notifiche_dispositivi e notifiche_push_config (push sui dispositivi); v1.1-wal-protected
 # -*- coding: utf-8 -*-
 """
 Database Notifiche — TRGB Gestionale (mattone M.A)
@@ -219,6 +219,17 @@ def init_notifiche_db() -> None:
         )
     """)
     cur.execute("CREATE INDEX IF NOT EXISTS idx_notifiche_dispositivi_user ON notifiche_dispositivi(username)")
+    # Quali tipi di notifica diventano push (fase 2, 2026-11-24). Un tipo senza riga non
+    # suona. I tipi accesi di partenza li mette notifiche_push.semina_regole (INSERT OR
+    # IGNORE: una scelta fatta da Impostazioni non viene mai riscritta).
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS notifiche_push_regole (
+            tipo            TEXT PRIMARY KEY,
+            push            INTEGER NOT NULL DEFAULT 0,
+            aggiornato_il   TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+            aggiornato_da   TEXT
+        )
+    """)
 
     # ── INDICI ──
     cur.execute("CREATE INDEX IF NOT EXISTS idx_notifiche_dest_username ON notifiche(dest_username)")

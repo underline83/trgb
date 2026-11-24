@@ -1,6 +1,6 @@
 # Spec — Notifiche push sui dispositivi (mattone M.A) — TRGB Gestionale
 
-> **Tipo:** 📄 pagina wiki · **Stato:** in corso — fase 1 scritta il 2026-11-24 (backend in produzione, frontend da pushare) · **Ultima verifica:** 2026-11-24
+> **Tipo:** 📄 pagina wiki · **Stato:** in corso — fase 1 in produzione e provata sull'iPhone di Marco il 2026-11-24; fase 2 da decidere · **Ultima verifica:** 2026-11-24
 > **Vedi anche:** [architettura_mattoni.md](architettura_mattoni.md) §M.A · [analisi_app_apple.md](analisi_app_apple.md) (la strada verso l'app nativa) · [connettore_mcp.md](connettore_mcp.md)
 
 **Classificazione:** `[core]`, platform, estensione del mattone **M.A** (notifiche). Nessun modulo vendibile nuovo.
@@ -66,7 +66,7 @@ Permessi (M.G): le quattro rotte dichiarano tutti i ruoli (`_OGNUNO` in `notific
 ## 6. Limiti noti
 
 - **iPhone e iPad:** servono iOS/iPadOS 16.4 o successivi, TRGB sulla schermata Home, e ognuno attiva le notifiche una volta per dispositivo con un tocco. Da Safari normale il riquadro lo spiega.
-- **Europa:** le fonti si contraddicono sul fatto che le push delle web app funzionino nei paesi UE. Si chiude con la prova sull'iPhone di Marco (§8).
+- **Europa:** le fonti si contraddicevano sul fatto che le push delle web app funzionino nei paesi UE. Chiuso il 24/11/2026: sull'iPhone di Marco, in Italia, la push di prova è arrivata.
 - Il service worker mostra sempre una notifica per ogni push: su Safari chi riceve push senza mostrarle perde il permesso.
 - Niente contatore sull'icona (badge) e niente push silenziose: fase 3.
 
@@ -74,7 +74,7 @@ Permessi (M.G): le quattro rotte dichiarano tutti i ruoli (`_OGNUNO` in `notific
 
 | Fase | Cosa | Stato |
 |---|---|---|
-| **1** | Dispositivi, chiavi, invio web push, attiva/spegni/prova dal campanello | scritta il 2026-11-24 — backend in produzione (uscito col push 85878008), frontend da pushare |
+| **1** | Dispositivi, chiavi, invio web push, attiva/spegni/prova dal campanello | ✅ in produzione dal 2026-11-24 (85878008 backend, 60c38e44 frontend) — provata sull'iPhone di Marco |
 | **2** | Interruttori per tipo e destinatari (Impostazioni › Notifiche), aggancio a `crea_notifica`, strumento `notifica_crea` nel connettore per il giro | da fare, dopo la prova sull'iPhone |
 | **3** | Contatore sull'icona, pagina dei valori (`ttl_ore`, `errori_max`), elenco dispositivi di tutti per l'admin | da fare |
 | **C** | Canale `apns` con l'app Capacitor | obiettivo |
@@ -85,7 +85,7 @@ Permessi (M.G): le quattro rotte dichiarano tutti i ruoli (`_OGNUNO` in `notific
 
 **Fatte (2026-11-24):** `tests/test_notifiche_push.py`, 19 prove — cifratura contro l'esempio dell'RFC 8291, firma VAPID verificata con la chiave pubblica, dispositivi (registrazione, stesso dispositivo due volte, indirizzi rifiutati, ognuno i suoi), invio (riuscito, dispositivo sparito tolto, errori di fila che spengono, rete giù, canale ignoto, valori cambiati), chiavi (una volta sola, cifrate, chiave del locale cambiata). In produzione: `/notifiche/push/stato` risponde con la chiave pubblica (commit 85878008). I quattro file del frontend passano il parser.
 
-**Non fatte:** il riquadro nel browser, e soprattutto **una push vera su un dispositivo** — è la prova che decide se la strada regge su iPhone in Italia.
+**Sul dispositivo (Marco, 24/11/2026 alle 22:07):** dopo il push della testata (Header 6.3: prima il campanello restava sotto l'orologio e non si toccava) ha attivato le notifiche dall'iPhone e la push di prova è arrivata a schermo bloccato; al tocco si è aperto TRGB. Così l'ha confermato in chat («funziona», «esatto»). Non provati: iPad, Android, computer, e un dispositivo che si spegne dopo gli errori.
 
 **Dopo il push (Marco):**
 1. Sull'iPhone apri TRGB dall'icona sulla Home, chiudilo del tutto e riaprilo (serve a caricare il service worker nuovo).

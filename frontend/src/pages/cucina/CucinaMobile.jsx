@@ -1,6 +1,7 @@
 // frontend/src/pages/cucina/CucinaMobile.jsx
 // Modulo: cucina
-// @version: v1.15 — etichette e Copia link dei tag spostati in utils/etichetteTag (condivisi con la cantina), stesso risultato (2026-11-24)
+// @version: v1.16 — Registro del frigo: tutti i movimenti del posto, non solo i finiti (2026-11-24, cucinaScorte 1.26)
+// v1.15 — etichette e Copia link dei tag spostati in utils/etichetteTag (condivisi con la cantina), stesso risultato (2026-11-24)
 // v1.14 — tag NFC sulle porte: link di un ripiano (?r=) che apre solo quel ripiano; modo «🏷️ Tag» nel frigo con Copia link ed etichette 90×29 (2026-11-23)
 // v1.13 — «Collega i prodotti»: abbinamento guidato (sicuri in blocco, dubbi uno a uno, ricerca a mano) da Scorte; CollegaSheet condiviso (2026-11-08)
 // v1.12 — Collega: ingredienti prima delle ricette, ricerca per parole, si parte dalla prima parola del nome (2026-11-08)
@@ -2270,7 +2271,7 @@ function DentroFrigo({ id, soloRipiano, canWrite, indietro, apriArticolo, tuttoI
   const [aggiungi, setAggiungi] = useState(null);   // il ripiano su cui aggiungere
   const [corr, setCorr] = useState(null);           // correzione da tocco sul pallino (MOVIMENTI)
   const [err, setErr] = useState(null);
-  // Vista: "tutti" | "mancanti" | "registro" (registro dei finiti, chef/sous chef)
+  // Vista: "tutti" | "mancanti" | "registro" (tutti i movimenti del posto, chef/sous chef)
   //        | "tag" (link e etichette dei ripiani per i tag NFC, stessi ruoli del registro)
   const [vista, setVista] = useState("tutti");
   const [copiato, setCopiato] = useState(null);     // { id, ok } dell'ultimo «Copia link»
@@ -2414,7 +2415,7 @@ function DentroFrigo({ id, soloRipiano, canWrite, indietro, apriArticolo, tuttoI
           </div>
         )}
 
-        {vistaEff === "registro" && <RegistroFiniti ubicazioneId={id} onCambio={load} />}
+        {vistaEff === "registro" && <RegistroFrigo ubicazioneId={id} onCambio={load} />}
 
         {vistaEff === "tag" && (
           <>
@@ -2501,6 +2502,163 @@ function DentroFrigo({ id, soloRipiano, canWrite, indietro, apriArticolo, tuttoI
                        onFatto={() => { setAggiungi(null); load(); }} />
       )}
     </>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Registro del frigo (Marco 2026-11-24: «dovrei vedere tutto»). Prima qui
+// c'erano solo i «finiti» del regime conta, che da quando tutto è a movimenti
+// non si riempiva più. Ora è la timeline di OGNI movimento del posto: carichi,
+// scarichi, correzioni a mano, controlli di linea, spostamenti, scarti, finiti,
+// con chi e quando. Legge GET /cucina/scorte/movimenti/ (c'era già). Il filtro
+// «Finiti» resta il vecchio elenco, con «Rimetti».
+// ─────────────────────────────────────────────────────────────
+const REG_GIORNI = 30;   // quanti giorni carica ogni volta («Altri 30 giorni»)
+const REG_FILTRI = [
+  ["tutto", "Tutto"], ["carico", "Carichi"], ["scarico", "Scarichi"],
+  ["correzione", "Correzioni"], ["controllo", "Controlli"],
+  ["sposta", "Spostamenti"], ["scarto", "Scarti"], ["finito", "Finiti"],
+];
+
+function regGenere(m) {
+  if (m.tipo === "CARICO") return "carico";
+  if (m.tipo === "SCARICO") return "scarico";
+  if (m.tipo === "SCARTO") return "scarto";
+  if (m.tipo === "TRASFERIMENTO") return "sposta";
+  if (m.ref_modulo === "finito") return "finito";
+  if (m.ref_modulo === "task_manager") return "controllo";
+  return "correzione";
+}
+
+function regGiorniFa(n) {
+  const d = new Date(); d.setDate(d.getDate() - n);
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0, 10);
+}
+
+function regTitoloGiorno(iso) {
+  if (iso === oggiIso()) return "Oggi";
+  if (iso === regGiorniFa(1)) return "Ieri";
+  const d = new Date(`${iso}T12:00:00`);
+  return d.toLocaleDateString("it-IT", { weekday: "short", day: "numeric", month: "short" });
+}
+
+function RegistroFrigo({ ubicazioneId, onCambio }) {
+  const [filtro, setFiltro] = useState("tutto");
+  const [giorni, setGiorni] = useState(REG_GIORNI);
+  const [righe, setRighe] = useState(null);
+  const [pieno, setPieno] = useState(false);
+  const [err, setErr] = useState(null);
+
+  useEffect(() => {
+    let vivo = true;
+    (async () => {
+      try {
+        const res = await apiFetch(
+          `${API_BASE}/cucina/scorte/movimenti/?ubicazione_id=${ubicazioneId}&dal=${regGiorniFa(giorni)}&limit=2000`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const d = await res.json();
+        if (!vivo) return;
+        const mov = (d.movimenti || []).filter((m) => !(m.motivo || "").startsWith("[DEMO]"));
+        setRighe(mov);
+        setPieno((d.movimenti || []).length >= 2000);
+        setErr(null);
+      } catch (e) { if (vivo) setErr(e.message); }
+    })();
+    return () => { vivo = false; };
+  }, [ubicazioneId, giorni]);
+
+  const conta = {};
+  (righe || []).forEach((m) => { const g = regGenere(m); conta[g] = (conta[g] || 0) + 1; });
+
+  const pillole = (
+    <div className="km-pills wrap">
+      {REG_FILTRI.map(([k, label]) => (
+        <button key={k} className={`km-pill${filtro === k ? " on" : ""}`} onClick={() => setFiltro(k)}>
+          {label}
+          {k === "tutto" ? (righe ? <span className="c">{righe.length}</span> : null)
+            : conta[k] ? <span className="c">{conta[k]}</span> : null}
+        </button>
+      ))}
+    </div>
+  );
+
+  // I finiti restano il loro elenco (tutti, non solo l'ultimo periodo) con «Rimetti».
+  if (filtro === "finito") return (<>{pillole}<RegistroFiniti ubicazioneId={ubicazioneId} onCambio={onCambio} /></>);
+
+  if (err && !righe) return (<>{pillole}<div className="km-err">{err}</div></>);
+  if (!righe) return (<>{pillole}<Vuoto icona="⏳" titolo="Carico…" /></>);
+
+  const viste = filtro === "tutto" ? righe : righe.filter((m) => regGenere(m) === filtro);
+  const perGiorno = [];
+  viste.forEach((m) => {
+    const g = (m.created_at || "").slice(0, 10);
+    const ultimo = perGiorno[perGiorno.length - 1];
+    if (ultimo && ultimo.g === g) ultimo.righe.push(m); else perGiorno.push({ g, righe: [m] });
+  });
+
+  return (
+    <>
+      {pillole}
+      {err && <div className="km-err">{err}</div>}
+      {pieno && (
+        <div className="km-banner a"><span>⚠️</span>
+          <div>Sono più di 2000 movimenti: qui ci sono i più recenti.</div></div>
+      )}
+      {viste.length === 0 && (
+        <Vuoto icona="📒" titolo="Niente in questo periodo"
+               testo={`Negli ultimi ${giorni} giorni non c'è nessun movimento di questo tipo.`} />
+      )}
+      {perGiorno.map((gr) => (
+        <React.Fragment key={gr.g}>
+          <div className="km-lbl">{regTitoloGiorno(gr.g)} · {gr.righe.length}</div>
+          <div className="km-card" style={{ padding: "4px 14px" }}>
+            {gr.righe.map((m, i) => <RigaRegistro key={m.id} m={m} primo={i === 0} />)}
+          </div>
+        </React.Fragment>
+      ))}
+      <button className="km-pill" style={{ alignSelf: "center" }} onClick={() => setGiorni(giorni + REG_GIORNI)}>
+        Altri {REG_GIORNI} giorni (ora: ultimi {giorni})
+      </button>
+    </>
+  );
+}
+
+function RigaRegistro({ m, primo }) {
+  const g = regGenere(m);
+  const um = (m.um || "").toLowerCase();
+  const d = num(m.qta_delta);
+  const prima = fmtQta(num(m.qta_precedente));
+  const dopo = fmtQta(num(m.qta_risultante));
+  const altro = m.altra_ubicazione
+    ? `${m.altra_ubicazione}${m.altro_ripiano ? ` rip. ${m.altro_ripiano}` : ""}` : null;
+
+  let tone = "n", cosa = "";
+  if (g === "carico") { tone = "g"; cosa = `＋${fmtQta(Math.abs(d))} ${um}`; }
+  else if (g === "scarico") { tone = "n"; cosa = `−${fmtQta(Math.abs(d))} ${um}`; }
+  else if (g === "scarto") { tone = "r"; cosa = `buttato ${fmtQta(Math.abs(d))} ${um}`; }
+  else if (g === "sposta") { tone = "b"; cosa = d < 0 ? `spostato via ${fmtQta(Math.abs(d))} ${um}` : `arrivato ${fmtQta(Math.abs(d))} ${um}`; }
+  else if (g === "finito") { tone = "r"; cosa = "finito, tolto dal ripiano"; }
+  else if (g === "controllo") { tone = d === 0 ? "v" : "a"; cosa = d === 0 ? `controllo: ${dopo} ${um}` : `controllo: ${prima} → ${dopo} ${um}`; }
+  else { tone = "a"; cosa = `corretto ${prima} → ${dopo} ${um}`; }
+
+  const dettagli = [
+    (m.created_at || "").slice(11, 16),
+    m.utente || null,
+    m.ripiano ? `rip. ${m.ripiano}` : null,
+    g === "sposta" && altro ? (d < 0 ? `verso ${altro}` : `da ${altro}`) : null,
+    (g === "carico" || g === "scarico" || g === "scarto") ? `${prima} → ${dopo}` : null,
+    m.motivo && !["Controllo linea", "correzione a mano", "Finito"].includes(m.motivo) ? m.motivo : null,
+  ].filter(Boolean).join(" · ");
+
+  return (
+    <div style={{ padding: "9px 0", borderTop: primo ? 0 : "1px solid var(--hair)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
+        <b style={{ minWidth: 0, fontSize: 14.5 }}>{m.articolo}</b>
+        <span className={`km-chip ${tone}`} style={{ flex: "0 0 auto" }}>{cosa}</span>
+      </div>
+      <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 2 }}>{dettagli}</div>
+    </div>
   );
 }
 

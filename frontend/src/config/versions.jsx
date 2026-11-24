@@ -257,6 +257,10 @@ const MODULE_VERSIONS = {
     color: "orange",
   },
   cucinaScorte: {
+    // 1.26 (2026-11-24): il «Registro» dentro al frigo mostra TUTTI i movimenti del posto (carichi, scarichi,
+    //   correzioni, controlli di linea, spostamenti con da/verso, scarti, finiti) per giorno, con chi e quando;
+    //   prima solo i «finiti» del regime conta. GET /cucina/scorte/movimenti/ ora dà anche l'altro capo
+    //   di uno spostamento. Nessuna migrazione.
     // 1.25 (2026-11-24): fix — il «contenuto del pezzo» (contenuto_um) si salva anche da POST/PATCH articoli:
     //   la valida() generica lo metteva in maiuscolo («ml» → «ML») e lo rifiutava sempre; ora passa da
     //   controllo_menu.normalizza_um_contenuto (controllo_menu 1.5). Test: tests/test_contenuto_um.py.
@@ -359,7 +363,7 @@ const MODULE_VERSIONS = {
     //   cucina_*, 40 endpoint, nessuna UI.
     //   Doc: docs/modulo_scorte_cucina.md
     //   Mockup: docs/mockups/cucina_mobile_scorte_frigo.html
-    version: "1.25",
+    version: "1.26",
     label: "Scorte & Frigoriferi",
     status: "alpha",
     color: "orange",

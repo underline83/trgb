@@ -362,7 +362,7 @@ elementi no. Il frontend copia da qui, non a memoria.
 | POST | `/cucina/scorte/dotazione/testo` | **incolla-testo**. `conferma:false` (default) = solo anteprima con esito per riga: `ESISTE` / `NUOVO` / `SIMILE` |
 | POST | `/cucina/scorte/movimenti/` | il segno lo decide il `tipo`, non il chiamante: `SCARICO`/`SCARTO` tolgono, `CARICO` aggiunge |
 | DELETE | `/cucina/scorte/movimenti/{id}` | undo a 8s (soft-delete tracciato) |
-| GET | `/cucina/scorte/movimenti/` | timeline filtrabile (articolo, posto, tipo, date) |
+| GET | `/cucina/scorte/movimenti/` | timeline filtrabile (articolo, posto, tipo, date). Per gli spostamenti dà anche l'altro capo (`altra_ubicazione`, `altro_ripiano`). È quello che legge il «Registro» del frigo (dal 2026-11-24) |
 | GET/POST | `/cucina/scorte/conte/` | elenco con avanzamento / apri sessione (409 se una e' gia' aperta sul reparto) |
 | GET | `/cucina/scorte/conte/{id}/ripiani` | **dove sei rimasto** |
 | GET | `/cucina/scorte/conte/{id}/ripiani/{rid}` | foglio del ripiano, precompilato con `qta_attesa` |
@@ -651,6 +651,7 @@ Piano a tre push, ognuno deployabile da solo:
 | C-K-229c | Stampare il contenuto di un frigo (ripiano per ripiano, «In TRGB» + «Contato») e la lista spesa | `utils/stampaLista.js`, `CucinaMobile.jsx` `DentroFrigo`/`TabSpesa`, `ListaSpesa.jsx` | brigata | 🆕 |
 | C-K-229d | Vedere cos'è un articolo (ricetta o ingrediente, con link) e collegarlo | `GET /cucina/scorte/collega/cerca`, `get_articolo` (`ricetta_nome`/`ingrediente_nome`), `CucinaMobile.jsx` scheda «È: …» | brigata | 🆕 |
 | C-K-229e | Eliminare (disattivare) un articolo dalla scheda | `DELETE /cucina/scorte/articoli/{id}`, scheda «🗑 Elimina prodotto» | admin/chef | 🆕 |
+| C-K-REG1 | «Registro» dentro al frigo: tutti i movimenti del posto per giorno (carichi, scarichi, correzioni a mano, controlli di linea, spostamenti da/verso, scarti, finiti), con chi e a che ora; filtri per tipo, «Altri 30 giorni»; «Finiti» resta con «Rimetti» | `CucinaMobile.jsx` `RegistroFrigo`/`RigaRegistro`, `GET /cucina/scorte/movimenti/` (`cucina_scorte_router.py` `list_movimenti`) | admin/chef/sous chef | 🆕 |
 | C-K-229f | Togliere una riga dalla Lista spesa da iPhone | `DELETE /lista-spesa/items/{id}`, `TabSpesa` «🗑 Non serve» | brigata | 🆕 |
 | C-K-229g | Abbinamento guidato dei prodotti scollegati (sicuri in blocco, dubbi uno a uno) | `GET /cucina/scorte/collega/proposte`, `POST /cucina/scorte/collega/conferma`, `ricette_lookup.proponi_collegamenti`, `CucinaMobile.jsx` `Abbina` | admin/chef | 🆕 |
 | C-K-233a | Controllo menu: per ogni piatto in carta le porzioni realizzabili (subito / con il gelo), collo di bottiglia, dati mancanti, semaforo di linea di oggi | `GET /cucina/scorte/controllo-menu`, `services/controllo_menu.py` `calcola()`, `CucinaControlloMenu.jsx` | admin (dal 13/11 sera) | 🆕 |

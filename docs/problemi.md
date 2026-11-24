@@ -91,7 +91,7 @@ nuovi (con WAL già attivo sui path vecchi), si genera una race in cui:
 - [ ] Backblaze B2 ridondante a Drive
 - [x] R6.5 push 2 (consolidamento fisico DB + rimozione fallback locale_data_path)
   — fatto il 4-5 maggio 2026 (push 2 e push 3)
-- [ ] Restore test settimanale automatico
+- [x] Restore test settimanale automatico (2026-11-24, `scripts/restore_test.py`)
 
 **Lezioni:**
 1. Un backend che risponde 200 OK NON significa che funzioni. L'unica verifica vera è interrogare i dati.

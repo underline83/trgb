@@ -505,6 +505,18 @@ def system_backup_health(user=Depends(get_current_user)):
     else:
         out["issues"].append("lkg_dir_not_found")
 
+    # 6. Ultimo restore di prova (scripts/restore_test.py, settimanale)
+    out["last_restore_test"] = None
+    restore_file = backup_dir / ".last_restore_test.json"
+    if restore_file.exists():
+        try:
+            _rt = json.loads(restore_file.read_text())
+            _rt.pop("dbs", None)  # il dettaglio per DB resta nel file
+            _rt["age_h"] = int((now - int(_rt.get("epoch", 0))) / 3600)
+            out["last_restore_test"] = _rt
+        except Exception as e:
+            out["issues"].append(f"restore_file_parse_error:{e}")
+
     # Se non c'è health_file ma il backup è recente, deduco status
     if out["status"] == "unknown":
         if hm is not None and hm < 70 and out["lkg_summary"]["ok"] >= 8:

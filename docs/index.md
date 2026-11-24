@@ -73,6 +73,7 @@ Home del wiki di progetto. Ogni pagina di `docs/` è elencata qui, per argomento
 - 📄 [GUIDA-RAPIDA.md](GUIDA-RAPIDA.md) — comandi operativi rapidi: ssh, backup, log, restart, setup nuovo PC.
 - 📄 [installazione_nuovo_server.md](installazione_nuovo_server.md) — runbook setup server per nuovo cliente.
 - 📄 [sicurezza_backup.md](sicurezza_backup.md) — architettura backup post-incidente S60-INC1.
+- 📄 [ripristino_backup.md](ripristino_backup.md) — come si ripristina un DB, un file caricato o tutto il VPS dai backup.
 - 📄 [analisi_hardening_vps.md](analisi_hardening_vps.md) — analisi hardening del VPS Aruba.
 
 ## 🔍 Audit & analisi

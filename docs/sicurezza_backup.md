@@ -159,7 +159,7 @@ File: `scripts/check_backup_health.sh`
 
 **Cosa fa:**
 - Gira via cron OGNI 30 MINUTI, ai minuti 15 e 45 (sfasato dai backup)
-- Verifica 6 cose:
+- Verifica 7 cose:
   1. Backup orario fresco (< 70 min)
   2. Backup daily fresco (< 25 ore)
   3. Drive sync fresco (< 25 ore)
@@ -171,6 +171,7 @@ File: `scripts/check_backup_health.sh`
      (se l'apertura immutable non dà `ok` ricade sul `-readonly` di prima).
   5. Status file `.last_backup_status.json` riporta `failed_count: 0`
   6. Copia dei file caricati (v1.3): stamp `.last_uploads_backup` < 25 ore
+  7. Restore di prova (v1.4): ultimo esito `ok` e più recente di 8 giorni (§2.6)
 - Scrive esito in `backups/.last_health_status.json`
 - Se 1+ check fallisce → notifica via M.A con urgenza alta a `superadmin`
 - **v1.2 (2 lug 2026) — dedupe notifiche**: notifica solo se il set di issues
@@ -246,11 +247,39 @@ caricati in `app/data/backups/uploads/`, v2.3):
 - [ ] Aruba snapshot manuale settimanale (Marco lo fa dal pannello)
 - [ ] Backblaze B2 sync alternativa a Drive (ridondanza geografica)
 - [ ] Time Machine attivo sul Mac di Marco
-- [ ] Restore test settimanale automatico (lancia un `.backup` di prova,
-  compara dimensione/integrity, notifica via M.A se fallisce) — T.7 in
-  [roadmap.md](roadmap.md). Al 24/11/2026 un restore non è mai stato provato.
-- [ ] Capire i due buchi di 10-12 ore senza backup orario del 1/6 e 1/8/2026
-  (notifiche `hourly_stale_584min` e `_764min`, tutti e due il primo del mese)
+- [x] Restore test settimanale automatico — fatto il 24/11/2026, v. §2.6 (T.7).
+- [x] Buchi di 10-12 ore senza backup orario del 1/6 e 1/8/2026: spiegati da
+  Marco il 24/11/2026. Il VPS era spento: il rinnovo sulla carta non era andato
+  e non se n'era accorto. Non è un guasto del backup; il rimedio è sul
+  pagamento di Aruba, non negli script.
+- [ ] Il file `.env` del VPS non è in nessun backup automatico (per scelta:
+  contiene segreti). Va tenuta una copia fuori dal VPS.
+
+### 2.6 Restore di prova settimanale (dal 24/11/2026)
+
+File: `scripts/restore_test.py` · procedura di ripristino vera: [ripristino_backup.md](ripristino_backup.md)
+
+Un backup mai ripristinato è una promessa. Una volta a settimana, dopo il daily
+delle 03:00, `backup_db.sh` (v2.4) lancia la prova:
+
+- riscarica l'ultimo giornaliero **da Google Drive** in una cartella temporanea
+  (è la copia che serve se il VPS sparisce); se Drive non risponde è un
+  fallimento e la prova continua sul giornaliero locale;
+- controlla che su Drive ci siano gli stessi file del giornaliero locale, con
+  la stessa dimensione;
+- per ogni DB: header SQLite, `integrity_check`, e conteggio delle righe
+  confrontato col DB vivo (allarme se ne ha meno del 90% e ne mancano più di
+  500: un backup integro ma mezzo vuoto è un backup rotto);
+- per ogni JSON: che sia un JSON valido.
+
+Non tocca mai i dati veri: legge il DB vivo in sola lettura e scrive solo nella
+cartella temporanea, cancellata alla fine. Esito in
+`backups/.last_restore_test.json`. Se fallisce: notifica M.A. Il watchdog
+(check 7) avvisa anche se la prova è fallita o ha più di 8 giorni; la card
+Impostazioni › Backup mostra «🧪 Restore di prova».
+
+Nessuna riga di crontab: la cadenza la tiene `backup_db.sh` (ultima prova più
+vecchia di 6 giorni e mezzo, solo al giro delle 03:00).
 
 ---
 

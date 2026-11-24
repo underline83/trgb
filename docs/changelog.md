@@ -3,6 +3,36 @@
 
 ---
 
+## 2026-11-24 — Scorte & Frigoriferi 1.26: il Registro del frigo mostra tutto `[core]`
+Marco: «possibile che il registro dei frigoriferi funzioni così? dovrei vedere tutto».
+
+**Cambiato**
+- Il tasto «Registro» dentro al frigo (Cucina iPhone) mostrava solo i «finiti» del regime conta: 15 righe in tutto, ferme all'8/11 da quando tutti gli articoli sono a movimenti. Ora è l'elenco di tutti i movimenti del posto, per giorno: carichi, scarichi, correzioni a mano, controlli di linea, spostamenti (da/verso), scarti, finiti, con chi e a che ora. Filtri per tipo, 30 giorni alla volta. «Finiti» resta com'era, con «Rimetti».
+- `GET /cucina/scorte/movimenti/`: in più `altra_ubicazione` e `altro_ripiano` per gli spostamenti.
+
+**Note**
+- I dati c'erano già tutti (1.478 movimenti): mancava solo la schermata. Nessuna migrazione, sistema invariato.
+- Provato: la query sui dati veri (Congelatore 1: 335 movimenti in 30 giorni), sintassi di backend e pagina. **Non provato nel browser.**
+
+---
+
+## 2026-11-24 — Backup 2.4: restore di prova settimanale e pagina di ripristino `[mixed]`
+Marco, dopo il check del backup: «cosa puoi fare in merito?» → restore di prova «ok perfetto». Chiude T.7.
+
+**Aggiunto**
+- `scripts/restore_test.py`: riscarica l'ultimo giornaliero da Drive in una cartella temporanea e controlla ogni DB (integrity, righe confrontate col vivo) e ogni JSON. Non tocca i dati veri. Esito in `backups/.last_restore_test.json`, notifica se fallisce.
+- `backup_db.sh` v2.4: lancia la prova dopo il daily delle 03:00, una volta a settimana. Nessun crontab da toccare.
+- `check_backup_health.sh` v1.4: check 7 (prova fallita o più vecchia di 8 giorni).
+- Card Impostazioni › Backup: riquadro «🧪 Restore di prova» (`/system/backup-health` → `last_restore_test`).
+- `docs/ripristino_backup.md`: la procedura di ripristino che mancava (un DB, un file caricato, tutto il VPS).
+
+**Note**
+- I buchi del 1/6 e 1/8 erano il VPS spento per il rinnovo non andato sulla carta (Marco, 24/11): chiusi in `sicurezza_backup.md`.
+- Provato: lo script sui 18 DB veri scaricati oggi (18/18, righe uguali al vivo) e con un DB troncato, uno svuotato e un JSON rotto (li trova tutti e tre); check 7 nei tre casi. **Non provato**: lo scarico da Drive con rclone e la card nel browser.
+- Nessuna migrazione, versione di sistema invariata.
+
+---
+
 ## 2026-11-24 — Comanda 2.4: schermo cucina in prova `[core]`
 Marco: «ipotizziamo uno schermo touch per la cucina»; fra tre prove ha scelto i foglietti («deve ricordare molto il foglietto per avere una visione di tutto») e ha chiesto una modalità da provare su un iPad entrando da TRGB.
 

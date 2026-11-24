@@ -846,6 +846,18 @@ function BackupHealthCard({ health, expanded, setExpanded, onReload }) {
   const lkgBadge = lkgOk
     ? { color: "bg-emerald-100 text-emerald-700", text: `${lkg.ok}/${lkg.total_expected} integri` }
     : { color: "bg-red-100 text-red-700", text: `${lkg.ok}/${lkg.total_expected} OK · ${lkg.missing}M ${lkg.stub}S ${lkg.corrupt}C` };
+  // Restore di prova settimanale (scripts/restore_test.py): fallito = rosso,
+  // oltre 8 giorni = rosso, mai fatto = ambra (parte al primo daily delle 03:00).
+  const rt = health.last_restore_test;
+  const rtDays = rt ? Math.floor((rt.age_h ?? 0) / 24) : null;
+  const rtWhen = rt ? (rtDays === 0 ? "oggi" : rtDays === 1 ? "ieri" : `${rtDays} giorni fa`) : null;
+  const restoreBadge = !rt
+    ? { color: "bg-amber-100 text-amber-700", text: "mai provato" }
+    : rt.status !== "ok"
+      ? { color: "bg-red-100 text-red-700", text: `fallito ${rtWhen}` }
+      : (rt.age_h ?? 0) > 192
+        ? { color: "bg-red-100 text-red-700", text: rtWhen }
+        : { color: "bg-emerald-100 text-emerald-700", text: `${rt.db_ok}/${rt.db_total} DB · ${rtWhen}` };
 
   return (
     <div className={`${sc.bg} ${sc.border} border-2 rounded-2xl p-5`}>
@@ -864,11 +876,12 @@ function BackupHealthCard({ health, expanded, setExpanded, onReload }) {
       </div>
 
       {/* MINI CARDS */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-3">
         <MiniCard icon="⏱" label="Backup orario"  badge={hourly} />
         <MiniCard icon="📅" label="Backup daily"   badge={daily} />
         <MiniCard icon="☁️" label="Drive sync"     badge={drive} />
         <MiniCard icon="🛡" label="Last known good" badge={lkgBadge} />
+        <MiniCard icon="🧪" label="Restore di prova" badge={restoreBadge} />
       </div>
 
       {/* ISSUES */}

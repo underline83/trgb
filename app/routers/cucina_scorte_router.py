@@ -1065,11 +1065,18 @@ def list_movimenti(
     try:
         sql = """
             SELECT m.*, a.nome AS articolo, a.um,
-                   r.codice AS ripiano, u.nome AS ubicazione
+                   r.codice AS ripiano, u.nome AS ubicazione,
+                   -- L'altro capo di uno spostamento (2026-11-24, registro del
+                   -- frigo): la gamba gemella sta in ref_id. Serve a scrivere
+                   -- «da / verso» senza una seconda chiamata.
+                   rp.codice AS altro_ripiano, up.nome AS altra_ubicazione
               FROM cucina_movimenti m
               JOIN cucina_articoli a        ON a.id = m.articolo_id
               LEFT JOIN cucina_ripiani r    ON r.id = m.ripiano_id
               LEFT JOIN cucina_ubicazioni u ON u.id = m.ubicazione_id
+              LEFT JOIN cucina_movimenti p  ON m.tipo = 'TRASFERIMENTO' AND p.id = m.ref_id
+              LEFT JOIN cucina_ripiani rp   ON rp.id = p.ripiano_id
+              LEFT JOIN cucina_ubicazioni up ON up.id = p.ubicazione_id
              WHERE 1=1
         """
         args: List[Any] = []

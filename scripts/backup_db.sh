@@ -1,6 +1,12 @@
 #!/bin/bash
 # backup_db.sh — Backup atomico di tutti i database TRGB con verifiche di integrità
 #
+# Versione 2.4 (2026-11-24) — RESTORE DI PROVA settimanale (roadmap T.7): al
+#  giro --daily delle 03:00, se l'ultima prova ha più di 6 giorni e mezzo, lancia
+#  scripts/restore_test.py (riscarica l'ultimo daily da Drive in una cartella
+#  temporanea, integrity + conteggio righe). L'esito della prova non cambia
+#  l'esito del backup. Nessuna riga di crontab in più.
+#
 # Versione 2.3 (2026-11-24) — dopo il check del 24/11:
 #  - FILE CARICATI nel ciclo --daily: /home/marco/trgb_uploads (documenti
 #    dipendenti, CV, allegati pratiche, F24, foto menu, listini) e
@@ -709,6 +715,24 @@ fi
 
 echo "[$TIMESTAMP] Backup $MODE completato"
 echo ""
+
+# ── v2.4: restore di prova settimanale ──────────────────────────────────────
+# Solo dopo il daily delle 03:00 (osteria chiusa, Drive appena sincronizzato) e
+# solo se l'ultima prova ha più di 6 giorni e mezzo. La prima volta parte subito.
+RESTORE_STATUS="$DATA_DIR/backups/.last_restore_test.json"
+RESTORE_EVERY_SECONDS=561600   # 6 giorni e 12 ore
+if [ "$MODE" == "--daily" ] && [ "$(date +%H)" == "03" ] && [ -f "$PROJECT_DIR/scripts/restore_test.py" ]; then
+    _last_rt=0
+    if [ -f "$RESTORE_STATUS" ]; then
+        _last_rt=$(grep -o '"epoch": [0-9]*' "$RESTORE_STATUS" | grep -o '[0-9]*' | head -1)
+    fi
+    if [ $(( $(date +%s) - ${_last_rt:-0} )) -ge "$RESTORE_EVERY_SECONDS" ]; then
+        _py="python3"
+        [ -x "$VENV_PYTHON" ] && _py="$VENV_PYTHON"
+        "$_py" "$PROJECT_DIR/scripts/restore_test.py" 2>&1 || echo "  ⚠️  restore di prova terminato con errori (vedi sopra)"
+        echo ""
+    fi
+fi
 
 # Exit code: 0 se nessun fallimento "vero", 1 altrimenti (per cron monitor)
 if [ ${#RUN_FAILED[@]} -gt 0 ]; then
