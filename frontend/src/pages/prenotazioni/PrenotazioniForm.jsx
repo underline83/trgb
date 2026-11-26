@@ -1,4 +1,4 @@
-// @version: v1.9-thefork — copiato dal form di TheFork Manager: carico su ogni orario (arrivi e coperti in sala), durata sulla singola prenotazione, titolo e lingua del cliente nuovo, «apri WhatsApp con la conferma» al salvataggio (2026-11-26); v1.8-fonte — il form è la fonte: prefisso per paese, scheda riconosciuta da telefono o email mentre scrivi, persone della scheda («chi sta prenotando»), esito verso TheFork (2026-11-26); v1.7-telefono — su iPhone a tutto schermo con titolo e «Salva» sempre a vista, campi a 16 px (Safari non ingrandisce la pagina), orari e ± da pollice (2026-11-24); v1.6-stati — si nasce Confermata, In opzione (con «tenuto fino al») o in Lista d'attesa; in modifica la data dell'opzione (2026-11-13); v1.5-motore — «entra / non entra» col tavolo suggerito dal motore per tavoli, «Usa» lo scrive (anche le unioni) (2026-10-29); v1.4 — stesso form per modificare una prenotazione (prop «prenotazione», PUT) (2026-10-28); v1.3 — defaultCliente: aperto dalla scheda cliente con il cliente già scelto (2026-10-19); v1.2-fasce — slot chiusi/pieni segnati e avviso sulla fascia; v1.1-tavolo-turno — apribile dalla mappa con tavolo e turno già scelti; tavoli bloccati non selezionabili
+// @version: v1.10-ordine — orari in griglia a caselle uguali con «Altro orario» a parte; tavolo a caselle per sala (libero, occupato, bloccato, suggerito; due tocchi = unione) al posto della tendina (2026-11-26); v1.9-thefork — copiato dal form di TheFork Manager: carico su ogni orario (arrivi e coperti in sala), durata sulla singola prenotazione, titolo e lingua del cliente nuovo, «apri WhatsApp con la conferma» al salvataggio (2026-11-26); v1.8-fonte — il form è la fonte: prefisso per paese, scheda riconosciuta da telefono o email mentre scrivi, persone della scheda («chi sta prenotando»), esito verso TheFork (2026-11-26); v1.7-telefono — su iPhone a tutto schermo con titolo e «Salva» sempre a vista, campi a 16 px (Safari non ingrandisce la pagina), orari e ± da pollice (2026-11-24); v1.6-stati — si nasce Confermata, In opzione (con «tenuto fino al») o in Lista d'attesa; in modifica la data dell'opzione (2026-11-13); v1.5-motore — «entra / non entra» col tavolo suggerito dal motore per tavoli, «Usa» lo scrive (anche le unioni) (2026-10-29); v1.4 — stesso form per modificare una prenotazione (prop «prenotazione», PUT) (2026-10-28); v1.3 — defaultCliente: aperto dalla scheda cliente con il cliente già scelto (2026-10-19); v1.2-fasce — slot chiusi/pieni segnati e avviso sulla fascia; v1.1-tavolo-turno — apribile dalla mappa con tavolo e turno già scelti; tavoli bloccati non selezionabili
 // Form modale per nuova prenotazione — modulo Prenotazioni TRGB
 import React, { useState, useEffect, useRef } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
@@ -225,6 +225,23 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
   }, [form.data_pasto, form.ora_pasto, form.pax, form.durata_min, turnoCorrente]); // eslint-disable-line react-hooks/exhaustive-deps
   const tavoloProposto = posto && posto.entra && posto.tavolo ? posto.tavolo.tavoli.join("+") : "";
 
+  // Scelta del tavolo a caselle: form.tavolo resta la stringa di sempre («3» o «1+2»)
+  const tavoliScelti = (form.tavolo || "").split("+").map((x) => x.trim()).filter(Boolean);
+  const propostiSet = new Set(tavoloProposto ? tavoloProposto.split("+") : []);
+  const toggleTavolo = (nome) => {
+    const nuovi = tavoliScelti.includes(nome) ? tavoliScelti.filter((x) => x !== nome) : [...tavoliScelti, nome];
+    setForm({ ...form, tavolo: nuovi.join("+") });
+  };
+  const postiScelti = tavoliScelti.reduce((tot, n) => tot + ((tavoli.find((t) => t.nome === n) || {}).posti_max || 0), 0);
+  const zoneTavoli = (() => {
+    const z = new Map();
+    for (const t of tavoli) { const k = t.zona || "Sala"; if (!z.has(k)) z.set(k, []); z.get(k).push(t); }
+    // un tavolo scritto sulla prenotazione che oggi non è in elenco resta visibile
+    const fuori = tavoliScelti.filter((n) => !tavoli.some((t) => t.nome === n));
+    if (fuori.length) z.set("Altro", fuori.map((n) => ({ nome: n })));
+    return [...z.entries()];
+  })();
+
   const selezionaCliente = (c) => {
     setSelectedCliente(c);
     setForm({ ...form, cliente_id: c.id });
@@ -361,15 +378,15 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
             </div>
           )}
 
-          {/* Data e Ora */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {/* Data e Ora: una sotto l'altra, gli orari in griglia a caselle uguali */}
+          <div className="grid grid-cols-1 gap-3">
             <div>
               <label className="block text-xs font-medium text-neutral-600 mb-1">Data</label>
               <input
                 type="date"
                 value={form.data_pasto}
                 onChange={(e) => setForm({ ...form, data_pasto: e.target.value })}
-                className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-base sm:text-sm max-sm:min-h-[44px]"
+                className="w-full sm:w-64 px-3 py-2 border border-neutral-300 rounded-lg text-base sm:text-sm max-sm:min-h-[44px]"
                 required
               />
             </div>
@@ -377,7 +394,7 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
               <label className="block text-xs font-medium text-neutral-600 mb-1">
                 Ora <span className="text-neutral-400">({turnoCorrente})</span>
               </label>
-              <div className="flex gap-1.5 sm:gap-1 flex-wrap">
+              <div className="grid grid-cols-4 sm:grid-cols-7 gap-1.5">
                 {slotCorrente.map((s) => {
                   const f = fasce.find((x) => x.ora === s);
                   const chiusa = f && !f.aperta;
@@ -391,7 +408,7 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
                       type="button"
                       title={[chiusa ? "Fascia chiusa" : piena ? `Fascia piena (${f.coperti}/${f.max_coperti})` : "", descr].filter(Boolean).join(" — ")}
                       onClick={() => setForm({ ...form, ora_pasto: s })}
-                      className={`px-3 py-2.5 text-sm sm:px-2 sm:py-1 sm:text-xs rounded border transition ${
+                      className={`w-full px-1 py-1.5 text-sm rounded-lg border transition tabular-nums max-sm:min-h-[48px] ${
                         form.ora_pasto === s
                           ? "bg-indigo-600 text-white border-indigo-600"
                           : chiusa ? "bg-neutral-100 text-neutral-400 border-neutral-200 line-through"
@@ -399,21 +416,27 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
                           : "bg-white text-neutral-600 border-neutral-300 hover:bg-neutral-50"
                       }`}
                     >
-                      <span className="block">{s}</span>
-                      {c && (
-                        <span className={`block text-[10px] leading-tight font-normal ${form.ora_pasto === s ? "text-indigo-100" : "text-neutral-400"}`}>
-                          +{c.arrivi} · {c.coperti}{carico.capienza ? `/${carico.capienza}` : ""}
-                        </span>
-                      )}
+                      <span className="block font-medium">{s}</span>
+                      <span className={`block text-[10px] leading-tight font-normal whitespace-nowrap ${form.ora_pasto === s ? "text-indigo-100" : "text-neutral-400"}`}>
+                        {c ? `+${c.arrivi} · ${c.coperti}${carico.capienza ? `/${carico.capienza}` : ""}` : "\u00a0"}
+                      </span>
                     </button>
                   );
                 })}
-                <input
-                  type="time"
-                  value={form.ora_pasto}
-                  onChange={(e) => setForm({ ...form, ora_pasto: e.target.value })}
-                  className="px-2 py-1 text-base sm:text-xs border border-neutral-300 rounded sm:ml-1 w-28 sm:w-20 max-sm:min-h-[44px]"
-                />
+              </div>
+              <div className="mt-2 flex items-center justify-between gap-2 flex-wrap">
+                <label className="flex items-center gap-2 text-xs text-neutral-600">
+                  Altro orario
+                  <input
+                    type="time"
+                    value={form.ora_pasto}
+                    onChange={(e) => setForm({ ...form, ora_pasto: e.target.value })}
+                    className="px-2 py-1.5 text-base sm:text-sm border border-neutral-300 rounded-lg w-28 max-sm:min-h-[44px]"
+                  />
+                </label>
+                {carico.orari.length > 0 && (
+                  <span className="text-[11px] text-neutral-400">sotto l'ora: +arrivi · coperti in sala{carico.capienza ? `/${carico.capienza}` : ""}</span>
+                )}
               </div>
             </div>
           </div>
@@ -673,14 +696,62 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
             )}
           </div>
 
-          {/* Durata: vuota = la regola del turno */}
-          {carico.durata_regola ? (
+          {/* Tavolo */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="sm:col-span-2">
+              <div className="flex items-baseline justify-between gap-2 mb-1">
+                <label className="block text-xs font-medium text-neutral-600">
+                  Tavolo{tavoliScelti.length > 0 && <span className="ml-1 text-neutral-900 font-semibold">{tavoliScelti.join(" + ")}{postiScelti ? ` · ${postiScelti} posti` : ""}</span>}
+                </label>
+                {tavoliScelti.length > 0
+                  ? <button type="button" onClick={() => setForm({ ...form, tavolo: "" })} className="text-xs text-indigo-600 hover:underline">Assegna dopo</button>
+                  : <span className="text-xs text-neutral-400">nessuno: si assegna dopo</span>}
+              </div>
+              {/* Un tocco sceglie, un altro tocco su un secondo tavolo li unisce */}
+              <div className="space-y-2 rounded-lg border border-neutral-200 p-2">
+                {zoneTavoli.map(([zona, lista]) => (
+                  <div key={zona} className="flex items-start gap-2">
+                    <span className="w-16 flex-shrink-0 pt-2 text-[11px] uppercase tracking-wide text-neutral-400 truncate" title={zona}>{zona}</span>
+                    <div className="grid grid-cols-5 sm:grid-cols-8 gap-1.5 flex-1">
+                      {lista.map((t) => {
+                        const scelto = tavoliScelti.includes(t.nome);
+                        const suo = modifica && (P.tavolo || "").split("+").map((x) => x.trim()).includes(t.nome);
+                        const fermo = (t.occupato || t.bloccato) && !suo && !scelto;
+                        const proposto = !scelto && propostiSet.has(t.nome);
+                        return (
+                          <button
+                            key={t.nome}
+                            type="button"
+                            disabled={fermo}
+                            onClick={() => toggleTavolo(t.nome)}
+                            title={t.bloccato ? "Bloccato" : t.occupato && !suo ? "Occupato in questo turno" : proposto ? "Suggerito" : `${t.posti_min}-${t.posti_max} posti`}
+                            className={`w-full px-1 py-1 rounded-lg border text-sm tabular-nums transition max-sm:min-h-[44px] ${
+                              scelto ? "bg-indigo-600 text-white border-indigo-600"
+                              : fermo ? "bg-neutral-100 text-neutral-400 border-neutral-200"
+                              : proposto ? "bg-emerald-50 text-emerald-800 border-emerald-400"
+                              : "bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50"
+                            }`}
+                          >
+                            <span className={`block font-medium ${fermo && t.occupato ? "line-through" : ""}`}>{t.nome}</span>
+                            <span className={`block text-[10px] leading-tight ${scelto ? "text-indigo-100" : fermo ? "text-neutral-400" : "text-neutral-400"}`}>
+                              {t.bloccato && !suo ? "blocc." : t.occupato && !suo ? "occup." : t.posti_max ? `${t.posti_max} p` : "\u00a0"}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+                {zoneTavoli.length === 0 && <div className="text-xs text-neutral-400 px-1 py-1">Nessun tavolo per questo turno.</div>}
+              </div>
+            </div>
+            {carico.durata_regola ? (
             <div>
               <label className="block text-xs font-medium text-neutral-600 mb-1">Durata</label>
               <select
                 value={form.durata_min}
                 onChange={(e) => setForm({ ...form, durata_min: e.target.value })}
-                className="w-full sm:w-64 px-3 py-2 border border-neutral-300 rounded-lg text-base sm:text-sm max-sm:min-h-[44px] bg-white"
+                className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-base sm:text-sm max-sm:min-h-[44px] bg-white"
               >
                 <option value="">Come da regola ({oreMin(carico.durata_regola)})</option>
                 {form.durata_min && !durateScelta.includes(Number(form.durata_min)) && Number(form.durata_min) !== 1440 && (
@@ -690,29 +761,8 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
                 <option value="1440">Tutto il turno</option>
               </select>
             </div>
-          ) : null}
-
-          {/* Tavolo */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-neutral-600 mb-1">Tavolo</label>
-              <select
-                value={form.tavolo}
-                onChange={(e) => setForm({ ...form, tavolo: e.target.value })}
-                className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-base sm:text-sm max-sm:min-h-[44px]"
-              >
-                <option value="">— Assegna dopo —</option>
-                {form.tavolo && !tavoli.some((t) => t.nome === form.tavolo) && (
-                  <option value={form.tavolo}>{form.tavolo}</option>
-                )}
-                {tavoli.map((t) => (
-                  <option key={t.id} value={t.nome} disabled={(t.occupato || t.bloccato) && !(modifica && t.nome === P.tavolo)}>
-                    {t.nome} ({t.zona}, {t.posti_min}-{t.posti_max}p){t.occupato ? " — OCCUPATO" : t.bloccato ? " — BLOCCATO" : ""}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="flex items-end gap-3">
+            ) : null}
+            <div className="flex items-end gap-5 pb-2">
               <label className="flex items-center gap-1.5 text-sm">
                 <input
                   type="checkbox"
@@ -721,8 +771,8 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
                 />
                 🌳 Esterno
               </label>
-              <div>
-                <label className="block text-xs font-medium text-neutral-600 mb-1">Seggioloni</label>
+              <div className="flex items-center gap-2">
+                <label className="text-sm text-neutral-700">Seggioloni</label>
                 <input
                   type="number"
                   min={0}

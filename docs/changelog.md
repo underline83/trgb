@@ -3,6 +3,13 @@
 
 ---
 
+## 2026-11-26 — Prenotazioni 2.43: il form «Nuova prenotazione» in ordine `[core]`
+
+### Cambiato
+- **Orari** in griglia a caselle tutte uguali (4 per riga sul telefono, 7 sul computer); «Altro orario» è un campo a parte sotto la griglia.
+- **Tavolo** a caselle divise per sala al posto della tendina: libero, occupato, bloccato, suggerito (verde); toccandone due si uniscono («1 + 2 · 8 posti»); «Assegna dopo» li toglie.
+- Durata sulla stessa riga di Esterno e Seggioloni.
+
 ## 2026-11-26 — Prenotazioni 2.42 / sistema 6.14: quattro cose prese dal form di TheFork Manager (mig 249) `[core]`
 
 Marco, dopo aver mandato le schermate dei due form di TheFork: «vai con le prime 4».

@@ -772,6 +772,9 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   prenotazioni: {
+    // 2.43 (2026-11-26): form in ordine (Marco: «le ore con grandezze diverse, brutte», «migliora la selezione del tavolo») —
+    //   orari in griglia a caselle uguali con «Altro orario» a parte; tavolo a caselle divise per sala (libero, occupato,
+    //   bloccato, suggerito in verde; toccandone due si uniscono) al posto della tendina. Solo frontend.
     // 2.42 (2026-11-26): dal form di TheFork Manager (Marco: «vai con le prime 4») — su ogni orario del form quanti arrivano e
     //   quanti sono in sala (GET /prenotazioni/carico/{data}/{turno}); durata sulla singola prenotazione (mig 249
     //   clienti_prenotazioni.durata_min: vince sulla regola del turno in motore tavoli e timeline); titolo e lingua del cliente
@@ -828,7 +831,7 @@ const MODULE_VERSIONS = {
     // 2.16 (2026-10-19): Prenotazioni › Archivio (tutte le prenotazioni con filtri), spostato da
     //   Clienti; API nuova GET /prenotazioni/archivio/ (+ /riepilogo/). /clienti/prenotazioni rimanda qui.
     // 2.15 (2026-10-19): PrenotazioniForm accetta defaultCliente (bottone «Prenota» della scheda cliente).
-    version: "2.42",
+    version: "2.43",
     label: "Prenotazioni",
     status: "beta",
     color: "blue",
