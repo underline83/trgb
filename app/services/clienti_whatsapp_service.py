@@ -657,6 +657,28 @@ def _mappa_clienti(conn) -> Dict[str, Dict[str, Any]]:
     return out
 
 
+def ultime_uscite(conn, telefoni) -> Optional[Dict[str, int]]:
+    """Per ogni telefono (scritto come sta in scheda) l'ora (epoch) dell'ultimo messaggio USCITO verso
+    quel numero che l'archivio ha visto: scritto dall'app del telefono (eco), dal computer o da TRGB.
+    Serve a Prenotazioni per sapere se la riconferma è partita davvero (Marco 2026-11-26).
+    None = l'archivio non c'è o non ha ancora mai visto un messaggio uscito: non si può verificare."""
+    try:
+        if not conn.execute("SELECT 1 FROM clienti_wa_messaggi WHERE direzione = 'out' LIMIT 1").fetchone():
+            return None
+        numeri = {t: normalize_phone(t) for t in set(telefoni) if t}
+        validi = sorted({n for n in numeri.values() if n})
+        ultimi: Dict[str, int] = {}
+        for i in range(0, len(validi), 400):
+            pezzo = validi[i:i + 400]
+            for r in conn.execute(
+                f"SELECT numero, MAX(ts) AS ts FROM clienti_wa_messaggi WHERE direzione = 'out' "
+                f"AND numero IN ({','.join('?' * len(pezzo))}) GROUP BY numero", pezzo):
+                ultimi[r["numero"]] = int(r["ts"] or 0)
+        return {t: ultimi[n] for t, n in numeri.items() if n in ultimi}
+    except sqlite3.Error:
+        return None
+
+
 def _quando(ts: Optional[int]) -> Optional[str]:
     return datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M") if ts else None
 

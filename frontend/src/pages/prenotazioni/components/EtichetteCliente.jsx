@@ -29,8 +29,11 @@ export default function EtichetteCliente({ pren }) {
           </span>
         </Tooltip>
       )}
-      {pren.reminder_inviato === 1 && (
+      {pren.reminder_stato === "mandata" && (
         <Tooltip label="Riconferma WhatsApp inviata"><span className="text-emerald-600 text-xs">✓💬</span></Tooltip>
+      )}
+      {pren.reminder_stato === "aperta" && (
+        <Tooltip label="WhatsApp aperto per la riconferma, ma il messaggio non risulta mandato"><span className="text-amber-600 text-xs">?💬</span></Tooltip>
       )}
       {pren.menu_evento && (
         <Tooltip label="Evento confermato: menù nella riga aperta"><span className="text-xs">🍽️</span></Tooltip>

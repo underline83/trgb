@@ -3,6 +3,12 @@
 
 ---
 
+## 2026-11-26 — Prenotazioni 2.55 / sistema 6.17: riconferma WhatsApp verificata (mig 252) `[core]`
+
+### Cambiato
+- La spunta verde sulla riconferma WhatsApp compare solo quando il messaggio è partito davvero: TRGB lo vede nell'archivio WhatsApp del numero del locale (messaggio uscito verso quel cliente dopo il tocco). Se si apre WhatsApp e non si manda, resta un «?» ambra: «aperta, non risulta mandata».
+- Il conteggio «da riconfermare» dell'Elenco conta anche quelle aperte e non mandate.
+
 ## 2026-11-26 — Prenotazioni 2.54: azioni su una riga `[core]`
 
 ### Cambiato

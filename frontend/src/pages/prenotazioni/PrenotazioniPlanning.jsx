@@ -226,12 +226,14 @@ function DettaglioPrenotazione({ pren, onStatoChange, onRiconferma, onUnisciDopp
           <button
             onClick={(e) => { e.stopPropagation(); onRiconferma && onRiconferma(pren); }}
             className={`mb-2 px-3 py-1.5 text-xs rounded-lg min-h-[44px] sm:min-h-[36px] ${
-              pren.reminder_inviato === 1
+              pren.reminder_stato === "mandata"
                 ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                : pren.reminder_stato === "aperta"
+                ? "bg-amber-50 text-amber-800 border border-amber-300"
                 : "bg-emerald-600 text-white hover:bg-emerald-700"
             }`}
           >
-            💬 {pren.reminder_inviato === 1 ? "Riconferma inviata — reinvia" : "Riconferma su WhatsApp"}
+            💬 {pren.reminder_stato === "mandata" ? "Riconferma inviata — reinvia" : pren.reminder_stato === "aperta" ? "Aperta, non risulta mandata — riprova" : "Riconferma su WhatsApp"}
           </button>
         )}
         {onPreventivo && (
@@ -472,7 +474,7 @@ function TabellaPrenotazioni({ titolo, chiusura, prenotazioni, conteggio, pax, o
           {/* Telefono: i coperti stanno in testa, accanto al titolo */}
           <span className={`sm:hidden ml-auto text-sm font-semibold whitespace-nowrap ${coloreCapienza}`}>{pax} / {capienza} pax</span>
           {(() => {
-            const daRic = prenotazioni.filter((p) => p.stato === "RECORDED" && p.telefono && p.reminder_inviato !== 1).length;
+            const daRic = prenotazioni.filter((p) => p.stato === "RECORDED" && p.telefono && p.reminder_stato !== "mandata").length;
             return daRic > 0 ? (
               <Tooltip label="Prenotazioni con telefono non ancora riconfermate su WhatsApp (apri la riga per inviare)">
                 <span className="text-xs px-1.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">💬 {daRic} da riconfermare</span>

@@ -391,7 +391,7 @@ def get_planning(
                 (SELECT COUNT(*) FROM clienti_prenotazioni p4
                  WHERE p4.cliente_id = c.id AND p4.id != p.id AND p4.stato = 'CANCELED')
                     as cancellate_totali,
-                p.reminder_inviato, p.conferma_inviata
+                p.reminder_inviato, p.conferma_inviata, p.reminder_at
             FROM clienti_prenotazioni p
             LEFT JOIN clienti c ON p.cliente_id = c.id
             WHERE p.data_pasto = ?
@@ -431,8 +431,18 @@ def get_planning(
         except Exception:  # noqa: BLE001 — il Planning non deve mai rompersi per questo
             profilo_clienti = {}
 
+        # Riconferma WhatsApp: «mandata» solo se l'archivio WhatsApp ha visto uscire un messaggio verso quel
+        # numero dopo il tocco (Marco 2026-11-26: toccare apre WhatsApp, ma non vuol dire averla mandata).
+        # Lettura dal servizio del modulo clienti; se l'archivio non c'è non si può verificare: vale il tocco.
+        try:
+            from app.services.clienti_whatsapp_service import ultime_uscite
+            uscite_wa = ultime_uscite(conn, [r["telefono"] for r in rows if r["reminder_inviato"] and r["telefono"]])
+        except Exception:  # noqa: BLE001 — il Planning non deve mai rompersi per questo
+            uscite_wa = None
+
         for r in rows:
             item = dict(r)
+            item["reminder_stato"] = _stato_riconferma(item, uscite_wa)
             item["preventivo_attesa"] = attese.get(item["id"])
             pc = profilo_clienti.get(item["cliente_id"]) if item["cliente_id"] else None
             item["profilo"] = ({k: pc[k] for k in ("segmento", "stelle_nere", "stelle_argento", "stella_oro", "attenzione")}
@@ -2663,6 +2673,26 @@ def unisci_prenotazione_doppia(
         conn.close()
 
 
+def _stato_riconferma(p: Dict[str, Any], uscite: Optional[Dict[str, int]]) -> str:
+    """no = mai aperta · aperta = WhatsApp aperto dal tasto ma il messaggio non risulta uscito ·
+    mandata = uscito (o non verificabile: archivio WhatsApp assente)."""
+    if not p.get("reminder_inviato"):
+        return "no"
+    if uscite is None:
+        return "mandata"
+    ultimo = uscite.get(p.get("telefono"))
+    if not ultimo:
+        return "aperta"
+    quando = p.get("reminder_at")
+    if not quando:
+        return "mandata"   # toccata prima che si segnasse l'ora: un messaggio uscito verso il numero c'è
+    try:
+        dal = datetime.strptime(quando, "%Y-%m-%d %H:%M:%S").timestamp()
+    except ValueError:
+        return "mandata"
+    return "mandata" if ultimo >= dal else "aperta"
+
+
 @router.post("/{pren_id}/inviato")
 def segna_messaggio_inviato(
     pren_id: int,
@@ -2675,8 +2705,9 @@ def segna_messaggio_inviato(
         raise HTTPException(status_code=400, detail="tipo: reminder o conferma")
     conn = get_clienti_conn()
     try:
+        ora = ", reminder_at = datetime('now','localtime')" if tipo == "reminder" else ""
         cur = conn.execute(
-            f"UPDATE clienti_prenotazioni SET {colonna} = 1, updated_at = datetime('now','localtime') WHERE id = ?",
+            f"UPDATE clienti_prenotazioni SET {colonna} = 1{ora}, updated_at = datetime('now','localtime') WHERE id = ?",
             (pren_id,),
         )
         conn.commit()

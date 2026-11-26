@@ -884,7 +884,9 @@ const MODULE_VERSIONS = {
     //   Servizio: tasto «tavolo +» sulla prenotazione scelta → si toccano i tavoli sulla mappa (anche più d'uno) e si assegnano.
     // 2.54 (2026-11-26): Servizio, le azioni della prenotazione su una riga sola: tasti quadrati col disegno
     //   (matita = modifica, tavolo + = assegna i tavoli, persona = scheda cliente, fumetto = WhatsApp, ⋯ = altro).
-    version: "2.54",
+    // 2.55 (2026-11-26): riconferma WhatsApp verificata: la spunta verde solo se l'archivio WhatsApp vede uscire un
+    //   messaggio verso quel numero dopo il tocco; altrimenti «?» ambra (aperta, non mandata). Servizio, Elenco, etichette.
+    version: "2.55",
     label: "Prenotazioni",
     status: "beta",
     color: "blue",
@@ -1059,6 +1061,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 6.17 (2026-11-26): mig 252 — clienti_prenotazioni.reminder_at (ora del tocco su «Riconferma su WhatsApp»).
     // 6.16 (2026-11-26): mig 251 — tolto il passaggio Seduto → Al conto; le prenotazioni rimaste «Al conto» → «Completata».
     // 6.15 (2026-11-26): mig 250 — clienti_prenotazioni.riconfermata_at («Confermato»), etichetta «Prenotato» per RECORDED,
     //   passi all'indietro in prenotazioni_stati_transizioni.
@@ -1253,7 +1256,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "6.16",
+    version: "6.17",
     label: "Sistema",
     status: "stabile",
     color: "green",

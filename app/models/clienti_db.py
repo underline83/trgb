@@ -335,6 +335,7 @@ def init_clienti_db() -> None:
         ("creato_da", "TEXT"),                   # username TRGB
         ("conferma_inviata", "INTEGER DEFAULT 0"),
         ("reminder_inviato", "INTEGER DEFAULT 0"),
+        ("reminder_at", "TEXT"),                 # quando è stato toccato «Riconferma su WhatsApp» (mig 252)
         ("token_cancellazione", "TEXT"),
         ("updated_at", "TEXT"),
         # Snapshot nome ospite da TheFork (fallback quando cliente_id e' NULL,
