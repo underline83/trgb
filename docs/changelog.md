@@ -3,6 +3,12 @@
 
 ---
 
+## 2026-11-26 — Prenotazioni 2.44: il numero cercato passa al cliente nuovo `[core]`
+
+### Corretto
+- Nel form, «Crea nuovo cliente» porta nei campi quello che era scritto nella ricerca: un numero nel telefono, un'email nell'email, un nome in nome e cognome. Prima andava riscritto.
+- Invio a TheFork: una prenotazione salvata con una scheda senza telefono né email restava «solo TRGB» per sempre, anche aggiungendo il numero dopo. Ora resta «da mandare» e parte da sola al primo giro dopo che la scheda è completa; ripartono anche quelle già ferme. Nel form un avviso lo dice prima di salvare.
+
 ## 2026-11-26 — Prenotazioni 2.43: il form «Nuova prenotazione» in ordine `[core]`
 
 ### Cambiato

@@ -1,4 +1,4 @@
-// @version: v1.10-ordine — orari in griglia a caselle uguali con «Altro orario» a parte; tavolo a caselle per sala (libero, occupato, bloccato, suggerito; due tocchi = unione) al posto della tendina (2026-11-26); v1.9-thefork — copiato dal form di TheFork Manager: carico su ogni orario (arrivi e coperti in sala), durata sulla singola prenotazione, titolo e lingua del cliente nuovo, «apri WhatsApp con la conferma» al salvataggio (2026-11-26); v1.8-fonte — il form è la fonte: prefisso per paese, scheda riconosciuta da telefono o email mentre scrivi, persone della scheda («chi sta prenotando»), esito verso TheFork (2026-11-26); v1.7-telefono — su iPhone a tutto schermo con titolo e «Salva» sempre a vista, campi a 16 px (Safari non ingrandisce la pagina), orari e ± da pollice (2026-11-24); v1.6-stati — si nasce Confermata, In opzione (con «tenuto fino al») o in Lista d'attesa; in modifica la data dell'opzione (2026-11-13); v1.5-motore — «entra / non entra» col tavolo suggerito dal motore per tavoli, «Usa» lo scrive (anche le unioni) (2026-10-29); v1.4 — stesso form per modificare una prenotazione (prop «prenotazione», PUT) (2026-10-28); v1.3 — defaultCliente: aperto dalla scheda cliente con il cliente già scelto (2026-10-19); v1.2-fasce — slot chiusi/pieni segnati e avviso sulla fascia; v1.1-tavolo-turno — apribile dalla mappa con tavolo e turno già scelti; tavoli bloccati non selezionabili
+// @version: v1.10-ordine — «Crea nuovo cliente» porta nei campi quello che era scritto nella ricerca (numero, email o nome); orari in griglia a caselle uguali con «Altro orario» a parte; tavolo a caselle per sala (libero, occupato, bloccato, suggerito; due tocchi = unione) al posto della tendina (2026-11-26); v1.9-thefork — copiato dal form di TheFork Manager: carico su ogni orario (arrivi e coperti in sala), durata sulla singola prenotazione, titolo e lingua del cliente nuovo, «apri WhatsApp con la conferma» al salvataggio (2026-11-26); v1.8-fonte — il form è la fonte: prefisso per paese, scheda riconosciuta da telefono o email mentre scrivi, persone della scheda («chi sta prenotando»), esito verso TheFork (2026-11-26); v1.7-telefono — su iPhone a tutto schermo con titolo e «Salva» sempre a vista, campi a 16 px (Safari non ingrandisce la pagina), orari e ± da pollice (2026-11-24); v1.6-stati — si nasce Confermata, In opzione (con «tenuto fino al») o in Lista d'attesa; in modifica la data dell'opzione (2026-11-13); v1.5-motore — «entra / non entra» col tavolo suggerito dal motore per tavoli, «Usa» lo scrive (anche le unioni) (2026-10-29); v1.4 — stesso form per modificare una prenotazione (prop «prenotazione», PUT) (2026-10-28); v1.3 — defaultCliente: aperto dalla scheda cliente con il cliente già scelto (2026-10-19); v1.2-fasce — slot chiusi/pieni segnati e avviso sulla fascia; v1.1-tavolo-turno — apribile dalla mappa con tavolo e turno già scelti; tavoli bloccati non selezionabili
 // Form modale per nuova prenotazione — modulo Prenotazioni TRGB
 import React, { useState, useEffect, useRef } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
@@ -224,6 +224,26 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
     return () => clearTimeout(t);
   }, [form.data_pasto, form.ora_pasto, form.pax, form.durata_min, turnoCorrente]); // eslint-disable-line react-hooks/exhaustive-deps
   const tavoloProposto = posto && posto.entra && posto.tavolo ? posto.tavolo.tavoli.join("+") : "";
+
+  // «Crea nuovo cliente»: quello che era scritto nella ricerca passa nei campi giusti
+  // (un numero nel telefono, un'email nell'email, un nome in nome e cognome), senza coprire ciò che c'è già
+  const apriNuovoCliente = () => {
+    const q = searchQ.trim();
+    const nuovo = {};
+    if (q.includes("@")) {
+      if (!form.nuovo_email) nuovo.nuovo_email = q;
+    } else if (/^[+\d][\d\s./()-]{4,}$/.test(q)) {
+      if (!form.nuovo_telefono) nuovo.nuovo_telefono = q;
+    } else if (q) {
+      const parti = q.split(/\s+/);
+      if (!form.nuovo_nome && !form.nuovo_cognome) {
+        if (parti.length > 1) { nuovo.nuovo_nome = parti[0]; nuovo.nuovo_cognome = parti.slice(1).join(" "); }
+        else nuovo.nuovo_cognome = parti[0];
+      }
+    }
+    if (Object.keys(nuovo).length) setForm({ ...form, ...nuovo });
+    setShowNuovo(true);
+  };
 
   // Scelta del tavolo a caselle: form.tavolo resta la stringa di sempre («3» o «1+2»)
   const tavoliScelti = (form.tavolo || "").split("+").map((x) => x.trim()).filter(Boolean);
@@ -536,7 +556,7 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
                 {!showNuovo && searchQ.length >= 2 && (
                   <button
                     type="button"
-                    onClick={() => setShowNuovo(true)}
+                    onClick={apriNuovoCliente}
                     className="mt-1 text-xs max-sm:text-sm max-sm:py-2 text-indigo-600 hover:underline"
                   >
                     + Crea nuovo cliente
@@ -670,6 +690,11 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
                     className="min-w-0 px-2 py-1.5 border border-neutral-300 rounded text-base sm:text-sm max-sm:min-h-[44px]"
                   />
                 </div>
+                {!form.nuovo_telefono.trim() && !form.nuovo_email.trim() && (
+                  <div className="px-2 py-1.5 rounded bg-amber-50 border border-amber-200 text-amber-800 text-xs">
+                    ⚠️ Senza telefono né email la prenotazione resta solo in TRGB: va su TheFork appena li aggiungi alla scheda.
+                  </div>
+                )}
                 {/* Titolo e lingua: servono a TheFork e ai messaggi; la lingua, se vuota, viene dal prefisso */}
                 <div className="grid grid-cols-2 gap-2">
                   <select
@@ -763,7 +788,7 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
             </div>
             ) : null}
             <div className="flex items-end gap-5 pb-2">
-              <label className="flex items-center gap-1.5 text-sm">
+              <label className="flex items-center gap-1.5 text-sm whitespace-nowrap">
                 <input
                   type="checkbox"
                   checked={form.tavolo_esterno === 1}

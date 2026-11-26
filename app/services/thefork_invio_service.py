@@ -42,6 +42,7 @@ from app.utils import telefono as tel
 logger = logging.getLogger("trgb.thefork.invio")
 
 CIVILITY = ("mr", "mrs", "ms", "mr_and_mrs", "mx", "doctor", "professor", "company")
+_MANCA = "Manca sulla scheda — "         # inizio della nota quando la scheda del cliente non basta
 _RIPROVA = ("NO_AVAILABILITY",)          # l'orario non è prenotabile online: si aspetta
 _cache_modello: Dict[str, Any] = {"quando": 0.0, "regex": None}
 
@@ -172,8 +173,10 @@ def invia(conn, pid: int) -> Dict[str, Any]:
     try:
         cli = _cliente_per_thefork(conn, c)
     except (ValueError, TypeError) as e:
-        _segna(conn, pid, "no", f"Solo in TRGB: {e}")
-        return {"stato": "no", "nota": str(e)}
+        # Manca qualcosa sulla scheda (telefono, email, nome): resta in coda e parte da sola
+        # appena la scheda viene completata (2026-11-26: Marco aveva aggiunto il numero dopo, ed era rimasta ferma).
+        _segna(conn, pid, "da_mandare", f"{_MANCA}{e}: parte appena la scheda è completa")
+        return {"stato": "da_mandare", "nota": str(e)}
 
     nota_r = " · ".join(x for x in (
         (f"A nome {p['persona_nome']}" if p["persona_nome"] else ""), (p["nota_ristorante"] or "").strip()) if x)
@@ -277,7 +280,12 @@ def giro_coda(limite: int = 30) -> Dict[str, int]:
         if not attivo(conn):
             return esito
         ids = [r["id"] for r in conn.execute(
-            "SELECT id FROM clienti_prenotazioni WHERE thefork_invio = 'da_mandare' ORDER BY data_pasto, ora_pasto LIMIT ?",
+            """SELECT id FROM clienti_prenotazioni
+               WHERE data_pasto >= date('now', 'localtime')
+                 AND (thefork_invio = 'da_mandare'
+                      -- le «solo TRGB» nate prima del 26/11 sera perché alla scheda mancava telefono o email
+                      OR (thefork_invio = 'no' AND thefork_invio_nota LIKE 'Solo in TRGB: il cliente non ha%'))
+               ORDER BY data_pasto, ora_pasto LIMIT ?""",
             (limite,))]
         for pid in ids:
             esito["provate"] += 1

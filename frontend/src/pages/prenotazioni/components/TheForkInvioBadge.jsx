@@ -7,7 +7,7 @@ import Tooltip from "../../../components/Tooltip";
 
 const STILI = {
   inviata: { testo: "su TheFork", cls: "bg-emerald-50 text-emerald-800 border-emerald-200", tip: "Mandata a TheFork da TRGB" },
-  da_mandare: { testo: "da mandare", cls: "bg-amber-50 text-amber-800 border-amber-200", tip: "Non ancora su TheFork: TRGB riprova da solo" },
+  da_mandare: { testo: "da mandare", cls: "bg-amber-50 text-amber-800 border-amber-200", tip: "Non ancora su TheFork: TRGB riprova da solo (orario chiuso online, o scheda senza telefono/email)" },
   no: { testo: "solo TRGB", cls: "bg-neutral-100 text-neutral-600 border-neutral-200", tip: "Resta solo in TRGB" },
   errore: { testo: "TheFork: rifiutata", cls: "bg-red-50 text-red-700 border-red-200", tip: "TheFork non l'ha accettata" },
 };

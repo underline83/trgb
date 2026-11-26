@@ -153,7 +153,25 @@ class Invio(Base):
             self.assertEqual(self.riga(pid)["thefork_invio"], atteso, kw)
         self.assertEqual([c for c in self.chiamate if c[0] == "POST"], [])
         pid = self.pren(cliente=3)                                          # né email né telefono
-        self.assertEqual(invio.dopo_creazione(pid)["stato"], "no")
+        self.assertEqual(invio.dopo_creazione(pid)["stato"], "da_mandare")  # aspetta che la scheda sia completa
+
+    def test_scheda_completata_dopo_parte_da_sola(self):
+        """26/11: Marco salva senza numero, poi lo aggiunge alla scheda: deve partire al giro dopo."""
+        pid = self.pren(cliente=3)
+        invio.dopo_creazione(pid)
+        self.assertEqual(invio.giro_coda()["inviate"], 0)
+        self.assertEqual([c for c in self.chiamate if c[0] == "POST"], [])
+        c = self.conn()
+        c.execute("UPDATE clienti SET telefono = '3357389352' WHERE id = 3")
+        c.commit(); c.close()
+        # una riga rimasta «solo TRGB» col vecchio codice riparte anche lei
+        vecchia = self.pren(cliente=3)
+        c = self.conn()
+        c.execute("UPDATE clienti_prenotazioni SET thefork_invio='no', thefork_invio_nota='Solo in TRGB: il cliente non ha né email né telefono' WHERE id=?", (vecchia,))
+        c.commit(); c.close()
+        self.assertEqual(invio.giro_coda()["inviate"], 2)
+        self.assertEqual(self.riga(pid)["thefork_invio"], "inviata")
+        self.assertEqual(self.riga(vecchia)["thefork_invio"], "inviata")
 
     def test_opzione_confermata_parte(self):
         pid = self.pren(stato="OPTION")

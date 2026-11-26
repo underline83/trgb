@@ -772,6 +772,10 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   prenotazioni: {
+    // 2.44 (2026-11-26): form — «Crea nuovo cliente» porta nei campi quello che era scritto nella ricerca (numero → telefono,
+    //   email → email, nome → nome e cognome). Marco: «il numero dovrebbe copiarlo da solo». «Esterno» non va più a capo.
+    //   Invio a TheFork: se alla scheda manca telefono o email la prenotazione non resta più «solo TRGB» per sempre ma
+    //   «da mandare», e parte da sola al giro dopo che la scheda è completa (anche quelle già rimaste ferme). Avviso nel form.
     // 2.43 (2026-11-26): form in ordine (Marco: «le ore con grandezze diverse, brutte», «migliora la selezione del tavolo») —
     //   orari in griglia a caselle uguali con «Altro orario» a parte; tavolo a caselle divise per sala (libero, occupato,
     //   bloccato, suggerito in verde; toccandone due si uniscono) al posto della tendina. Solo frontend.
@@ -831,7 +835,7 @@ const MODULE_VERSIONS = {
     // 2.16 (2026-10-19): Prenotazioni › Archivio (tutte le prenotazioni con filtri), spostato da
     //   Clienti; API nuova GET /prenotazioni/archivio/ (+ /riepilogo/). /clienti/prenotazioni rimanda qui.
     // 2.15 (2026-10-19): PrenotazioniForm accetta defaultCliente (bottone «Prenota» della scheda cliente).
-    version: "2.43",
+    version: "2.44",
     label: "Prenotazioni",
     status: "beta",
     color: "blue",
