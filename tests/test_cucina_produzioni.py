@@ -101,8 +101,17 @@ class Registro(Base):
 
     def test_elenco(self):
         self.reg(); self.reg(data="2026-11-25"); self.reg(data="2026-11-01")
+        self.c.execute("UPDATE cucina_produzioni SET creato_at = data || ' 10:00:00'")
         righe = svc.elenco(self.c, date(2026, 11, 20), OGGI)
         self.assertEqual([r["data"] for r in righe], ["2026-11-26", "2026-11-25"])
+
+    def test_elenco_prende_anche_le_registrate_adesso_con_data_vecchia(self):
+        vecchia = self.reg(data="2026-11-01")
+        ora = self.c.execute("SELECT date(creato_at) FROM cucina_produzioni").fetchone()[0]
+        giorno = date.fromisoformat(ora)
+        self.assertEqual([r["id"] for r in svc.elenco(self.c, giorno, giorno)], [vecchia["id"]])
+        self.c.execute("UPDATE cucina_produzioni SET creato_at = '2026-11-01 10:00:00'")
+        self.assertEqual(svc.elenco(self.c, date(2026, 11, 20), date(2026, 11, 26)), [])
 
 
 class Leggi(Base):

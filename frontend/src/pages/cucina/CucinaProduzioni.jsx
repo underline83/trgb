@@ -1,6 +1,6 @@
 // frontend/src/pages/cucina/CucinaProduzioni.jsx
 // Modulo: cucina — Produzioni e codice lotto
-// @version: v1.0 — elenco, nuova produzione, scheda con stampa etichetta, leggi un codice (2026-11-26)
+// @version: v1.1 — l'elenco mostra anche le produzioni registrate ora con una data vecchia, col giorno scritto (2026-11-26); v1.0 — elenco, nuova produzione, scheda con stampa etichetta, leggi un codice (2026-11-26)
 //
 // Il giro approvato da Marco il 2026-11-26 (artifact «TRGB · Cucina › Produzioni e
 // codice lotto (proposta)»): 1 elenco di oggi · 2 nuova produzione · 3 registrata,

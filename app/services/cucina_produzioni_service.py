@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Modulo: cucina
-# @version: v1.0 — registro produzioni: numero del giorno, numero persona, codice lotto (2026-11-26)
+# @version: v1.1 — l'elenco prende anche le produzioni registrate di recente con data vecchia (2026-11-26); v1.0 — registro produzioni: numero del giorno, numero persona, codice lotto (2026-11-26)
 # -*- coding: utf-8 -*-
 """
 Produzioni e codice lotto — modulo cucina. Doc: docs/modulo_produzioni_lotto.md
@@ -118,10 +118,18 @@ def una(conn: sqlite3.Connection, prod_id: int) -> Dict[str, Any]:
 
 
 def elenco(conn: sqlite3.Connection, dal: date, al: Optional[date] = None) -> List[Dict[str, Any]]:
+    """Le produzioni PRODOTTE oppure REGISTRATE fra `dal` e `al`.
+
+    Tutte e due le date: una produzione registrata oggi con la data di tre
+    settimane fa deve comparire, altrimenti chi l'ha appena salvata non la
+    ritrova (successo a Marco il 26/11/2026 con la prima, datata 1/11).
+    """
     al = al or date.today()
     return _leggi(
-        conn, " WHERE p.data BETWEEN ? AND ? ORDER BY p.data DESC, p.numero DESC",
-        (dal.isoformat(), al.isoformat()),
+        conn,
+        """ WHERE p.data BETWEEN ? AND ? OR date(p.creato_at) BETWEEN ? AND ?
+            ORDER BY p.data DESC, p.numero DESC""",
+        (dal.isoformat(), al.isoformat(), dal.isoformat(), al.isoformat()),
     )
 
 

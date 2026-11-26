@@ -257,11 +257,13 @@ const MODULE_VERSIONS = {
     color: "orange",
   },
   cucinaProduzioni: {
+    // 1.1 (2026-11-26): fix — l'elenco prende le produzioni prodotte O registrate negli ultimi 7 giorni: una
+    //   produzione salvata oggi con la data di settimane fa non compariva (la prima di Marco, N27CKT del 1/11).
     // 1.0 (2026-11-26): pagina «Produzioni e lotti» (/cucina/produzioni, mig 248) — registra una produzione
     //   (cosa, chi, data, scadenza, etichette), TRGB assegna il numero del giorno e un codice lotto di 6 caratteri
     //   che solo TRGB sa rileggere; etichetta Brother 90×29 in due varianti; «Leggi un codice».
     //   Doc: docs/modulo_produzioni_lotto.md
-    version: "1.0",
+    version: "1.1",
     label: "Produzioni e lotti",
     status: "alpha",
     color: "orange",

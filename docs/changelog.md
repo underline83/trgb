@@ -3,6 +3,13 @@
 
 ---
 
+## 2026-11-26 — Produzioni 1.1: una produzione con la data vecchia non spariva dal registro, ma dall'elenco sì `[core]`
+
+Marco, alla prima produzione vera (N27CKT, Amaro dell'Oste, datata 1/11): «non so se l'ha salvata». Era salvata, ma l'elenco mostrava solo le produzioni con data negli ultimi 7 giorni.
+
+### Corretto
+- L'elenco prende le produzioni prodotte **oppure registrate** negli ultimi 7 giorni, sempre raggruppate per giorno di produzione. Nessuna migrazione.
+
 ## 2026-11-26 — Cucina: Produzioni e codice lotto (cucinaProduzioni 1.0, sistema 6.13, mig 248) `[core]`
 
 Marco: «logica produzione lotto che dia anno mese produzione e persona che l'ha prodotto però in una chiave non comprensibile al pubblico, 6/7 cifre». Poi: anche il giorno, numero produzione a 2 cifre, vanno bene le lettere; pagina nuova in Cucina; «admin, chef, sous chef e commis leggono e scrivono».
