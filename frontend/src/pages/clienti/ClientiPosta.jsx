@@ -1,4 +1,6 @@
-// @version: v1.6 (2026-11-21) — «🗑 Cestina» sulle mail delle altre caselle (in arrivo/spam, non PEC): con conferma,
+// @version: v1.7 (2026-11-26) — «Rispondi con un template»: scegli un template di risposta (mig 246), TRGB lo compila adesso
+//   (menù, prezzo, c'è posto/pieni, link), ritocchi il testo e lo salvi nelle Bozze della casella; in trgb@ riempie il «Rispondi»
+// v1.6 (2026-11-21) — «🗑 Cestina» sulle mail delle altre caselle (in arrivo/spam, non PEC): con conferma,
 //   la sposta nel Cestino della casella (anche in Mail: IMAP), POST /email/posta/{id}/cestina
 // v1.5 (2026-11-20) — bozze preparate da Q: chip «📝 bozza di Q» nell'elenco; trgb@ → «Rispondi» già compilato;
 //   altre caselle → riquadro con la bozza (è nelle Bozze di Mail), «Invia da qui» con conferma, «Annulla bozza»
@@ -595,6 +597,9 @@ export default function ClientiPosta() {
                       {risp.configurata === false && (
                         <p className="text-xs text-red-700">Il canale email non è configurato: Impostazioni Sistema › Email.</p>
                       )}
+                      <TemplateRisposta nomeIniziale={nomeDaMittente(aperta.mittente_nome)} toast={showToast}
+                        etichetta={risp.testo.trim() ? "Compila e sostituisci il testo" : "Compila"}
+                        onCompilato={(d) => setRisp((x) => ({ ...x, testo: d.testo || "" }))} />
                       {[["a", "A"], ["cc", "Cc"], ["oggetto", "Oggetto"]].map(([k, l]) => (
                         <label key={k} className="flex items-center gap-2 text-xs">
                           <span className="w-14 text-neutral-500">{l}</span>
@@ -704,6 +709,122 @@ function RigaCasella({ m, sel, onClick, etichetta }) {
   );
 }
 
+// Nome da proporre nel saluto: quello del mittente se sembra un nome (niente cifre né @)
+function nomeDaMittente(n) {
+  const v = (n || "").trim();
+  return v && !/[\d@_]/.test(v) ? v : "";
+}
+
+// Template di risposta (mig 246): scelta + nome nel saluto + «Compila». TRGB riempie ADESSO i blocchi
+// (menù, prezzo, c'è posto / siamo pieni, link) e passa il risultato a onCompilato. Senza template attivi non mostra niente.
+function TemplateRisposta({ nomeIniziale, onCompilato, etichetta = "Compila", toast }) {
+  const [lista, setLista] = useState([]);
+  const [scelto, setScelto] = useState("");
+  const [nome, setNome] = useState(nomeIniziale || "");
+  const [esito, setEsito] = useState(null);
+  const [lavoro, setLavoro] = useState(false);
+  useEffect(() => {
+    let vivo = true;
+    apiFetch(`${API_BASE}/clienti/risposte-template/?solo_attivi=true`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (vivo && d) setLista((d.template || []).filter((t) => t.testo_mail)); })
+      .catch(() => {});
+    return () => { vivo = false; };
+  }, []);
+  useEffect(() => { setNome(nomeIniziale || ""); setEsito(null); setScelto(""); }, [nomeIniziale]);
+  if (!lista.length) return null;
+  const compila = async () => {
+    setLavoro(true);
+    try {
+      const q = new URLSearchParams({ canale: "mail" });
+      if (nome.trim()) q.set("nome", nome.trim());
+      const r = await apiFetch(`${API_BASE}/clienti/risposte-template/${scelto}/compila?${q}`);
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || `Errore ${r.status}`);
+      setEsito(d);
+      onCompilato(d);
+    } catch (e) {
+      toast && toast(e.message, true);
+    } finally {
+      setLavoro(false);
+    }
+  };
+  const posto = esito?.disponibilita?.posto;
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-end gap-2">
+        <label className="text-xs text-neutral-600">
+          <span className="block mb-1">Template</span>
+          <select value={scelto} onChange={(e) => { setScelto(e.target.value); setEsito(null); }}
+            className="border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white min-h-[40px] max-w-[260px]">
+            <option value="">scegli…</option>
+            {lista.map((t) => <option key={t.id} value={t.id}>{t.nome}</option>)}
+          </select>
+        </label>
+        <label className="text-xs text-neutral-600">
+          <span className="block mb-1">Nome nel saluto</span>
+          <input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="vuoto = «Buongiorno,»"
+            className="border border-neutral-300 rounded-lg px-2 py-1.5 text-sm bg-white min-h-[40px] w-48" />
+        </label>
+        <Btn variant="chip" tone="emerald" size="md" onClick={compila} loading={lavoro} disabled={lavoro || !scelto}>{etichetta}</Btn>
+      </div>
+      {esito?.disponibilita && (
+        <div className={`text-xs font-medium rounded-lg border px-2 py-1.5 ${posto === true ? "bg-emerald-50 border-emerald-200 text-emerald-900" : posto === false ? "bg-red-50 border-red-200 text-red-800" : "bg-neutral-50 border-neutral-200 text-neutral-700"}`}>
+          Controllato adesso · {esito.disponibilita.frase}
+        </div>
+      )}
+      {(esito?.avvisi || []).map((a, i) => (
+        <p key={i} className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5">{a}</p>
+      ))}
+    </div>
+  );
+}
+
+// Mail di un'altra casella: risposta da template, testo ritoccabile, poi nelle Bozze della casella (come le bozze di Q)
+function RispostaDaTemplate({ m, onSalvata, toast }) {
+  const [testo, setTesto] = useState(null);   // null = niente di compilato
+  const [lavoro, setLavoro] = useState(false);
+  useEffect(() => { setTesto(null); }, [m.id]);
+  const salva = async () => {
+    setLavoro(true);
+    try {
+      const r = await apiFetch(`${API_BASE}/email/bozze`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ testo, rif_fonte: "casella", rif_id: m.id, cita: true }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.detail || `Errore ${r.status}`);
+      toast("Bozza salvata" + (d.dove ? `: ${d.dove}` : ""));
+      setTesto(null);
+      onSalvata && onSalvata();
+    } catch (e) {
+      toast(e.message, true);
+    } finally {
+      setLavoro(false);
+    }
+  };
+  return (
+    <div className="rounded-xl border border-teal-200 bg-teal-50/40 p-3 space-y-2">
+      <div className="text-xs font-semibold text-teal-800">↩️ Rispondi con un template</div>
+      <TemplateRisposta nomeIniziale={nomeDaMittente(m.mittente_nome)} onCompilato={(d) => setTesto(d.testo || "")} toast={toast} />
+      {testo !== null && (
+        <>
+          <textarea value={testo} onChange={(e) => setTesto(e.target.value)} rows={12}
+            className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm bg-white" />
+          <p className="text-[11px] text-neutral-500">
+            Puoi ritoccarlo: il template non cambia. La bozza va nelle Bozze della casella, agganciata a questa mail
+            {m.bozza ? " (sostituisce quella che c'è)" : ""}; poi la mandi da qui o da Mail.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Btn variant="primary" size="md" onClick={salva} loading={lavoro} disabled={lavoro || !testo.trim()}>Salva nelle Bozze</Btn>
+            <Btn variant="ghost" size="md" onClick={() => setTesto(null)} disabled={lavoro}>Lascia stare</Btn>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 // Una mail di un'altra casella, aperta: sola lettura. Si risponde dal proprio programma di posta.
 function MailCasella({ m, etichetta, onChiudi, onAggiorna, onCestinata, toast }) {
   const [conferma, setConferma] = useState(false);
@@ -806,6 +927,9 @@ function MailCasella({ m, etichetta, onChiudi, onAggiorna, onCestinata, toast })
             <Btn variant="ghost" size="md" onClick={() => azione("annulla")} disabled={lavoro} className="ml-auto">Annulla bozza</Btn>
           </div>
         </div>
+      )}
+      {!m.pec && !m.massiva && m.dove !== "inviata" && (
+        <RispostaDaTemplate m={m} onSalvata={onAggiorna} toast={toast} />
       )}
       {m.massiva && <p className="text-xs text-neutral-500">📰 Newsletter o notifica automatica ({m.massiva_perche})</p>}
 

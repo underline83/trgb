@@ -3,6 +3,23 @@
 
 ---
 
+## 2026-11-26 — Clienti 3.50: template di risposta ai clienti coi blocchi vivi `[core]`
+Marco 25/11: «creiamo dei template di risposta alle mail (poi in futuro anche per WhatsApp); il primo è per la richiesta sul menù / prenotazione di Natale: ringrazia, espone menù e prezzo, se ho disponibilità avvisa che è possibile prenotare dando il link diretto». 26/11: fra tre strade sceglie i testi con blocchi vivi e approva le schermate.
+
+**Aggiunto**
+- Clienti › Impostazioni › «✉️ Template di risposta»: testo per la mail e versione corta per WhatsApp, con i blocchi `{nome}`, `{data}`, `{menu}`, `{prezzo}`, `{disponibilita}`, `{link_prenotazione}` che TRGB riempie quando si risponde. Ogni template può avere un'occasione (giorno, turno, «c'è posto se entra un tavolo da N persone») e un menù della libreria. Anteprima «come esce adesso» con la frase sui tavoli e gli avvisi.
+- Clienti › Posta: «↩️ Rispondi con un template» su una mail di una casella del locale (testo ritoccabile, poi «Salva nelle Bozze»); nel «Rispondi» della casella del gestionale riempie il testo.
+- Servizio platform `prenotazioni_posto_service.c_e_posto(data, turno, pax)`: la disponibilità vista dalla sala (fasce, limiti, motore per tavoli), per i moduli che non sono Prenotazioni.
+- Connettore 1.25: `risposte_template`, `risposta_da_template` (sola lettura; la bozza resta `posta_bozza`).
+- mig 246 `clienti_risposte_template` + chiave `risposte_link_prenotazione` in `clienti_impostazioni`. Sistema 6.11.
+
+**Note**
+- Nessun template nasce dal codice: il primo («Pranzo di Natale 2026») si crea dalla pagina, dopo aver messo il menù di Natale in libreria. Il link di prenotazione è vuoto finché Marco non lo scrive.
+- Leggere e compilare: chi ha Clienti › Posta nella matrice Moduli; scrivere: admin.
+- Provato: `tests/test_risposte_template.py` (12 casi), `c_e_posto` su una copia del DB, sintassi di backend e pagine (babel). **Non provato nel browser** né con una mail vera.
+
+---
+
 ## 2026-11-26 — Prenotazioni 2.40: il tavolo arrivato da TheFork segue TheFork `[core]`
 Marco 24/11: «perché vedo così differenza tra i tavoli assegnati su TheFork e quelli reali?» → 26/11: la priorità a TRGB «vale se è stato inserito MANUALMENTE da TRGB; ma se è nato dalla prima importazione no».
 

@@ -604,6 +604,12 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   clienti: {
+    // 3.50 (2026-11-26): template di risposta ai clienti coi blocchi vivi (Marco 25-26/11, strada B) — Impostazioni ›
+    //   «Template di risposta» (ClientiRisposteTemplate 1.0): testo mail + versione corta WhatsApp, occasione (giorno, turno,
+    //   «c'è posto se entra un tavolo da N»), menù dalla libreria; blocchi {nome} {data} {menu} {prezzo} {disponibilita}
+    //   {link_prenotazione} riempiti da TRGB quando si risponde; anteprima di oggi. In Posta 1.7 «Rispondi con un template»
+    //   (bozza nelle Bozze della casella; in trgb@ riempie il «Rispondi»). mig 246 clienti_risposte_template, service
+    //   clienti_risposte_service + prenotazioni_posto_service (platform), /clienti/risposte-template, connettore 1.25.
     // 3.49 (2026-11-24): si scrive dalla pagina «💬 WhatsApp» — casella sotto la chat, testo via API YCloud (sendDirectly,
     //   YCLOUD_API_KEY) dal numero dell'osteria, solo entro 24 ore dall'ultimo messaggio del cliente (regola di WhatsApp;
     //   fuori: «rispondi dal telefono»); mig 245 clienti_wa_invii (chi, testo, esito, stato), messaggio con fonte «trgb»,
@@ -742,7 +748,7 @@ const MODULE_VERSIONS = {
     //   annullo/riattiva con storico movimenti, PDF buono A5 con identita'
     //   del locale, alert M.F sulle card in scadenza. Nessun impatto su
     //   corrispettivi/chiusure: registro informativo separato dalla cassa.
-    version: "3.49",
+    version: "3.50",
     label: "Gestione Clienti",
     status: "beta",
     color: "blue",
@@ -971,6 +977,8 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 6.11 (2026-11-26): mig 246 — clienti_risposte_template (template di risposta ai clienti coi blocchi vivi) +
+    //   servizio platform prenotazioni_posto_service («c'è posto in quel turno?» per gli altri moduli).
     // 6.10 (2026-11-24): M.A notifiche — push sui dispositivi, fase 1 (docs/spec_notifiche_push.md): notifiche_push.py
     //   (dispositivi, chiavi del locale, web push a canali), /notifiche/push/*, tabelle notifiche_dispositivi e
     //   notifiche_push_config al boot, service worker (push + tocco), riquadro «Notifiche su questo dispositivo» nel
@@ -1153,7 +1161,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "6.10",
+    version: "6.11",
     label: "Sistema",
     status: "stabile",
     color: "green",

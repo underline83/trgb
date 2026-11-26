@@ -112,6 +112,9 @@ class ProvaCreazioneReq(BaseModel):
     cognome: str
     ora: Optional[str] = None      # HH:MM; vuoto = prima fascia prenotabile online
     coperti: int = 2
+    telefono: Optional[str] = None  # +39…
+    con_fuso: bool = False          # manda l'ora con l'offset del locale
+    modifica: bool = False          # prova anche la PATCH (coperti +1) prima di cancellare
 
 
 @router.post("/prova-creazione")
@@ -124,6 +127,7 @@ def prova_creazione(req: ProvaCreazioneReq):
     return tf_prenota.prova_creazione(
         req.data.isoformat(), req.email.strip(), req.nome.strip(), req.cognome.strip(),
         ora=(req.ora or "").strip() or None, coperti=req.coperti,
+        telefono=(req.telefono or "").strip() or None, con_fuso=req.con_fuso, modifica=req.modifica,
     )
 
 

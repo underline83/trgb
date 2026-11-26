@@ -56,16 +56,42 @@ def cancella_prenotazione(reservation_uuid: str) -> Dict[str, Any]:
     return r
 
 
+def _con_fuso(data: str, ora: str) -> str:
+    """«AAAA-MM-GGTHH:MM+01:00» col fuso del locale (per provare l'ora con e senza offset)."""
+    from datetime import datetime
+    dt = datetime.fromisoformat(f"{data}T{ora}")
+    fuso = tf._fuso_locale()
+    return dt.replace(tzinfo=fuso).isoformat() if fuso else dt.astimezone().isoformat()
+
+
+def _solo(d: Any, chiavi) -> Dict[str, Any]:
+    return {k: d.get(k) for k in chiavi if isinstance(d, dict) and k in d}
+
+
 def prova_creazione(data: str, email: str, nome: str, cognome: str,
                     ora: Optional[str] = None, coperti: int = 2,
-                    lingua: str = "it", titolo: str = "mr") -> Dict[str, Any]:
+                    lingua: str = "it", titolo: str = "mr",
+                    telefono: Optional[str] = None, con_fuso: bool = False,
+                    modifica: bool = False) -> Dict[str, Any]:
     """
     Crea una prenotazione di prova e la cancella subito. Senza `ora` prende la
     prima fascia prenotabile online di quel giorno. Non solleva: racconta i passi.
+    `dettagli` riporta quello che TheFork ha risposto davvero (fasce grezze, ora
+    mandata, prenotazione riletta, cliente): serve a studiare l'API (2026-11-26).
+    `con_fuso` manda l'ora con l'offset del locale; `modifica` prova anche la PATCH.
     """
+    dett: Dict[str, Any] = {}
     esito: Dict[str, Any] = {"creata": False, "cancellata": False, "data": data, "ora": ora,
-                             "scope": None, "uuid": None, "errore": None, "messaggio": ""}
+                             "scope": None, "uuid": None, "errore": None, "messaggio": "", "dettagli": dett}
     try:
+        uuid_r = tf._restaurant_uuid_atteso()
+        try:
+            grezze = tf.api_get(f"/v1/restaurants/{uuid_r}/timeslots", {"date": data, "partySize": coperti}) or []
+            dett["fasce_grezze"] = [
+                _solo(f, ("datetime", "hasNormalStock")) for f in grezze if f.get("hasNormalStock")
+            ][:4]
+        except tf.TheForkErroreAPI as e:
+            dett["fasce_grezze"] = f"errore: {e}"
         if not ora:
             fasce = tf.fasce_prenotabili_online(data, coperti)
             if not fasce:
@@ -75,11 +101,13 @@ def prova_creazione(data: str, email: str, nome: str, cognome: str,
                 return esito
             ora = fasce[0]
             esito["ora"] = ora
-        r = crea_prenotazione(
-            f"{data}T{ora}", coperti,
-            {"email": email, "firstName": nome, "lastName": cognome, "locale": lingua, "civility": titolo},
-            nota_ristorante="PROVA TRGB — da ignorare, cancellata subito",
-        )
+        cliente = {"email": email, "firstName": nome, "lastName": cognome, "locale": lingua, "civility": titolo}
+        if telefono:
+            cliente["phone"] = telefono
+        quando = _con_fuso(data, ora) if con_fuso else f"{data}T{ora}"
+        dett["mandato"] = {"mealDate": quando, "partySize": coperti, "customer": cliente}
+        r = crea_prenotazione(quando, coperti, cliente,
+                              nota_ristorante="PROVA TRGB — da ignorare, cancellata subito")
     except tf.TheForkNonConfigurato as e:
         esito["errore"] = "non configurato"
         esito["messaggio"] = str(e)
@@ -99,6 +127,22 @@ def prova_creazione(data: str, email: str, nome: str, cognome: str,
     esito["uuid"] = r.get("reservationUuid")
     esito["stato_thefork"] = r.get("status")
     esito["garanzia_richiesta"] = bool(r.get("paymentMethodRequest"))
+    dett["risposta_creazione"] = _solo(r, ("reservationUuid", "mealDate", "status", "partySize", "customer",
+                                           "paymentMethodRequest", "creditCardGuaranteeDetails"))
+    try:
+        letta = tf.api_get(f"/v1/reservations/{esito['uuid']}") or {}
+        dett["riletta"] = _solo(letta, ("mealDate", "status", "partySize", "channel", "origin", "customer",
+                                        "customerUuid", "createdAt", "tables", "restaurantNote"))
+    except tf.TheForkErroreAPI as e:
+        dett["riletta"] = f"errore: {e}"
+    if modifica:
+        try:
+            m = tf._richiesta("PATCH", f"/v1/reservations/{esito['uuid']}", corpo={
+                "mealDate": quando, "partySize": coperti + 1,
+                "restaurantNote": "PROVA TRGB — modificata, cancellata subito"})
+            dett["modifica"] = _solo(m or {}, ("mealDate", "status", "partySize", "restaurantNote")) or "ok"
+        except tf.TheForkErroreAPI as e:
+            dett["modifica"] = f"errore: {e}"
     try:
         cancella_prenotazione(esito["uuid"])
         esito["cancellata"] = True

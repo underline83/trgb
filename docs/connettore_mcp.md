@@ -141,6 +141,14 @@ Prove (2026-11-19): 16 test in `tests/test_email_caselle.py`, gli strumenti regi
 
 Prove (2026-11-20): `tests/test_email_scrittura.py` (9) + giro completo con Dovecot e SMTP di prova. Non provato: Aruba vero.
 
+**Template di risposta** (2026-11-26, server 1.25, modulo clienti, mig 246). Risposte pronte scritte da Marco in Clienti › Impostazioni › Template di risposta: Q le legge e le fa riempire, poi usa `posta_bozza`. Da qui non si modificano.
+
+| Strumento | Cosa fa | Funzione | Ruoli | Tipo |
+|---|---|---|---|---|
+| `risposte_template` | elenco: id, nome, occasione, menù collegato, se ha mail e WhatsApp, link di prenotazione | `clienti_risposte_service.elenco` | admin | sola lettura |
+| `risposta_da_template` | il testo coi blocchi riempiti adesso (menù, prezzo, c'è posto / pieni, link) + frase sui tavoli + avvisi | `clienti_risposte_service.compila_salvato` | admin | sola lettura |
+
+
 **Preventivi e lettore generale** (2026-11-12, server 1.11). Nati dalla chat del 12/11: Marco chiede a Q «confermo il menù di Ferraro che è il Quadri, aggiorna prenotazione e manda messaggi» e Q non trova il Quadri, perché `preventivi_inviati` dava solo il registro degli invii (`menu_nome` vuoto coi menù multipli) e la conferma non aveva strumento. Decisione di Marco dello stesso giorno: **«Q deve poter sapere tutto: se mancano dei connettori deve averli».**
 
 | Strumento | Cosa fa | Funzione | Ruoli | Tipo |

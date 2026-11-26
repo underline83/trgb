@@ -9,7 +9,8 @@
   "router_files": [
     "clienti_router",
     "clienti_whatsapp_router",
-    "clienti_rubrica_router"
+    "clienti_rubrica_router",
+    "clienti_risposte_router"
   ],
   "endpoint_prefix": [
     "/clienti",
@@ -26,7 +27,8 @@
     "clienti_wa_contatti",
     "clienti_wa_eventi",
     "clienti_profilo",
-    "clienti_rubrica_accessi"
+    "clienti_rubrica_accessi",
+    "clienti_risposte_template"
   ],
   "frontend_route": ["/clienti"],
   "frontend_menu_key": "clienti"

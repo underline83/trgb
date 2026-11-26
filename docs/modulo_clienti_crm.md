@@ -727,3 +727,51 @@ Il foglio storico (`gift-card-lista.xlsx`, 174 righe dal dic 2021) era compilato
 
 1. **Telefono fisso** (Marco 16/11): da decidere, dipende dall'apparecchio. Un FRITZ!Box legge la stessa rubrica CardDAV; un centralino (FreePBX) chiederebbe il nome a TRGB a ogni chiamata.
 2. Da provare dal vivo su iPhone dopo il push (sui test con copia del DB: 4.671 contatti, PROPFIND 1,2 MB, multiget, 401 senza credenziali e dopo la revoca).
+
+---
+
+# 19. Template di risposta ai clienti (2026-11-26, mig 246)
+
+Marco, 25-26/11/2026: «creiamo dei template di risposta alle mail (poi in futuro anche per WhatsApp); il primo è per la richiesta sul menù / prenotazione di Natale: ringrazia, espone menù e prezzo, se ho disponibilità avvisa che è possibile prenotare dando il link diretto». Fra tre strade (testi salvati · testi con blocchi vivi · risposta preparata da sola) ha scelto la seconda.
+
+**Cos'è.** Un template è un testo con dei blocchi fra graffe che TRGB riempie **nel momento in cui lo si usa**:
+
+| Blocco | Cosa mette | Da dove |
+|---|---|---|
+| `{nome}` | nome del cliente; vuoto → sparisce («Buongiorno,») | chi compila |
+| `{data}` | il giorno dell'occasione per esteso | il template |
+| `{menu}` | i piatti, uno per riga (descrizione dopo i due punti) | libreria menù (`menu_templates_service.get_template`) |
+| `{prezzo}` | «80 € a persona», come nei preventivi | `preventivi_service.etichetta_prezzo` |
+| `{disponibilita}` | UNO dei due paragrafi del template: «Se c'è posto» / «Se siamo pieni» | `prenotazioni_posto_service.c_e_posto` |
+| `{link_prenotazione}` | il link scritto in testa alla pagina | `clienti_impostazioni.risposte_link_prenotazione` |
+
+**Occasione.** Giorno + turno + «c'è posto se entra un tavolo da N persone» (`pax_prova`, lo scrive Marco: nessuna soglia nel codice) + menù della libreria. Un template può non averla (es. «Gruppi: serve un menù»): quei blocchi escono vuoti, con un avviso.
+
+**C'è posto?** `app/services/prenotazioni_posto_service.py` (platform, nuovo): la risposta della sala, non del sito — stesse fasce, limiti di coperti e motore per tavoli di `prenotazioni_sito_service.orari`, senza le regole di chi prenota online (anticipo, vendita online chiusa, tetto online, gruppi a richiesta). `posto = None` quando non si può dire: il paragrafo non viene messo e l'avviso lo dice, non si traveste da «pieno».
+
+**Dove si scrivono.** Clienti › Impostazioni › ✉️ Template di risposta (`ClientiRisposteTemplate.jsx`): elenco, editor con due linguette (Mail · WhatsApp versione corta), pulsanti «Inserisci blocco» (in grigio quelli che oggi uscirebbero vuoti), i due paragrafi della disponibilità, anteprima «come esce adesso» con la frase sui tavoli («25/12 pranzo: 10 coperti su 40 · c'è posto») e gli avvisi.
+
+**Dove si usano.** Clienti › Posta (`ClientiPosta.jsx` 1.7): aprendo una mail di una casella del locale, «↩️ Rispondi con un template» → scelta, nome nel saluto, «Compila» → testo ritoccabile → «Salva nelle Bozze» (`POST /email/bozze`, come le bozze di Q: poi «Invia da qui» o da Mail). Nel «Rispondi» della casella del gestionale riempie il testo. Dal connettore: `risposte_template` e `risposta_da_template`, poi `posta_bozza`. La pagina 💬 WhatsApp non li usa ancora (il testo corto c'è già: `canale=wa`).
+
+**Non fa.** Non riconosce da sola la richiesta in arrivo e non prepara bozze senza che qualcuno lo chieda (era la strada C, rimandata). Compilare non scrive e non manda niente.
+
+## 19.1 Capability
+
+| Codice | Cosa fa | Riferimento | Audience | Docs |
+|---|---|---|---|---|
+| C-CL-RT01 | Elenco dei template, blocchi disponibili, link di prenotazione | `GET /clienti/risposte-template/` (`clienti_risposte_router.py:elenco_ep`) | chi ha Clienti › Posta | 🆕 |
+| C-CL-RT02 | Crea, modifica, spegne, elimina un template (mail + WhatsApp corta, occasione, menù) | `POST/PUT/DELETE /clienti/risposte-template/…`, `ClientiRisposteTemplate.jsx` | admin | 🆕 |
+| C-CL-RT03 | Anteprima «come esce adesso» del template che si sta scrivendo | `POST /clienti/risposte-template/anteprima` | admin | 🆕 |
+| C-CL-RT04 | Compila un template: menù, prezzo, c'è posto / pieni, link, con la frase sui tavoli e gli avvisi | `GET /clienti/risposte-template/{id}/compila`, `clienti_risposte_service.py:compila` | chi ha Clienti › Posta | 🆕 |
+| C-CL-RT05 | Link di prenotazione dei template | `PUT /clienti/risposte-template/impostazioni` | admin | 🆕 |
+| C-CL-RT06 | «Rispondi con un template» da una mail: testo ritoccabile, bozza nelle Bozze della casella | `ClientiPosta.jsx:RispostaDaTemplate/TemplateRisposta` | chi ha Clienti › Posta | 🆕 |
+| C-CL-RT07 | Q legge i template e li compila | connettore `risposte_template`, `risposta_da_template` | admin | 🆕 |
+
+## 19.2 Punti aperti
+
+1. **Link di prenotazione**: da scrivere (Marco non ha ancora detto quale: TheFork, pagina del sito, pagina TRGB). Finché è vuoto il blocco esce vuoto con l'avviso.
+2. **Menù di Natale in libreria**: il primo template («Pranzo di Natale 2026») ha bisogno del menù in Impostazioni › Menu Template; oggi sta solo in Q.
+3. **WhatsApp**: usare la versione corta dalla pagina 💬 WhatsApp.
+4. **Strada C**: riconoscere la richiesta in arrivo e preparare la bozza nel giro.
+5. Provato: `tests/test_risposte_template.py` (12 casi, DB temporaneo) e `c_e_posto` su una copia del DB (25/12 pranzo: 10 su 40, c'è posto). **Non provato nel browser** né con una mail vera.
+

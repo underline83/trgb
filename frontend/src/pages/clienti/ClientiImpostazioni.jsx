@@ -1,4 +1,4 @@
-// @version: v2.6 — sezione «Rubrica telefono» (CardDAV, accessi per telefono) (2026-11-16); v2.5 — «Segmenti e stelle»: soglie dei segmenti nuovi e delle stelle (nere, argento), conteggi, Ricalcola adesso (2026-11-16); v2.4 — Preventivi: indirizzo staff (CC), Rispondi a, giorni di scadenza/avviso/proroga, ruoli avvisati (2026-11-03); v2.3 — sezione WhatsApp (sola lettura, coexistence Meta); v2.2 — copia per email dei preventivi inviati (in «Luoghi preventivi»); v2.1-mattoni — M.I primitives (Btn, EmptyState), bg brand-cream, focus ring brand
+// @version: v2.7 — sezione «Template di risposta» (risposte ai clienti coi blocchi vivi, mig 246) (2026-11-26); v2.6 — sezione «Rubrica telefono» (CardDAV, accessi per telefono) (2026-11-16); v2.5 — «Segmenti e stelle»: soglie dei segmenti nuovi e delle stelle (nere, argento), conteggi, Ricalcola adesso (2026-11-16); v2.4 — Preventivi: indirizzo staff (CC), Rispondi a, giorni di scadenza/avviso/proroga, ruoli avvisati (2026-11-03); v2.3 — sezione WhatsApp (sola lettura, coexistence Meta); v2.2 — copia per email dei preventivi inviati (in «Luoghi preventivi»); v2.1-mattoni — M.I primitives (Btn, EmptyState), bg brand-cream, focus ring brand
 // Layout Impostazioni CRM: sidebar sinistra + sezioni (segmenti, import, duplicati, mailchimp)
 import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
@@ -10,6 +10,7 @@ import ClientiMailchimp from "./ClientiMailchimp";
 import ClientiMenuTemplates from "./ClientiMenuTemplates";
 import ClientiWhatsApp from "./ClientiWhatsApp";
 import ClientiRubrica from "./ClientiRubrica";
+import ClientiRisposteTemplate from "./ClientiRisposteTemplate";
 import { Btn, EmptyState } from "../../components/ui";
 import { ORDINE_SEGMENTI, SegmentoPill, Stelle } from "./ProfiloCliente";
 
@@ -18,6 +19,7 @@ const SECTIONS = [
   { key: "segmenti", label: "Segmenti e stelle", icon: "⭐", desc: "Segmenti, stelle nere e argento" },
   { key: "template_preventivi", label: "Template Preventivi", icon: "📋", desc: "Menu e condizioni riutilizzabili" },
   { key: "menu_templates", label: "Menu Template", icon: "🍽️", desc: "Libreria menu riutilizzabili sui preventivi" },
+  { key: "risposte_template", label: "Template di risposta", icon: "✉️", desc: "Risposte pronte per mail e WhatsApp, con menù e disponibilità" },
   { key: "luoghi_preventivi", label: "Luoghi Preventivi", icon: "📍", desc: "Sale e spazi per eventi (Sala, Giardino, Dehor…)" },
   { key: "import", label: "Import / Export", icon: "📥", desc: "TheFork, CSV, revisione diff" },
   { key: "duplicati", label: "Duplicati", icon: "🔄", desc: "Trova e unisci duplicati" },
@@ -114,6 +116,7 @@ export default function ClientiImpostazioni() {
               {section === "mailchimp" && <ClientiMailchimp embedded />}
               {section === "whatsapp" && <ClientiWhatsApp />}
               {section === "rubrica" && <ClientiRubrica />}
+              {section === "risposte_template" && <ClientiRisposteTemplate />}
             </div>
           </div>
         </div>
