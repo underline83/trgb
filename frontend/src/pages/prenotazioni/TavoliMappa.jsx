@@ -1,4 +1,4 @@
-// @version: v2.10 — su iPhone la mappa prende tutta la larghezza e i riquadri (prenotazione scelta, senza tavolo, riepilogo) scendono sotto; tasti da pollice (2026-11-24); v2.9 — «In opzione»: tavolo ambra tratteggiato, «✓ Conferma» (2026-11-13); v2.8 — «✂️ Dividi» anche da un tavolo occupato (scheda prenotazione); v2.7 — Sposta, Unisci e Sala com'era vicini; v2.6 — «✂️ Stacca» anche da un'unione occupata (scheda prenotazione); v2.5-sposta — tavoli trascinabili per il turno (in assegnazione o con «✋ Sposta»), «↺ Sala com'era»; v2.4-unioni — «🔗 Unisci» (anche assegnando): tavoli uniti per il turno disegnati come un rettangolo unico, «Stacca»; uniti anche i tavoli di una stessa prenotazione; v2.3-menu-nei-bordi — menu del tavolo sempre dentro la mappa; v2.2-dividi — tavoli dividibili spezzati in A/B per il turno; v2.1-menu-tavolo — clic su tavolo libero: aggiungi prenotazione / blocca tavolo (come TheFork Manager)
+// @version: v2.11 — apribile dalla matita di «Servizio» sulla sala giusta e già in «Sposta» (2026-11-26); v2.10 — su iPhone la mappa prende tutta la larghezza e i riquadri (prenotazione scelta, senza tavolo, riepilogo) scendono sotto; tasti da pollice (2026-11-24); v2.9 — «In opzione»: tavolo ambra tratteggiato, «✓ Conferma» (2026-11-13); v2.8 — «✂️ Dividi» anche da un tavolo occupato (scheda prenotazione); v2.7 — Sposta, Unisci e Sala com'era vicini; v2.6 — «✂️ Stacca» anche da un'unione occupata (scheda prenotazione); v2.5-sposta — tavoli trascinabili per il turno (in assegnazione o con «✋ Sposta»), «↺ Sala com'era»; v2.4-unioni — «🔗 Unisci» (anche assegnando): tavoli uniti per il turno disegnati come un rettangolo unico, «Stacca»; uniti anche i tavoli di una stessa prenotazione; v2.3-menu-nei-bordi — menu del tavolo sempre dentro la mappa; v2.2-dividi — tavoli dividibili spezzati in A/B per il turno; v2.1-menu-tavolo — clic su tavolo libero: aggiungi prenotazione / blocca tavolo (come TheFork Manager)
 // Modulo: prenotazioni
 // Mappa serale tavoli — vista operativa con assegnazione, Fase 2 Prenotazioni
 import React, { useState, useEffect, useCallback, useRef } from "react";
@@ -37,11 +37,13 @@ export default function TavoliMappa() {
   const [selectedPren, setSelectedPren] = useState(null);
   const [assegnando, setAssegnando] = useState(null); // pren_id da assegnare
   const [toast, setToast] = useState(null);
-  const [sala, setSala] = useState(null);
+  // Aperta dalla matita della vista Servizio: ?sposta=1&sala=Osteria → già sulla sala giusta, pronta a spostare
+  const daServizio = new URLSearchParams(window.location.search);
+  const [sala, setSala] = useState(daServizio.get("sala") || null);
   const [menuTavolo, setMenuTavolo] = useState(null);   // tavolo libero/bloccato cliccato
   const [formTavolo, setFormTavolo] = useState(null);   // nome tavolo per nuova prenotazione
   const [unendo, setUnendo] = useState(null);           // {ids:[], nomi:[], prolunghe} — «🔗 Unisci» in corso
-  const [spostando, setSpostando] = useState(false);    // «✋ Sposta»: la sala si modifica per questo turno
+  const [spostando, setSpostando] = useState(daServizio.get("sposta") === "1");    // «✋ Sposta»: la sala si modifica per questo turno
   const [trascina, setTrascina] = useState(null);       // {id, ox, oy, x, y, mosso}
   const appenaTrascinato = useRef(false);
   const svgRef = useRef(null);

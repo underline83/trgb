@@ -50,12 +50,12 @@ const MODULE_FALLBACK = {
 };
 
 /* Azioni rapide: caricate via useHomeActions() dal DB (sessione 49).
- * Se la route base del DB e' "/prenotazioni", in UI la espandiamo a
- * /prenotazioni/planning/YYYY-MM-DD cosi' admin va dritto al planning di oggi
- * (stesso comportamento prima della migrazione a DB). */
+ * Se la route base del DB e' "/prenotazioni", in UI va dritta alla vista
+ * «Servizio» di oggi (dal 2026-11-26, Marco: pagina d'arrivo di Prenotazioni;
+ * prima era il Planning di oggi). */
 function resolveRoute(baseRoute) {
   if (baseRoute === "/prenotazioni") {
-    return "/prenotazioni/planning/" + new Date().toISOString().slice(0, 10);
+    return "/prenotazioni/servizio";
   }
   return baseRoute;
 }

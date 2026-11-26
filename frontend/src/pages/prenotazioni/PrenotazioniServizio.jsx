@@ -1,4 +1,4 @@
-// @version: v1.0 — vista «Servizio»: elenco del turno e sala nella stessa schermata, striscia degli orari per vedere la sala a un'altra ora, due schede sul telefono (2026-11-26)
+// @version: v1.1 — stessa larghezza di pagina di Planning e Mappa, elenco a larghezza fissa e sala che non cambia misura; iPad in piedi: sala sopra, elenco sotto (2026-11-26); v1.0 — vista «Servizio»: elenco del turno e sala nella stessa schermata, striscia degli orari per vedere la sala a un'altra ora, due schede sul telefono (2026-11-26)
 // Modulo: prenotazioni
 // Idea presa da TheFork Manager (Marco 2026-11-26: «il mix tra prenotazioni e tavoli è una visual molto utile»).
 // Non sostituisce Planning né Mappa Tavoli: è una terza vista, da provare in servizio.
@@ -242,7 +242,15 @@ export default function PrenotazioniServizio() {
           <Btn size="md" variant="secondary" onClick={() => setOra(null)}>{inTurno ? "Torna ad adesso" : "Tutto il turno"}</Btn>
         </div>
       )}
-      <SchedeSale sale={sale} attiva={salaAttiva} onChange={setSala} />
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1"><SchedeSale sale={sale} attiva={salaAttiva} onChange={setSala} /></div>
+        {/* La matita: la sala di QUESTO turno nella Mappa Tavoli (sposta, unisci, blocca); la piantina fissa non cambia */}
+        <button type="button" title={`Modifica la sala ${salaAttiva || ""} per questo turno`} aria-label="Modifica la sala per questo turno"
+          onClick={() => navigate(`/prenotazioni/mappa/${data}/${turno}?sposta=1${salaAttiva ? `&sala=${encodeURIComponent(salaAttiva)}` : ""}`)}
+          className="flex-shrink-0 w-11 h-11 rounded-lg border border-neutral-300 bg-white hover:bg-neutral-50 flex items-center justify-center text-neutral-700">
+          <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" /></svg>
+        </button>
+      </div>
       <div className="bg-white rounded-xl border border-neutral-200 overflow-hidden">
         <svg viewBox={`0 0 ${CANVAS_W} ${CANVAS_H}`} className="w-full h-auto block" role="img" aria-label={`Sala ${salaAttiva}`}>
           {elementi.map((e) => <FormaElemento key={`e${e.id}`} e={e} />)}
@@ -287,7 +295,7 @@ export default function PrenotazioniServizio() {
   return (
     <div className="min-h-screen bg-brand-cream">
       <PrenotazioniNav current="servizio" />
-      <div className="max-w-[1400px] mx-auto px-3 sm:px-6 py-3 sm:py-4">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 py-3 sm:py-4">
         {toast && <div className={`mb-3 px-4 py-2 rounded-lg text-sm font-medium ${toast.type === "ok" ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-800"}`}>{toast.text}</div>}
 
         <div className="flex items-center justify-between gap-2 flex-wrap mb-3">
@@ -320,9 +328,11 @@ export default function PrenotazioniServizio() {
             {scheda === "elenco" ? Elenco : Sala}
           </>
         ) : (
-          <div className="grid grid-cols-[minmax(300px,400px)_minmax(0,1fr)] gap-4 items-start">
-            <div className="max-h-[calc(100vh-190px)] overflow-y-auto pr-1">{Elenco}</div>
-            {Sala}
+          // iPad orizzontale e computer: elenco a larghezza fissa e sala accanto, così la sala non cambia misura
+          // da un turno all'altro; l'elenco scorre dentro il suo riquadro. iPad in piedi: sala sopra, elenco sotto.
+          <div className="grid grid-cols-1 lg:grid-cols-[360px_minmax(0,1fr)] gap-4 items-start">
+            <div className="order-2 lg:order-1 lg:h-[calc(100vh-200px)] lg:overflow-y-auto lg:pr-1">{Elenco}</div>
+            <div className="order-1 lg:order-2 min-w-0">{Sala}</div>
           </div>
         )}
       </div>

@@ -3,6 +3,16 @@
 
 ---
 
+## 2026-11-26 — Prenotazioni 2.48: il mese al posto della settimana `[core]`
+
+### Cambiato
+- Il tab «Settimana» diventa **«Mese»**: calendario del mese, e per ogni giorno i coperti di pranzo e di cena con una barra sulla capienza (rossa quando il turno è pieno), i coperti in opzione e le chiusure. Un tocco sul turno apre «Servizio» di quel turno, sul numero del giorno il Planning.
+
+## 2026-11-26 — Prenotazioni 2.47: si arriva su «Servizio» `[core]`
+
+### Cambiato
+- Aprendo Prenotazioni (dal menu, dalla Home o dall'azione rapida) si arriva sulla vista «Servizio», che è anche il primo tab. Il Planning resta subito dopo.
+
 ## 2026-11-26 — Prenotazioni 2.46: vista «Servizio», prenotazioni e tavoli insieme `[core]`
 
 ### Aggiunto

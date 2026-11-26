@@ -772,6 +772,14 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   prenotazioni: {
+    // 2.48 (2026-11-26): vista «Mese» al posto di «Settimana» (Marco: «serve a poco») — calendario del mese con coperti di
+    //   pranzo e cena sulla capienza, opzioni e chiusure; un tocco sul turno apre «Servizio», sul giorno il Planning.
+    //   GET /prenotazioni/mese/{anno}/{mese}. I vecchi indirizzi /settimana aprono il mese; PrenotazioniSettimana.jsx non è più usato.
+    //   Servizio, Planning, Mappa e Mese hanno la stessa larghezza di pagina (max-w-7xl, come la barra dei tab): passando da
+    //   un tab all'altro su iPad niente si allarga o si stringe. In «Servizio», accanto alle sale, la matita apre la Mappa
+    //   Tavoli di quel giorno e turno, sulla stessa sala e già in «Sposta» (modifiche valide solo per quel servizio).
+    // 2.47 (2026-11-26): «Servizio» è la pagina d'arrivo di Prenotazioni (Marco) — /prenotazioni, l'azione rapida della Home,
+    //   il primo tab e la prima voce del menu portano lì. Il Planning resta, un tab più in là.
     // 2.46 (2026-11-26): vista «Servizio» (tab nuovo, non sostituisce Planning né Mappa): elenco del turno a sinistra e sala
     //   a destra, la selezione passa dall'uno all'altra; striscia degli orari (coperti e tavoli) per vedere la sala a un'altra
     //   ora; un tocco su un tavolo libero apre «Nuova prenotazione» con tavolo e ora; sul telefono due schede. Idea da TheFork
@@ -842,7 +850,7 @@ const MODULE_VERSIONS = {
     // 2.16 (2026-10-19): Prenotazioni › Archivio (tutte le prenotazioni con filtri), spostato da
     //   Clienti; API nuova GET /prenotazioni/archivio/ (+ /riepilogo/). /clienti/prenotazioni rimanda qui.
     // 2.15 (2026-10-19): PrenotazioniForm accetta defaultCliente (bottone «Prenota» della scheda cliente).
-    version: "2.46",
+    version: "2.48",
     label: "Prenotazioni",
     status: "beta",
     color: "blue",

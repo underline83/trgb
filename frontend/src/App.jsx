@@ -146,6 +146,7 @@ const PrenotazioniArchivio = lazy(() => import("./pages/prenotazioni/Prenotazion
 const PrenotazioniRecensioni = lazy(() => import("./pages/prenotazioni/PrenotazioniRecensioni"));
 const TavoliEditor = lazy(() => import("./pages/prenotazioni/TavoliEditor"));
 const TavoliMappa = lazy(() => import("./pages/prenotazioni/TavoliMappa"));
+const PrenotazioniMese = lazy(() => import("./pages/prenotazioni/PrenotazioniMese"));
 const PrenotazioniServizio = lazy(() => import("./pages/prenotazioni/PrenotazioniServizio"));
 
 // CUCINA (MVP checklist + task)
@@ -612,17 +613,21 @@ export default function App() {
         {/* --- PRENOTAZIONI --- */}
         <Route path="/prenotazioni" element={
           <ModuleRedirect module="prenotazioni" targets={[
+            { path: "/prenotazioni/servizio" },   // pagina d'arrivo dal 2026-11-26 (Marco)
             { path: `/prenotazioni/planning/${new Date().toISOString().slice(0,10)}` },
             { path: "/prenotazioni/mappa" },
-            { path: `/prenotazioni/settimana/${new Date().toISOString().slice(0,10)}` },
+            { path: "/prenotazioni/mese" },
             { path: "/prenotazioni/impostazioni" },
           ]} />
         } />
         {/* Senza data = oggi (i tab Planning/Settimana puntano qui; prima finivano sulla Home) */}
         <Route path="/prenotazioni/planning" element={<ProtectedRoute module="prenotazioni"><PrenotazioniPlanning /></ProtectedRoute>} />
         <Route path="/prenotazioni/planning/:data" element={<ProtectedRoute module="prenotazioni"><PrenotazioniPlanning /></ProtectedRoute>} />
-        <Route path="/prenotazioni/settimana" element={<ProtectedRoute module="prenotazioni"><PrenotazioniSettimana /></ProtectedRoute>} />
-        <Route path="/prenotazioni/settimana/:data" element={<ProtectedRoute module="prenotazioni"><PrenotazioniSettimana /></ProtectedRoute>} />
+        {/* Mese al posto della Settimana (2026-11-26): i vecchi indirizzi /settimana aprono il mese */}
+        <Route path="/prenotazioni/mese" element={<ProtectedRoute module="prenotazioni"><PrenotazioniMese /></ProtectedRoute>} />
+        <Route path="/prenotazioni/mese/:anno/:mese" element={<ProtectedRoute module="prenotazioni"><PrenotazioniMese /></ProtectedRoute>} />
+        <Route path="/prenotazioni/settimana" element={<ProtectedRoute module="prenotazioni"><PrenotazioniMese /></ProtectedRoute>} />
+        <Route path="/prenotazioni/settimana/:data" element={<ProtectedRoute module="prenotazioni"><PrenotazioniMese /></ProtectedRoute>} />
         <Route path="/prenotazioni/impostazioni" element={<ProtectedRoute module="prenotazioni"><PrenotazioniImpostazioni /></ProtectedRoute>} />
         <Route path="/prenotazioni/archivio" element={<ProtectedRoute module="prenotazioni"><PrenotazioniArchivio /></ProtectedRoute>} />
         <Route path="/prenotazioni/recensioni" element={<ProtectedRoute module="prenotazioni"><PrenotazioniRecensioni /></ProtectedRoute>} />

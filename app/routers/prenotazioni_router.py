@@ -589,6 +589,69 @@ def get_settimana(
 
 
 # ============================================================
+# ENDPOINT: MESE (al posto della vista settimanale, 2026-11-26)
+# ============================================================
+
+@router.get("/mese/{anno}/{mese}")
+def get_mese(anno: int, mese: int, user: dict = Depends(get_current_user)):
+    """
+    Il mese a colpo d'occhio: per ogni giorno (dal lunedì della prima settimana alla
+    domenica dell'ultima) prenotazioni e coperti di pranzo e cena, capienza del turno,
+    coperti in opzione e chiusure. Stessi conti della vecchia vista settimanale.
+    """
+    verifica_ruoli(user, "admin", "sala", "sommelier", "capo_sala", cosa="il mese delle prenotazioni")
+    if not (1 <= mese <= 12) or not (2000 <= anno <= 2100):
+        raise HTTPException(status_code=400, detail="Mese non valido")
+    conn = get_clienti_conn()
+    try:
+        config = _get_config(conn)
+        soglia = config.get("soglia_pranzo_cena", "15:00")
+        primo = date(anno, mese, 1)
+        ultimo = (date(anno + (mese == 12), mese % 12 + 1, 1) - timedelta(days=1))
+        inizio = primo - timedelta(days=primo.weekday())
+        fine = ultimo + timedelta(days=6 - ultimo.weekday())
+        incerte = stati_srv.gruppo("incerta")
+        per_giorno: Dict[str, Dict[str, int]] = {}
+        for r in conn.execute(f"""
+            SELECT data_pasto, ora_pasto, pax, stato, turno FROM clienti_prenotazioni
+            WHERE data_pasto BETWEEN ? AND ? AND stato NOT IN {_sql_non_occupano()}
+        """, (inizio.isoformat(), fine.isoformat())):
+            g = per_giorno.setdefault(r["data_pasto"], {"pranzo_count": 0, "pranzo_pax": 0, "cena_count": 0,
+                                                        "cena_pax": 0, "opzione_pax": 0})
+            if r["stato"] in incerte:      # in opzione: coperti a parte
+                g["opzione_pax"] += r["pax"] or 0
+                continue
+            turno = r["turno"] or _calcola_turno(r["ora_pasto"], soglia)
+            turno = "pranzo" if turno == "pranzo" else "cena"
+            g[f"{turno}_count"] += 1
+            g[f"{turno}_pax"] += r["pax"] or 0
+        giorni = []
+        d = inizio
+        while d <= fine:
+            ds = d.isoformat()
+            chiusi = _turni_chiusi(config, ds)
+            conti = per_giorno.get(ds, {})
+            giorni.append({
+                "data": ds, "nel_mese": d.month == mese,
+                "chiuso": len(chiusi) == 2,
+                "pranzo_chiuso": "pranzo" in chiusi, "cena_chiuso": "cena" in chiusi,
+                "motivo_chiusura": next((m for m in chiusi.values() if m), None),
+                "pranzo_count": conti.get("pranzo_count", 0), "pranzo_pax": conti.get("pranzo_pax", 0),
+                "cena_count": conti.get("cena_count", 0), "cena_pax": conti.get("cena_pax", 0),
+                "opzione_pax": conti.get("opzione_pax", 0),
+                "capienza_pranzo": _capienza_turno(conn, ds, "pranzo", config),
+                "capienza_cena": _capienza_turno(conn, ds, "cena", config),
+            })
+            d += timedelta(days=1)
+        nel_mese = [g for g in giorni if g["nel_mese"]]
+        return {"anno": anno, "mese": mese, "giorni": giorni,
+                "totale_prenotazioni": sum(g["pranzo_count"] + g["cena_count"] for g in nel_mese),
+                "totale_coperti": sum(g["pranzo_pax"] + g["cena_pax"] for g in nel_mese)}
+    finally:
+        conn.close()
+
+
+# ============================================================
 # ENDPOINT: MINI-CALENDARIO
 # ============================================================
 
