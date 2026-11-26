@@ -137,5 +137,32 @@ class ImportGemelli(unittest.TestCase):
         self.assertEqual(self._quanti(), 1)
 
 
+class DuplicatiGemelli(unittest.TestCase):
+    """La pagina «possibili duplicati» non deve proporre di eliminare movimenti veri."""
+
+    def test_riferimenti_diversi_non_sono_doppioni(self):
+        g = br._separa_per_riferimento([{"id": 1, "descrizione": STIP_A}, {"id": 2, "descrizione": STIP_B}])
+        self.assertEqual([len(x) for x in g], [1, 1])
+
+    def test_stessa_riga_nei_due_formati_resta_un_gruppo(self):
+        g = br._separa_per_riferimento([
+            {"id": 1, "descrizione": STIP_A},
+            {"id": 2, "descrizione": STIP_A.upper().replace("  ", " ")},
+        ])
+        self.assertEqual([len(x) for x in g], [2])
+
+    def test_senza_riferimenti_resta_come_prima(self):
+        g = br._separa_per_riferimento([
+            {"id": 1, "descrizione": "effetti ritirati - add.effetto - caseificio latini s.r.l."},
+            {"id": 2, "descrizione": "effetti ritirati - add.effetto - caseificio latini s.r.l."},
+        ])
+        self.assertEqual([len(x) for x in g], [2])
+
+    def test_incassi_pos_dello_stesso_giorno_restano_un_gruppo(self):
+        d = "inc.pos carte credit - numia-inter  del 24/11/26 pdv 4820863/00004 antica trattoria dei tre bg"
+        g = br._separa_per_riferimento([{"id": 1, "descrizione": d}, {"id": 2, "descrizione": d}])
+        self.assertEqual([len(x) for x in g], [2])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

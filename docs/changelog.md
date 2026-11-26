@@ -10,6 +10,7 @@ Marco, riconciliando: «dovresti avere due importi da 1800… io ne vedo due». 
 ### Corretto
 - **Dedup hard**: l'hash guarda solo i primi 40 caratteri della descrizione, e due bonifici dello stesso giorno e importo differiscono dopo (rif. `mb0b45561794` / `mb0b45561787`). Ora la seconda riga gemella dello stesso file prende un hash col numero d'ordine (`_dedup_hash_occorrenza`): la prima resta compatibile con lo storico, ricaricare lo stesso file non duplica.
 - **Dedup soft** (formato pieno/vuoto, mig 058): bastava un movimento con stessa data e importo nell'altro formato per scartare tutte le righe gemelle (2/11: due commissioni presenti, otto perse). Ora è uno a uno: un movimento già abbinato non ne assorbe un altro.
+- **Possibili duplicati** (`GET /banca/duplicati`): usava gli stessi 40 caratteri e, appena entrati i gemelli, li proponeva da eliminare (6 gruppi). Ora dentro un gruppo si separano le righe con codici di riferimento diversi (`_separa_per_riferimento`); restano solo le preautorizzazioni.
 - Nessuna migrazione, nessun dato toccato. **Dopo il push**: ricaricare l'estratto di novembre → entrano 13 movimenti (provato su copia del DB vero: 13 nuovi, 156 doppioni, secondo giro 0).
 
 ### Test

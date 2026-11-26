@@ -266,6 +266,34 @@ def _dedup_hash(data_contabile: str, importo: float, descrizione: str) -> str:
     return hashlib.md5(raw.encode()).hexdigest()
 
 
+def _codici_riferimento(descrizione: str) -> frozenset:
+    """I codici che identificano un'operazione dentro la descrizione: parole
+    di almeno 6 caratteri con almeno 4 cifre (rif. bonifico, mandato SDD,
+    numero effetto). Maiuscole e punteggiatura non contano."""
+    d = re.sub(r"[^\w\s]", " ", (descrizione or "").lower())
+    return frozenset(
+        t for t in d.split()
+        if len(t) >= 6 and sum(c.isdigit() for c in t) >= 4
+    )
+
+
+def _separa_per_riferimento(movimenti: list) -> list:
+    """Divide un gruppo di possibili doppioni: due righe che hanno entrambe
+    dei codici di riferimento e nessuno in comune sono movimenti diversi.
+    Una riga senza codici resta col primo gruppo (comportamento di prima)."""
+    gruppi: list[dict] = []
+    for m in movimenti:
+        cod = _codici_riferimento(m["descrizione"])
+        for g in gruppi:
+            if not cod or not g["cod"] or (cod & g["cod"]):
+                g["righe"].append(m)
+                g["cod"] = g["cod"] | cod
+                break
+        else:
+            gruppi.append({"cod": cod, "righe": [m]})
+    return [g["righe"] for g in gruppi]
+
+
 def _hash_presenti(cur, dhash: str) -> set:
     """{dhash} se un movimento con quell'hash è già nel DB, altrimenti vuoto."""
     r = cur.execute("SELECT 1 FROM banca_movimenti WHERE dedup_hash = ? LIMIT 1", (dhash,)).fetchone()
@@ -2712,7 +2740,16 @@ def get_duplicati():
             norm = _normalize_desc(m["descrizione"])
             by_desc.setdefault(norm, []).append(m)
 
-        for norm_desc, mlist in by_desc.items():
+        # 2026-11-26: i primi 40 caratteri non bastano. Bonifici e commissioni
+        # dello stesso giorno e importo hanno la stessa testa e un riferimento
+        # diverso più avanti (rif. mb0b45561794 / mb0b45561787): sono movimenti
+        # veri, non doppioni. Dentro ogni gruppo si separano le righe che hanno
+        # codici di riferimento diversi (_separa_per_riferimento).
+        gruppi_veri = []
+        for mlist in by_desc.values():
+            gruppi_veri.extend(_separa_per_riferimento(mlist))
+
+        for mlist in gruppi_veri:
             if len(mlist) < 2:
                 continue
             group_ids = frozenset(m["id"] for m in mlist)
