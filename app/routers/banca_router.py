@@ -266,6 +266,29 @@ def _dedup_hash(data_contabile: str, importo: float, descrizione: str) -> str:
     return hashlib.md5(raw.encode()).hexdigest()
 
 
+def _hash_presenti(cur, dhash: str) -> set:
+    """{dhash} se un movimento con quell'hash è già nel DB, altrimenti vuoto."""
+    r = cur.execute("SELECT 1 FROM banca_movimenti WHERE dedup_hash = ? LIMIT 1", (dhash,)).fetchone()
+    return {dhash} if r else set()
+
+
+def _dedup_hash_occorrenza(base_hash: str, n: int) -> str:
+    """Hash della n-esima riga dello STESSO file con lo stesso hash base.
+
+    2026-11-26: `_dedup_hash` guarda solo i primi 40 caratteri della
+    descrizione. Due bonifici veri dello stesso giorno e dello stesso importo
+    (es. due stipendi da 1.800 €, rif. mb0b45561794 e mb0b45561787) hanno lo
+    stesso hash: il secondo veniva scartato come doppione. Ma due righe
+    nello stesso estratto sono due movimenti: la prima tiene l'hash base
+    (compatibile con tutto lo storico), dalla seconda in poi l'hash porta il
+    numero d'ordine. Ricaricando lo stesso file la sequenza è la stessa,
+    quindi il dedup fra un estratto e l'altro continua a funzionare.
+    """
+    if n <= 1:
+        return base_hash
+    return hashlib.md5(f"{base_hash}#{n}".encode()).hexdigest()
+
+
 def _parse_categoria(cat_raw: str):
     """Splitta 'Categoria - Sottocategoria' → (cat, subcat)."""
     cat_raw = (cat_raw or "").strip()
@@ -368,7 +391,31 @@ async def import_csv(file: UploadFile = File(...)):
     )
     import_id = cur.lastrowid
 
-    for row in reader:
+    # 2026-11-26 — due passate. Prima si calcola l'hash di ogni riga (con il
+    # numero d'ordine per le righe gemelle, v. _dedup_hash_occorrenza) e si
+    # segnano i movimenti del DB che il file ritrova per hash. Servono al
+    # "soft dedup" più sotto: un movimento già presente può assorbire UNA
+    # riga del file, non tutte quelle con stessa data e importo.
+    righe = list(reader)
+    hash_riga: list[str] = []
+    visti_nel_file: dict[str, int] = {}
+    for row in righe:
+        _dc = _parse_date_it(_get_csv_field(row, "Data contabile", "Data Contabile", "data contabile"))
+        _imp = _parse_importo_it(_get_csv_field(row, "Importo", "importo") or "0")
+        _base = _dedup_hash(_dc, _imp, _get_csv_field(row, "Descrizione", "descrizione"))
+        visti_nel_file[_base] = visti_nel_file.get(_base, 0) + 1
+        hash_riga.append(_dedup_hash_occorrenza(_base, visti_nel_file[_base]))
+
+    gia_abbinati: set[int] = set()
+    for i in range(0, len(hash_riga), 500):
+        blocco = hash_riga[i:i + 500]
+        segnaposto = ",".join("?" * len(blocco))
+        for (ex_id,) in cur.execute(
+            f"SELECT id FROM banca_movimenti WHERE dedup_hash IN ({segnaposto})", blocco
+        ).fetchall():
+            gia_abbinati.add(ex_id)
+
+    for idx_riga, row in enumerate(righe):
 
         num_rows += 1
 
@@ -407,7 +454,7 @@ async def import_csv(file: UploadFile = File(...)):
             hashtag = canale
 
         cat, subcat = _parse_categoria(cat_raw)
-        dhash = _dedup_hash(data_c, importo, descrizione)
+        dhash = hash_riga[idx_riga]
 
         # Track date range
         if data_c:
@@ -431,13 +478,23 @@ async def import_csv(file: UploadFile = File(...)):
             WHERE data_contabile = ? AND importo = ?
         """, (data_c, importo)).fetchall()
 
+        # 2026-11-26: il confronto è uno a uno. Prima bastava UN movimento
+        # con stessa data e importo nell'altro formato per scartare TUTTE le
+        # righe gemelle (2/11: due commissioni da 0,85 € già presenti ne
+        # hanno fatte perdere altre otto). Ora un movimento già abbinato
+        # (per hash o da una riga precedente) non ne assorbe un'altra, e una
+        # riga che il DB ha già per hash non passa di qui.
         is_soft_dup = False
-        for ex_id, ex_rs in existing:
-            ex_rs_clean = (ex_rs or "").strip()
-            # Pattern opposto: uno vuoto e l'altro pieno
-            if bool(ragione_clean) != bool(ex_rs_clean):
-                is_soft_dup = True
-                break
+        if dhash not in _hash_presenti(cur, dhash):
+            for ex_id, ex_rs in existing:
+                if ex_id in gia_abbinati:
+                    continue
+                ex_rs_clean = (ex_rs or "").strip()
+                # Pattern opposto: uno vuoto e l'altro pieno
+                if bool(ragione_clean) != bool(ex_rs_clean):
+                    is_soft_dup = True
+                    gia_abbinati.add(ex_id)
+                    break
 
         if is_soft_dup:
             num_dup += 1

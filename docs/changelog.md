@@ -3,6 +3,21 @@
 
 ---
 
+## 2026-11-26 — Flussi di Cassa 1.24: l'import della banca non scarta più i movimenti gemelli `[core]`
+
+Marco, riconciliando: «dovresti avere due importi da 1800… io ne vedo due». In banca c'erano, in TRGB uno solo. Confronto riga per riga con l'estratto 2–25/11: 13 movimenti persi su 169 (1 bonifico stipendio da 1.800 € e 12 commissioni da 0,85 €).
+
+### Corretto
+- **Dedup hard**: l'hash guarda solo i primi 40 caratteri della descrizione, e due bonifici dello stesso giorno e importo differiscono dopo (rif. `mb0b45561794` / `mb0b45561787`). Ora la seconda riga gemella dello stesso file prende un hash col numero d'ordine (`_dedup_hash_occorrenza`): la prima resta compatibile con lo storico, ricaricare lo stesso file non duplica.
+- **Dedup soft** (formato pieno/vuoto, mig 058): bastava un movimento con stessa data e importo nell'altro formato per scartare tutte le righe gemelle (2/11: due commissioni presenti, otto perse). Ora è uno a uno: un movimento già abbinato non ne assorbe un altro.
+- Nessuna migrazione, nessun dato toccato. **Dopo il push**: ricaricare l'estratto di novembre → entrano 13 movimenti (provato su copia del DB vero: 13 nuovi, 156 doppioni, secondo giro 0).
+
+### Test
+- `tests/test_banca_import_gemelli.py` (5 casi).
+
+### Aperto
+- I mesi prima di novembre non sono stati controllati: per recuperare eventuali gemelli persi vanno ricaricati gli estratti mese per mese.
+
 ## 2026-11-26 — Prenotazioni 2.41: TRGB è la fonte, il form manda a TheFork `[core]`
 
 Marco: «il form di inserimento dati… da ora vorrei che diventasse la nostra fonte, non inseriremo più da TheFork».

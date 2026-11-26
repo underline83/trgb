@@ -100,8 +100,9 @@ Registrazione in `main.py:678-680` (`banca_router`, `banca_carta_router`).
 Endpoint: `POST /banca/import` (`banca_router.py:257`) — multipart, solo `.csv`. UI: tab "Import" dentro `BancaImpostazioni.jsx:109-128` (la pagina dedicata `BancaImport.jsx` è legacy, vedi §10).
 
 - **Formati riconosciuti** (CC.8.b, `banca_router.py:281-312`): `BPM_VECCHIO` (colonne Banca+Rapporto), `BPM_ONLINE` (export 7 colonne senza Banca/Rapporto → warning + default conto BPM 12200), `SCONOSCIUTO` (warning, import best-effort). La response include `formato_csv` e `warnings[]`.
-- **Dedup hard**: `dedup_hash` UNIQUE = md5(data + importo + descrizione normalizzata senza punteggiatura, primi 40 char).
-- **Dedup soft** (pattern mig 058): stesso giorno+importo con `ragione_sociale` una vuota e una piena → considerato lo stesso movimento, skip.
+- **Dedup hard**: `dedup_hash` UNIQUE = md5(data + importo + descrizione normalizzata senza punteggiatura, primi 40 char). **Righe gemelle (2026-11-26)**: se nello stesso file più righe hanno lo stesso hash base, la prima lo tiene e dalla seconda in poi l'hash è `md5(base#n)` (`_dedup_hash_occorrenza`): due righe nello stesso estratto sono due movimenti (caso: due stipendi da 1.800 € il 14/11 con rif. diversi oltre il 40° carattere). Ricaricare lo stesso file dà la stessa sequenza, quindi non duplica.
+- **Dedup soft** (pattern mig 058): stesso giorno+importo con `ragione_sociale` una vuota e una piena → considerato lo stesso movimento, skip. **Uno a uno (2026-11-26)**: un movimento del DB già ritrovato per hash, o già usato per scartare una riga, non ne scarta un'altra (prima due commissioni da 0,85 € ne facevano perdere otto). L'import fa due passate: prima gli hash di tutto il file, poi le righe.
+- Test: `tests/test_banca_import_gemelli.py`.
 - Separatore CSV auto-detect (`;` vs `,`), encoding utf-8-sig con fallback latin-1, nomi colonna robusti a varianti maiuscole/minuscole.
 - Log in `banca_import_log`; storico: `GET /banca/import-log` (`banca_router.py:2275`).
 - Errore 400 se nessuna colonna riconosciuta e zero righe inserite.

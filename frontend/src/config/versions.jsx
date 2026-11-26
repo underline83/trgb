@@ -464,7 +464,8 @@ const MODULE_VERSIONS = {
   flussiCassa: {
     // v1.22 (2026-10-02): Riconciliazione mostrava solo i 500 movimenti più recenti (default limit backend) — ora tutti.
     // v1.23 (2026-10-23): uscite dirette (stipendi, affitti, rate) pagate in più bonifici — tranche in banca_uscite_link (mig 211).
-    version: "1.23",
+    // v1.24 (2026-11-26): import CSV banca — le righe gemelle (stessa data, importo, inizio descrizione) non vengono più scartate come doppioni.
+    version: "1.24",
     label: "Flussi di Cassa",
     status: "beta",
     color: "blue",
