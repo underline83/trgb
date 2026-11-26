@@ -163,7 +163,7 @@ export default function PrenotazioniImpostazioni() {
     <div className="min-h-screen bg-brand-cream">
       <PrenotazioniNav current="impostazioni" />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 py-3 sm:py-4">
         {/* Toast */}
         {toast && (
           <div className={`mb-4 px-4 py-2 rounded-lg text-sm font-medium ${
@@ -592,7 +592,7 @@ function SlotSection({ slotPranzo, slotCena, onChangePranzo, onChangeCena }) {
             <div className="flex flex-wrap gap-1.5 mt-1">
               {slotPranzo.length === 0 && <span className="text-xs text-indigo-400 italic">nessuno</span>}
               {slotPranzo.map((s) => (
-                <span key={s} className="px-2 py-1 text-xs rounded border bg-white text-neutral-600 border-neutral-300">{s}</span>
+                <span key={s} className="px-2 py-1 text-xs rounded-lg border bg-white text-neutral-600 border-neutral-300">{s}</span>
               ))}
             </div>
           </div>
@@ -601,7 +601,7 @@ function SlotSection({ slotPranzo, slotCena, onChangePranzo, onChangeCena }) {
             <div className="flex flex-wrap gap-1.5 mt-1">
               {slotCena.length === 0 && <span className="text-xs text-indigo-400 italic">nessuno</span>}
               {slotCena.map((s) => (
-                <span key={s} className="px-2 py-1 text-xs rounded border bg-white text-neutral-600 border-neutral-300">{s}</span>
+                <span key={s} className="px-2 py-1 text-xs rounded-lg border bg-white text-neutral-600 border-neutral-300">{s}</span>
               ))}
             </div>
           </div>
@@ -627,7 +627,7 @@ function TemplateSection({ config, update }) {
         <h4 className="font-semibold text-amber-800 mb-2 text-sm">Variabili disponibili</h4>
         <div className="flex flex-wrap gap-2">
           {["{nome}", "{cognome}", "{pax}", "{data}", "{ora}"].map((v) => (
-            <code key={v} className="px-2 py-0.5 bg-white border border-amber-200 rounded text-xs font-mono text-amber-800">{v}</code>
+            <code key={v} className="px-2 py-0.5 bg-white border border-amber-200 rounded-lg text-xs font-mono text-amber-800">{v}</code>
           ))}
         </div>
       </div>
@@ -644,7 +644,7 @@ function TemplateSection({ config, update }) {
           placeholder="Ciao {nome}, confermiamo la prenotazione per {pax} persone il {data} alle {ora}. A presto!"
         />
         {config.template_wa_conferma && (
-          <div className="mt-2 p-2 bg-neutral-50 rounded border border-neutral-100 text-xs text-neutral-600">
+          <div className="mt-2 p-2 bg-neutral-50 rounded-lg border border-neutral-100 text-xs text-neutral-600">
             <span className="font-medium text-neutral-500">Anteprima: </span>
             {(config.template_wa_conferma || "")
               .replace("{nome}", "Marco")
@@ -668,7 +668,7 @@ function TemplateSection({ config, update }) {
           placeholder="Ciao {nome}, ti ricordiamo la prenotazione di oggi alle {ora} per {pax} persone. Vi aspettiamo!"
         />
         {config.template_wa_reminder && (
-          <div className="mt-2 p-2 bg-neutral-50 rounded border border-neutral-100 text-xs text-neutral-600">
+          <div className="mt-2 p-2 bg-neutral-50 rounded-lg border border-neutral-100 text-xs text-neutral-600">
             <span className="font-medium text-neutral-500">Anteprima: </span>
             {(config.template_wa_reminder || "")
               .replace("{nome}", "Marco")
@@ -755,9 +755,9 @@ window.addEventListener("message", function (e) {
       <div className="bg-white rounded-xl border border-neutral-200 p-5 space-y-2">
         <h4 className="font-semibold text-neutral-700 text-sm">Nel sito</h4>
         <p className="text-xs text-neutral-500">Il modo più semplice è un bottone «Prenota» che apre <code>{url}</code>. Per averlo dentro la pagina del sito, incolla questo codice (l'altezza si adatta da sola):</p>
-        <pre className="text-[11px] bg-neutral-50 border border-neutral-200 rounded p-2 overflow-x-auto whitespace-pre">{snippet}</pre>
+        <pre className="text-[11px] bg-neutral-50 border border-neutral-200 rounded-lg p-2 overflow-x-auto whitespace-pre">{snippet}</pre>
         <button onClick={() => { navigator.clipboard?.writeText(snippet); setCopiato(true); setTimeout(() => setCopiato(false), 2000); }}
-          className="text-xs px-2.5 py-1 rounded border border-indigo-300 text-indigo-700 hover:bg-indigo-50">{copiato ? "Copiato ✓" : "Copia il codice"}</button>
+          className="text-xs px-2.5 py-1 rounded-lg border border-indigo-300 text-indigo-700 hover:bg-indigo-50">{copiato ? "Copiato ✓" : "Copia il codice"}</button>
       </div>
     </div>
   );

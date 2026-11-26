@@ -28,12 +28,12 @@ export const FALLBACK = [
   F("WAITLIST", "Lista d'attesa", "🕰️", "violet", "t", ["OPTION", "RECORDED", "CANCELED"]),
   F("REQUESTED", "Da confermare", "📨", "blue", "o", ["RECORDED", "OPTION", "WAITLIST", "REFUSED", "CANCELED"]),
   F("OPTION", "In opzione", "⏳", "amber", "oit", ["RECORDED", "CANCELED"]),
-  F("RECORDED", "Confermata", "📅", "indigo", "o", ["ARRIVED", "SEATED", "OPTION", "CANCELED", "NO_SHOW", "REFUSED"]),
-  F("ARRIVED", "Arrivato", "🚶", "teal", "ov", ["SEATED", "CANCELED", "NO_SHOW"]),
+  F("RECORDED", "Prenotato", "📅", "indigo", "o", ["ARRIVED", "SEATED", "OPTION", "CANCELED", "NO_SHOW", "REFUSED"]),
+  F("ARRIVED", "Arrivato", "🚶", "teal", "ov", ["SEATED", "CANCELED", "NO_SHOW", "RECORDED"]),
   F("PARTIALLY_ARRIVED", "Parziale", "👥", "amber", "ov", ["SEATED", "LEFT"]),
-  F("SEATED", "Seduto", "✅", "emerald", "ov", ["LEFT", "BILL"]),
-  F("BILL", "Al conto", "🧾", "amber", "ov", ["LEFT"]),
-  F("LEFT", "Completata", "🚪", "neutral", "ov", []),
+  F("SEATED", "Seduto", "✅", "emerald", "ov", ["LEFT", "BILL", "RECORDED"]),
+  F("BILL", "Al conto", "🧾", "amber", "ov", ["LEFT", "SEATED"]),
+  F("LEFT", "Completata", "🚪", "neutral", "ov", ["SEATED"]),
   F("CANCELED", "Cancellata", "✖", "neutral", "f", ["RECORDED"]),
   F("NO_SHOW", "No-show", "👻", "red", "f", ["RECORDED"]),
   F("REFUSED", "Rifiutata", "⛔", "red", "f", ["RECORDED"]),
@@ -88,6 +88,10 @@ export const AZIONI_STATO = {
   REFUSED:  { label: "⛔ Rifiuta", cls: "bg-red-400 hover:bg-red-500" },
 };
 export function azioneStato(da, a) {
+  // Passi all'indietro (mig 250): da seduto/arrivato a prenotato, da completata o al conto a seduto
+  if ((a === "RECORDED" && ["SEATED", "ARRIVED"].includes(da)) || (a === "SEATED" && ["LEFT", "BILL"].includes(da))) {
+    return { label: a === "RECORDED" ? "↩ Torna a prenotato" : "↩ Torna a seduto", cls: "bg-neutral-500 hover:bg-neutral-600", indietro: true };
+  }
   if (a === "RECORDED") {
     return ["CANCELED", "NO_SHOW", "REFUSED"].includes(da)
       ? { label: "↩ Ripristina", cls: "bg-indigo-500 hover:bg-indigo-600" }

@@ -132,11 +132,8 @@ const MODULES_MENU = {
     color: "bg-indigo-50 border-indigo-200 text-indigo-900", hoverBg: "hover:bg-indigo-50",
     sub: [
       { label: "Servizio",      go: "/prenotazioni/servizio" },
-      { label: "Planning",      go: "/prenotazioni/planning/" + new Date().toISOString().slice(0, 10) },
-      { label: "Mappa Tavoli",  go: "/prenotazioni/mappa" },
       { label: "Mese",          go: "/prenotazioni/mese" },
       { label: "Archivio",      go: "/prenotazioni/archivio" },
-      { label: "Editor Tavoli", go: "/prenotazioni/tavoli", check: "admin" },
       { label: "Impostazioni",  go: "/prenotazioni/impostazioni", check: "admin" },
     ],
   },

@@ -37,7 +37,7 @@ function Limite({ valore, predefinito, onSalva, disabled }) {
       onChange={(e) => setV(e.target.value)}
       onBlur={salva}
       onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-      className="w-16 max-sm:w-14 px-2 max-sm:px-1 py-1 max-sm:py-2 border border-neutral-300 rounded text-sm max-sm:text-base text-center disabled:bg-neutral-50"
+      className="w-16 max-sm:w-14 px-2 max-sm:px-1 py-1 max-sm:py-2 border border-neutral-300 rounded-lg text-sm max-sm:text-base text-center disabled:bg-neutral-50"
     />
   );
 }
@@ -121,13 +121,13 @@ export default function FasceTurno({ data, turno, onClose, onChange }) {
         <div className="px-3 sm:px-5 py-3 space-y-3">
           {errore && <div className="text-sm text-red-700">{errore}</div>}
           {messaggio && (
-            <div className={`px-3 py-2 rounded text-sm ${messaggio.tipo === "ok" ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-800"}`}>
+            <div className={`px-3 py-2 rounded-lg text-sm ${messaggio.tipo === "ok" ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-800"}`}>
               {messaggio.testo}
             </div>
           )}
 
           {info?.online_automatico && info.online_automatico !== "spento" && (
-            <div className={`px-3 py-2 rounded text-xs border ${info.online_automatico === "attivo" ? "bg-indigo-50 border-indigo-200 text-indigo-800" : "bg-amber-50 border-amber-200 text-amber-800"}`}>
+            <div className={`px-3 py-2 rounded-lg text-xs border ${info.online_automatico === "attivo" ? "bg-indigo-50 border-indigo-200 text-indigo-800" : "bg-amber-50 border-amber-200 text-amber-800"}`}>
               🤖 {info.online_automatico === "attivo"
                 ? "Online automatico ATTIVO: il motore per tavoli apre e chiude l'online (anche su TheFork) quando non c'è più un tavolo per il numero di persone scelto in Impostazioni. Le fasce cambiate a mano (✋) le lascia stare."
                 : "Online automatico IN PROVA: qui vedi cosa farebbe il motore per tavoli, ma non tocca niente né su TRGB né su TheFork. Si attiva in Impostazioni."}
@@ -136,11 +136,11 @@ export default function FasceTurno({ data, turno, onClose, onChange }) {
 
           <div className="flex flex-wrap gap-2 text-xs">
             <button disabled={occupato || !tutte.length} onClick={() => imposta(tutte, { online_aperta: false })}
-              className="px-2.5 py-1 max-sm:py-2.5 rounded border border-neutral-300 hover:bg-neutral-50">🌐✕ Chiudi online tutto il turno</button>
+              className="px-2.5 py-1 max-sm:py-2.5 rounded-lg border border-neutral-300 hover:bg-neutral-50">🌐✕ Chiudi online tutto il turno</button>
             <button disabled={occupato || !tutte.length} onClick={() => imposta(tutte, { online_aperta: true })}
-              className="px-2.5 py-1 max-sm:py-2.5 rounded border border-neutral-300 hover:bg-neutral-50">🌐 Riapri online tutto il turno</button>
+              className="px-2.5 py-1 max-sm:py-2.5 rounded-lg border border-neutral-300 hover:bg-neutral-50">🌐 Riapri online tutto il turno</button>
             <button disabled={occupato} onClick={verificaTheFork}
-              className="px-2.5 py-1 max-sm:py-2.5 rounded border border-indigo-300 text-indigo-700 hover:bg-indigo-50">🔍 Cosa vede il cliente su TheFork (2 persone)</button>
+              className="px-2.5 py-1 max-sm:py-2.5 rounded-lg border border-indigo-300 text-indigo-700 hover:bg-indigo-50">🔍 Cosa vede il cliente su TheFork (2 persone)</button>
           </div>
 
           <div className="overflow-x-auto -mx-1 px-1">
@@ -174,7 +174,7 @@ export default function FasceTurno({ data, turno, onClose, onChange }) {
                     <button disabled={occupato || !f.aperta}
                       onClick={() => imposta([f.ora], { online_aperta: !f.online_aperta })}
                       title={f.thefork_esito || ""}
-                      className={`px-2 py-1 rounded text-xs border ${f.online_aperta
+                      className={`px-2 py-1 rounded-lg text-xs border ${f.online_aperta
                         ? "border-neutral-300 text-neutral-600 hover:bg-neutral-50"
                         : "border-red-300 bg-red-50 text-red-700 hover:bg-red-100"}`}>
                       {f.online_aperta ? "🌐 Disattiva online" : "🌐✕ Riattiva online"}

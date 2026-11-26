@@ -105,7 +105,7 @@ export default function RecensioneCard({ r, puoRispondere, onAggiornata, onApriC
             <div className="mt-3 pl-3 border-l-2 border-indigo-200">
               <div className="flex items-center gap-2 text-[11px] text-neutral-500 mb-0.5">
                 <span>La nostra risposta{r.risposta_da ? ` (${r.risposta_da})` : ""}</span>
-                {stato && <span className={`px-1.5 py-0.5 rounded border ${stato[1]}`}>{stato[0]}</span>}
+                {stato && <span className={`px-1.5 py-0.5 rounded-lg border ${stato[1]}`}>{stato[0]}</span>}
               </div>
               <p className="text-sm text-neutral-700 whitespace-pre-line">{r.risposta}</p>
             </div>
@@ -113,7 +113,7 @@ export default function RecensioneCard({ r, puoRispondere, onAggiornata, onApriC
 
           {puoRispondere && r.commento && !aperta && (
             <button onClick={() => { setTesto(r.risposta || ""); setAperta(true); }}
-              className="mt-2 text-xs px-2.5 py-1 rounded border border-indigo-300 text-indigo-700 hover:bg-indigo-50">
+              className="mt-2 text-xs px-2.5 py-1 rounded-lg border border-indigo-300 text-indigo-700 hover:bg-indigo-50">
               {r.risposta ? "✏️ Modifica risposta" : "💬 Rispondi"}
             </button>
           )}
@@ -125,10 +125,10 @@ export default function RecensioneCard({ r, puoRispondere, onAggiornata, onApriC
               {errore && <div className="text-xs text-red-700">{errore}</div>}
               <div className="flex items-center gap-2">
                 <button disabled={invio || !testo.trim()} onClick={invia}
-                  className="px-3 py-1.5 rounded bg-indigo-600 text-white text-sm disabled:opacity-50">
+                  className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-sm disabled:opacity-50">
                   {invio ? "Invio…" : "Pubblica su TheFork"}
                 </button>
-                <button onClick={() => setAperta(false)} className="px-3 py-1.5 rounded text-sm text-neutral-600">Annulla</button>
+                <button onClick={() => setAperta(false)} className="px-3 py-1.5 rounded-lg text-sm text-neutral-600">Annulla</button>
                 <span className="text-[11px] text-neutral-400">La risposta passa dalla moderazione di TheFork prima di comparire.</span>
               </div>
             </div>

@@ -28,8 +28,8 @@ function Turno({ etichetta, count, pax, capienza, chiuso, motivo, onClick }) {
           {pax || "—"}<span className="hidden sm:inline font-normal text-neutral-500">{pax && capienza ? `/${capienza}` : ""}</span>
         </span>
       </span>
-      <span aria-hidden="true" className="block h-1 mt-0.5 rounded bg-neutral-100 overflow-hidden">
-        <span className={`block h-full rounded ${pieno ? "bg-red-600" : "bg-indigo-600"}`} style={{ width: `${pct}%` }} />
+      <span aria-hidden="true" className="block h-1 mt-0.5 rounded-lg bg-neutral-100 overflow-hidden">
+        <span className={`block h-full rounded-lg ${pieno ? "bg-red-600" : "bg-indigo-600"}`} style={{ width: `${pct}%` }} />
       </span>
     </button>
   );
@@ -96,7 +96,7 @@ export default function PrenotazioniMese() {
                     : eOggi ? "bg-indigo-50 border-indigo-500 ring-2 ring-indigo-200" : "bg-white border-neutral-200"}`}>
                   <div className="flex items-baseline justify-between gap-1">
                     <button type="button" onClick={() => navigate(`/prenotazioni/planning/${g.data}`)} title="Apri il Planning del giorno"
-                      className={`text-sm sm:text-base font-bold leading-none px-1 py-0.5 rounded hover:bg-indigo-100 ${eOggi ? "text-indigo-800" : "text-neutral-800"}`}>{n}</button>
+                      className={`text-sm sm:text-base font-bold leading-none px-1 py-0.5 rounded-lg hover:bg-indigo-100 ${eOggi ? "text-indigo-800" : "text-neutral-800"}`}>{n}</button>
                     {g.opzione_pax > 0 && <span className="text-[10px] font-semibold text-amber-700" title="Coperti in opzione: tavolo tenuto, non ancora confermato">+{g.opzione_pax} opz.</span>}
                   </div>
                   {g.chiuso && !(g.pranzo_count + g.cena_count) ? (

@@ -29,7 +29,7 @@ const STATI_LABEL = {
   ARRIVED: "Arrivato",
   BILL: "Conto",
   LEFT: "Uscito",
-  RECORDED: "Confermata",
+  RECORDED: "Prenotato",
   CANCELED: "Cancellata",
   NO_SHOW: "No Show",
   REFUSED: "Rifiutata",
@@ -37,6 +37,20 @@ const STATI_LABEL = {
   PARTIALLY_ARRIVED: "Parziale",
   OPTION: "In opzione",
   WAITLIST: "Lista d'attesa",
+};
+
+// «Inserita»: giorno e ora in cui la prenotazione è entrata, e chi l'ha inserita
+const inseritaIl = (quando) => {
+  if (!quando) return "—";
+  const [g, o] = String(quando).split(/[ T]/);
+  const [a, m, d] = g.split("-");
+  return `${d}/${m}/${a}${o ? ` ${o.slice(0, 5)}` : ""}`;
+};
+const inseritaDa = (p) => {
+  if (p.creato_da === "thefork-api") return "da TheFork";
+  if (p.creato_da === "sito") return "dal sito";
+  if (p.creato_da) return `da ${p.creato_da}`;
+  return p.fonte === "thefork" || p.fonte === "widget" ? "da TheFork" : "";
 };
 
 export default function PrenotazioniArchivio() {
@@ -99,11 +113,11 @@ export default function PrenotazioniArchivio() {
     <>
       <PrenotazioniNav current="archivio" />
       <div className="min-h-screen bg-brand-cream">
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 py-3 sm:py-6">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 py-3 sm:py-4">
           {/* Header + KPI */}
           <div className="flex items-center justify-between flex-wrap gap-x-4 gap-y-2 mb-3 sm:mb-4">
             <div>
-              <h1 className="text-xl sm:text-2xl font-bold text-neutral-900">Archivio prenotazioni</h1>
+              <h1 className="text-xl sm:text-2xl font-bold text-neutral-900" style={{ fontFamily: "'Playfair Display', Georgia, serif" }}>Archivio prenotazioni</h1>
               <p className="text-sm text-neutral-500 mt-1">
                 {totale.toLocaleString("it-IT")} prenotazion{totale === 1 ? "e" : "i"} trovat{totale === 1 ? "a" : "e"}
               </p>
@@ -252,6 +266,7 @@ export default function PrenotazioniArchivio() {
                           <th className="px-3 py-2 text-left text-xs font-medium text-neutral-500">Canale</th>
                           <th className="px-3 py-2 text-left text-xs font-medium text-neutral-500">Tavolo</th>
                           <th className="px-3 py-2 text-left text-xs font-medium text-neutral-500">Note</th>
+                          <th className="px-3 py-2 text-left text-xs font-medium text-neutral-500">Inserita</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-neutral-100">
@@ -288,6 +303,11 @@ export default function PrenotazioniArchivio() {
                               {p.nota_ristorante || p.nota_cliente
                                 ? (p.nota_ristorante || p.nota_cliente).substring(0, 60) + "..."
                                 : ""}
+                            </td>
+                            {/* Quando è stata inserita e da chi (utente di TRGB, oppure TheFork / sito) */}
+                            <td className="px-3 py-2.5 text-xs text-neutral-600 whitespace-nowrap">
+                              {inseritaIl(p.data_prenotazione)}
+                              <div className="text-neutral-500">{inseritaDa(p)}</div>
                             </td>
                           </tr>
                         ))}

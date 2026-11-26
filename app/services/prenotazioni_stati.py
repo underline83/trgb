@@ -46,7 +46,7 @@ DEFAULT_STATI: List[Tuple] = [
     ("WAITLIST",          "Lista d'attesa", "🕰️", "violet",  5,  0, 0, 0, 0, 1),
     ("REQUESTED",         "Da confermare",  "📨", "blue",    10, 1, 0, 0, 0, 0),
     ("OPTION",            "In opzione",     "⏳", "amber",   15, 1, 0, 0, 1, 1),
-    ("RECORDED",          "Confermata",     "📅", "indigo",  20, 1, 0, 0, 0, 0),
+    ("RECORDED",          "Prenotato",      "📅", "indigo",  20, 1, 0, 0, 0, 0),   # «Confermata» fino alla mig 250
     ("ARRIVED",           "Arrivato",       "🚶", "teal",    30, 1, 1, 0, 0, 0),
     ("PARTIALLY_ARRIVED", "Parziale",       "👥", "amber",   35, 1, 1, 0, 0, 0),
     ("SEATED",            "Seduto",         "✅", "emerald", 40, 1, 1, 0, 0, 0),
@@ -62,10 +62,10 @@ DEFAULT_TRANSIZIONI: Dict[str, List[str]] = {
     "OPTION":     ["RECORDED", "CANCELED"],
     "WAITLIST":   ["OPTION", "RECORDED", "CANCELED"],
     "RECORDED":   ["ARRIVED", "SEATED", "OPTION", "CANCELED", "NO_SHOW", "REFUSED"],
-    "ARRIVED":    ["SEATED", "CANCELED", "NO_SHOW"],
-    "SEATED":     ["LEFT", "BILL"],
-    "BILL":       ["LEFT"],
-    "LEFT":       [],
+    "ARRIVED":    ["SEATED", "CANCELED", "NO_SHOW", "RECORDED"],
+    "SEATED":     ["LEFT", "BILL", "RECORDED"],   # RECORDED = passo indietro (mig 250)
+    "BILL":       ["LEFT", "SEATED"],
+    "LEFT":       ["SEATED"],                     # passo indietro (mig 250)
     "CANCELED":   ["RECORDED"],   # ripristino
     "NO_SHOW":    ["RECORDED"],   # ripristino
     "REFUSED":    ["RECORDED"],   # ripristino

@@ -3,6 +3,28 @@
 
 ---
 
+## 2026-11-26 — Prenotazioni 2.51 / sistema 6.15: il giro della prenotazione, Servizio al centro (mig 250) `[core]`
+
+### Cambiato
+- **Un tasto solo per lo stato**, in Servizio: Prenotato → Confermato → Seduto → libera il tavolo. Accanto «↩» torna indietro di un passo; arrivato, al conto, in opzione, cancella, no-show e rifiuta stanno in «Altro».
+- Lo stato che si chiamava «Confermata» ora si chiama **«Prenotato»**; **«Confermato»** vuol dire che il cliente ha confermato che viene.
+- **Planning e Mappa Tavoli** non sono più nella barra: sono viste di Servizio, si scelgono in alto a destra (Servizio / Elenco / Mappa) restando sullo stesso giorno.
+
+### Aggiunto
+- Loghetto TRGB (le tre gobbette) accanto alle prenotazioni inserite da TRGB.
+- Archivio: colonna «Inserita», quando e da chi.
+
+### Corretto
+- Form: gli orari non escono più dalla casella, «Seggioloni» resta dentro il riquadro.
+
+## 2026-11-26 — Prenotazioni 2.50: grafica del modulo uniforme, secondo passo `[core]`
+
+### Cambiato
+- Stessi angoli arrotondati su bottoni, campi e riquadri di tutto il modulo Prenotazioni.
+- Stesso sfondo e stessa larghezza di pagina anche su Recensioni, Editor Tavoli, Impostazioni e Archivio; titoli di pagina con lo stesso carattere.
+- Mappa Tavoli: tasti della barra grandi come gli altri.
+- Servizio: il riepilogo del turno è sopra la sala, la riga in alto non va più a capo.
+
 ## 2026-11-26 — Prenotazioni 2.49: ritocchi a Servizio e Mese `[core]`
 
 ### Cambiato

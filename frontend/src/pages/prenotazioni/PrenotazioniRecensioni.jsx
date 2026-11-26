@@ -91,9 +91,9 @@ export default function PrenotazioniRecensioni() {
   const pagine = dati ? Math.max(1, Math.ceil(dati.totale / LIMITE)) : 1;
 
   return (
-    <div className="min-h-screen bg-neutral-50">
+    <div className="min-h-screen bg-brand-cream">
       <PrenotazioniNav current="recensioni" />
-      <div className="max-w-5xl mx-auto px-3 sm:px-6 py-3 sm:py-4 space-y-3 sm:space-y-4">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 py-3 sm:py-4 space-y-3 sm:space-y-4">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <Media titolo="Ultimi 30 giorni" m={rie?.["30_giorni"]} />
           <Media titolo="Ultimi 90 giorni" m={rie?.["90_giorni"]} />
@@ -144,12 +144,12 @@ export default function PrenotazioniRecensioni() {
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-neutral-500">pasti dal</span>
               <input type="date" value={scarica.dal} onChange={(e) => setScarica({ ...scarica, dal: e.target.value })}
-                className="px-2 py-1 border rounded" />
+                className="px-2 py-1 border rounded-lg" />
               <span className="text-neutral-500">al</span>
               <input type="date" value={scarica.al} onChange={(e) => setScarica({ ...scarica, al: e.target.value })}
-                className="px-2 py-1 border rounded" />
+                className="px-2 py-1 border rounded-lg" />
               <button disabled={scaricando || !scarica.dal} onClick={scaricaPeriodo}
-                className="px-3 py-1 rounded bg-indigo-600 text-white disabled:opacity-50">{scaricando ? "Scarico…" : "Scarica"}</button>
+                className="px-3 py-1 rounded-lg bg-indigo-600 text-white disabled:opacity-50">{scaricando ? "Scarico…" : "Scarica"}</button>
               {esito && <span className="text-neutral-600">{esito}</span>}
             </div>
             <p className="text-[11px] text-neutral-400 mt-2">

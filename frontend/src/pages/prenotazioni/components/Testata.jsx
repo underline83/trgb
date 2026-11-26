@@ -1,9 +1,10 @@
-// @version: v1.0 — testata comune delle pagine di Prenotazioni: frecce, titolo del giorno, «Oggi», scelta pranzo/cena (2026-11-26)
+// @version: v1.1 — scelta della vista (Servizio / Elenco / Mappa) nella testata (2026-11-26); v1.0 — testata comune delle pagine di Prenotazioni: frecce, titolo del giorno, «Oggi», scelta pranzo/cena (2026-11-26)
 // Modulo: prenotazioni
 // Marco 2026-11-26: «da un lato certi colori dall'altro diversi, da un lato tasti arrotondati da un altro no».
 // Un posto solo per la riga in alto di Servizio, Planning, Mappa Tavoli e Mese: stesse misure (tasti 44 px),
 // stessi angoli, titolo in Playfair come da regola di progetto, indaco per ciò che è scelto.
 import React from "react";
+import { useNavigate } from "react-router-dom";
 
 const pad = (n) => String(n).padStart(2, "0");
 export const giornoLocale = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -30,8 +31,28 @@ export function SceltaTurno({ turno, onChange }) {
   );
 }
 
-// ◀ Giovedì 26 novembre ▶ [Oggi] [pranzo|cena] {children} ……… {destra}
-export default function TestataGiorno({ data, onData, turno, onTurno, corto = false, children, destra }) {
+// Le tre viste dello stesso servizio (Marco 2026-11-26: «Planning e Mappa Tavoli diventano visualizzazioni interne a
+// Servizio»): non sono più tab della barra, si passa dall'una all'altra da qui restando su giorno e turno.
+const VISTE = [["servizio", "Servizio"], ["planning", "Elenco"], ["mappa", "Mappa"]];
+export function SceltaVista({ vista, data, turno }) {
+  const navigate = useNavigate();
+  const vai = (v) => {
+    if (v === vista) return;
+    if (v === "planning") navigate(`/prenotazioni/planning/${data}`);
+    else navigate(`/prenotazioni/${v}/${data}${turno ? `/${turno}` : ""}`);
+  };
+  return (
+    <span className="flex rounded-lg border border-neutral-400 overflow-hidden text-sm" role="group" aria-label="Vista">
+      {VISTE.map(([v, etichetta]) => (
+        <button key={v} type="button" onClick={() => vai(v)} aria-pressed={vista === v}
+          className={`px-3.5 min-h-[44px] ${vista === v ? "bg-indigo-900 text-white font-bold" : "bg-white text-neutral-700 hover:bg-neutral-50"}`}>{etichetta}</button>
+      ))}
+    </span>
+  );
+}
+
+// ◀ Giovedì 26 novembre ▶ [Oggi] [pranzo|cena] {children} ……… [Servizio|Elenco|Mappa] {destra}
+export default function TestataGiorno({ data, onData, turno, onTurno, vista, corto = false, children, destra }) {
   const d = new Date(`${data}T12:00:00`);
   const oggi = giornoLocale();
   const altroAnno = d.getFullYear() !== new Date().getFullYear();
@@ -48,7 +69,12 @@ export default function TestataGiorno({ data, onData, turno, onTurno, corto = fa
         {turno && onTurno && <SceltaTurno turno={turno} onChange={onTurno} />}
         {children}
       </div>
-      {destra && <div className="flex items-center gap-3 flex-wrap max-sm:w-full">{destra}</div>}
+      {(destra || vista) && (
+        <div className="flex items-center gap-3 flex-wrap max-sm:w-full">
+          {vista && <SceltaVista vista={vista} data={data} turno={turno} />}
+          {destra}
+        </div>
+      )}
     </div>
   );
 }

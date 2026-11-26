@@ -283,14 +283,14 @@ export default function TavoliMappa() {
 
   if (loading && !mappaData) return (
     <div className="min-h-screen bg-brand-cream">
-      <PrenotazioniNav current="mappa" />
+      <PrenotazioniNav current="servizio" />
       <div className="text-center py-12 text-neutral-400">Caricamento mappa...</div>
     </div>
   );
 
   return (
     <div className="min-h-screen bg-brand-cream">
-      <PrenotazioniNav current="mappa" />
+      <PrenotazioniNav current="servizio" />
 
       <div className="max-w-7xl mx-auto px-3 sm:px-6 py-3 sm:py-4">
         {toast && (
@@ -301,7 +301,7 @@ export default function TavoliMappa() {
 
         {/* Header: data + turno */}
         <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-          <TestataGiorno data={data} onData={setData} turno={turno} onTurno={setTurno}>
+          <TestataGiorno data={data} onData={setData} turno={turno} onTurno={setTurno} vista="mappa">
             <input type="date" value={data} onChange={e => e.target.value && setData(e.target.value)} aria-label="Scegli il giorno"
               className="px-2 min-h-[44px] border border-neutral-300 rounded-lg text-sm max-sm:text-base bg-white" />
           </TestataGiorno>
@@ -310,20 +310,20 @@ export default function TavoliMappa() {
               <div className="px-3 py-1.5 bg-amber-100 text-amber-800 rounded-lg text-xs font-medium">
                 <span className="animate-pulse">Clicca su un tavolo libero per assegnare (puoi anche trascinare i tavoli)</span>
                 <button onClick={() => setUnendo({ ids: [], nomi: [], prolunghe: 0 })}
-                  className="ml-2 px-2 py-0.5 rounded bg-white border border-amber-300 hover:bg-amber-50">🔗 Unisci tavoli</button>
+                  className="ml-2 px-2 py-0.5 rounded-lg bg-white border border-amber-300 hover:bg-amber-50">🔗 Unisci tavoli</button>
                 <button onClick={() => setAssegnando(null)} className="ml-2 text-amber-600 hover:text-amber-800">✕</button>
               </div>
             )}
             {!assegnando && !unendo && (
               <button onClick={() => setSpostando(!spostando)}
                 title="Trascina i tavoli per questo turno (la piantina dell'Editor non cambia)"
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${spostando ? "bg-indigo-600 text-white border-indigo-600" : "border-indigo-300 text-indigo-700 bg-white hover:bg-indigo-50"}`}>
+                className={`px-3 min-h-[44px] rounded-lg text-sm font-medium border ${spostando ? "bg-indigo-600 text-white border-indigo-600" : "border-indigo-300 text-indigo-700 bg-white hover:bg-indigo-50"}`}>
                 ✋ {spostando ? "Fine spostamenti" : "Sposta"}</button>
             )}
             {!assegnando && !unendo && (
               <button onClick={() => { setMenuTavolo(null); setUnendo({ ids: [], nomi: [], prolunghe: 0 }); }}
                 title="Unisci dei tavoli per questo turno: tocca i tavoli, poi Unisci"
-                className="px-3 py-1.5 rounded-lg text-xs font-medium border border-indigo-300 text-indigo-700 bg-white hover:bg-indigo-50">🔗 Unisci</button>
+                className="px-3 min-h-[44px] rounded-lg text-sm font-medium border border-indigo-300 text-indigo-700 bg-white hover:bg-indigo-50">🔗 Unisci</button>
             )}
             {modificaSala && (
               <button onClick={rimettiSala} className="px-2 py-1.5 rounded-lg text-xs text-neutral-500 hover:text-neutral-800">↺ Sala com'era</button>
@@ -334,10 +334,10 @@ export default function TavoliMappa() {
                 <label className="flex items-center gap-1">prolunghe
                   <input type="number" min={0} max={9} value={unendo.prolunghe}
                     onChange={e => setUnendo({ ...unendo, prolunghe: Math.max(0, +e.target.value || 0) })}
-                    className="w-10 px-1 py-0.5 border rounded" />
+                    className="w-10 px-1 py-0.5 border rounded-lg" />
                 </label>
                 <button disabled={unendo.ids.length < 2 && !(unendo.ids.length === 1 && unendo.prolunghe > 0)} onClick={confermaUnione}
-                  className="px-2 py-0.5 rounded bg-indigo-600 text-white disabled:opacity-40">{assegnando ? "Unisci e assegna" : "Unisci"}</button>
+                  className="px-2 py-0.5 rounded-lg bg-indigo-600 text-white disabled:opacity-40">{assegnando ? "Unisci e assegna" : "Unisci"}</button>
                 <button onClick={() => setUnendo(null)} className="text-indigo-500 hover:text-indigo-800">Annulla</button>
               </div>
             )}
@@ -530,7 +530,7 @@ export default function TavoliMappa() {
                 { label: "Bloccato", color: "#e5e7eb" },
               ].map(l => (
                 <div key={l.label} className="flex items-center gap-1">
-                  <div className="w-3 h-3 rounded" style={{ backgroundColor: l.color }}></div>
+                  <div className="w-3 h-3 rounded-lg" style={{ backgroundColor: l.color }}></div>
                   <span className="text-neutral-500">{l.label}</span>
                 </div>
               ))}
@@ -554,7 +554,7 @@ export default function TavoliMappa() {
                   {selectedTavolo && <div>Tavolo: <strong>{selectedTavolo.nome}</strong> ({selectedTavolo.zona})</div>}
                   {selectedPren.telefono && <div>Tel: {selectedPren.telefono}</div>}
                   {selectedPren.allergie && (
-                    <div className="px-2 py-1 bg-amber-50 border border-amber-200 rounded text-amber-800">
+                    <div className="px-2 py-1 bg-amber-50 border border-amber-200 rounded-lg text-amber-800">
                       Allergie: {selectedPren.allergie}
                     </div>
                   )}
@@ -566,36 +566,36 @@ export default function TavoliMappa() {
                   {selectedPren.stato === "RECORDED" && (
                     <>
                       <button onClick={() => cambiaStato(selectedPren.id, "SEATED")}
-                        className="px-2 py-1 text-[10px] max-sm:px-3 max-sm:py-2.5 max-sm:text-xs bg-emerald-600 text-white rounded font-medium">Seduto</button>
+                        className="px-2 py-1 text-[10px] max-sm:px-3 max-sm:py-2.5 max-sm:text-xs bg-emerald-600 text-white rounded-lg font-medium">Seduto</button>
                       <button onClick={() => cambiaStato(selectedPren.id, "NO_SHOW")}
-                        className="px-2 py-1 text-[10px] max-sm:px-3 max-sm:py-2.5 max-sm:text-xs bg-red-600 text-white rounded font-medium">No-show</button>
+                        className="px-2 py-1 text-[10px] max-sm:px-3 max-sm:py-2.5 max-sm:text-xs bg-red-600 text-white rounded-lg font-medium">No-show</button>
                     </>
                   )}
                   {selectedPren.stato === "OPTION" && (
                     <button onClick={() => cambiaStato(selectedPren.id, "RECORDED")}
-                      className="px-2 py-1 text-[10px] max-sm:px-3 max-sm:py-2.5 max-sm:text-xs bg-indigo-600 text-white rounded font-medium">✓ Conferma</button>
+                      className="px-2 py-1 text-[10px] max-sm:px-3 max-sm:py-2.5 max-sm:text-xs bg-indigo-600 text-white rounded-lg font-medium">✓ Conferma</button>
                   )}
                   {selectedPren.stato === "ARRIVED" && (
                     <button onClick={() => cambiaStato(selectedPren.id, "SEATED")}
-                      className="px-2 py-1 text-[10px] max-sm:px-3 max-sm:py-2.5 max-sm:text-xs bg-emerald-600 text-white rounded font-medium">Seduto</button>
+                      className="px-2 py-1 text-[10px] max-sm:px-3 max-sm:py-2.5 max-sm:text-xs bg-emerald-600 text-white rounded-lg font-medium">Seduto</button>
                   )}
                   {(selectedPren.stato === "SEATED" || selectedPren.stato === "BILL") && (
                     <button onClick={() => cambiaStato(selectedPren.id, "LEFT")}
-                      className="px-2 py-1 text-[10px] max-sm:px-3 max-sm:py-2.5 max-sm:text-xs bg-neutral-600 text-white rounded font-medium">Andato via</button>
+                      className="px-2 py-1 text-[10px] max-sm:px-3 max-sm:py-2.5 max-sm:text-xs bg-neutral-600 text-white rounded-lg font-medium">Andato via</button>
                   )}
                   {selectedTavolo && selectedPren.stato !== "LEFT" && (
                     <button onClick={() => liberaTavolo(selectedPren.id)}
-                      className="px-2 py-1 text-[10px] max-sm:px-3 max-sm:py-2.5 max-sm:text-xs border border-neutral-300 text-neutral-600 rounded">Libera tavolo</button>
+                      className="px-2 py-1 text-[10px] max-sm:px-3 max-sm:py-2.5 max-sm:text-xs border border-neutral-300 text-neutral-600 rounded-lg">Libera tavolo</button>
                   )}
                   {selectedTavolo?.unione_id && (
                     <button onClick={() => { staccaUnione(selectedTavolo); setSelectedPren(null); setSelectedTavolo(null); }}
                       title={`Stacca ${selectedTavolo.membri_nomi?.join(" e ")}: la prenotazione resta, i tavoli tornano singoli`}
-                      className="px-2 py-1 text-[10px] max-sm:px-3 max-sm:py-2.5 max-sm:text-xs border border-neutral-300 text-neutral-600 rounded">✂️ Stacca {selectedTavolo.nome}</button>
+                      className="px-2 py-1 text-[10px] max-sm:px-3 max-sm:py-2.5 max-sm:text-xs border border-neutral-300 text-neutral-600 rounded-lg">✂️ Stacca {selectedTavolo.nome}</button>
                   )}
                   {selectedTavolo?.dividibile === 1 && !selectedTavolo.diviso_da && !selectedTavolo.legato && (
                     <button onClick={() => { dividiTavolo(selectedTavolo); setSelectedPren(null); setSelectedTavolo(null); }}
                       title="Dividi il tavolo in due per questo turno: se la prenotazione ci sta, resta su una metà e l'altra si libera"
-                      className="px-2 py-1 text-[10px] max-sm:px-3 max-sm:py-2.5 max-sm:text-xs border border-neutral-300 text-neutral-600 rounded">✂️ Dividi {(selectedTavolo.nomi_meta || "").includes(",") ? selectedTavolo.nomi_meta.replace(",", " +") : ""}</button>
+                      className="px-2 py-1 text-[10px] max-sm:px-3 max-sm:py-2.5 max-sm:text-xs border border-neutral-300 text-neutral-600 rounded-lg">✂️ Dividi {(selectedTavolo.nomi_meta || "").includes(",") ? selectedTavolo.nomi_meta.replace(",", " +") : ""}</button>
                   )}
                 </div>
               </div>
@@ -636,7 +636,7 @@ export default function TavoliMappa() {
                       </div>
                       <button
                         onClick={() => setAssegnando(assegnando === p.id ? null : p.id)}
-                        className={`px-2 py-1 text-[10px] max-sm:px-3 max-sm:py-2.5 max-sm:text-xs rounded font-medium transition ${
+                        className={`px-2 py-1 text-[10px] max-sm:px-3 max-sm:py-2.5 max-sm:text-xs rounded-lg font-medium transition ${
                           assegnando === p.id
                             ? "bg-amber-500 text-white"
                             : "bg-indigo-100 text-indigo-700 hover:bg-indigo-200"
@@ -654,19 +654,19 @@ export default function TavoliMappa() {
             <div className="bg-white rounded-xl border border-neutral-200 p-4">
               <h3 className="font-semibold text-neutral-800 text-sm mb-2">Riepilogo</h3>
               <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="text-center p-2 bg-neutral-50 rounded">
+                <div className="text-center p-2 bg-neutral-50 rounded-lg">
                   <div className="text-lg font-bold text-neutral-800">{tavoli.filter(t => t.occupato).length}</div>
                   <div className="text-neutral-500">Occupati</div>
                 </div>
-                <div className="text-center p-2 bg-neutral-50 rounded">
+                <div className="text-center p-2 bg-neutral-50 rounded-lg">
                   <div className="text-lg font-bold text-neutral-800">{tavoli.filter(t => !t.occupato && !t.blocco).length}</div>
                   <div className="text-neutral-500">Liberi</div>
                 </div>
-                <div className="text-center p-2 bg-neutral-50 rounded">
+                <div className="text-center p-2 bg-neutral-50 rounded-lg">
                   <div className="text-lg font-bold text-amber-600">{senzaTavolo.length}</div>
                   <div className="text-neutral-500">Senza tavolo</div>
                 </div>
-                <div className="text-center p-2 bg-neutral-50 rounded">
+                <div className="text-center p-2 bg-neutral-50 rounded-lg">
                   <div className="text-lg font-bold text-neutral-800">{tavoli.length}</div>
                   <div className="text-neutral-500">Tavoli in {salaAttiva}</div>
                 </div>

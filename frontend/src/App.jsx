@@ -635,6 +635,8 @@ export default function App() {
         <Route path="/prenotazioni/mappa" element={<ProtectedRoute module="prenotazioni"><TavoliMappa /></ProtectedRoute>} />
         <Route path="/prenotazioni/mappa/:data/:turno" element={<ProtectedRoute module="prenotazioni"><TavoliMappa /></ProtectedRoute>} />
         <Route path="/prenotazioni/servizio" element={<ProtectedRoute module="prenotazioni"><PrenotazioniServizio /></ProtectedRoute>} />
+        <Route path="/prenotazioni/servizio/:data" element={<ProtectedRoute module="prenotazioni"><PrenotazioniServizio /></ProtectedRoute>} />
+        <Route path="/prenotazioni/mappa/:data" element={<ProtectedRoute module="prenotazioni"><TavoliMappa /></ProtectedRoute>} />
         <Route path="/prenotazioni/servizio/:data/:turno" element={<ProtectedRoute module="prenotazioni"><PrenotazioniServizio /></ProtectedRoute>} />
 
         {/* --- SELEZIONI DEL GIORNO (modulo unico 4 zone: macellaio/pescato/salumi/formaggi) --- */}

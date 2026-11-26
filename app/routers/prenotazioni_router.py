@@ -370,7 +370,7 @@ def get_planning(
                 p.menu_preset, p.degustazione, p.offerta_speciale, p.yums,
                 p.menu_evento, p.preventivo_id, p.motivo_cancellazione,
                 p.thefork_booking_id, p.creato_da, p.tenuto_fino_al,
-                p.persona_nome, p.thefork_invio, p.thefork_invio_nota, p.durata_min,
+                p.persona_nome, p.thefork_invio, p.thefork_invio_nota, p.durata_min, p.riconfermata_at,
                 p.nome_ospite, p.cognome_ospite,
                 COALESCE(NULLIF(c.nome, ''), p.nome_ospite) AS nome,
                 COALESCE(NULLIF(c.cognome, ''), p.cognome_ospite) AS cognome,
@@ -2542,6 +2542,33 @@ def cambio_stato(
     except Exception as e:
         logger.exception("Errore cambio stato")
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        conn.close()
+
+
+class RiconfermataReq(BaseModel):
+    valore: bool = True
+
+
+@router.patch("/{pren_id}/riconfermata")
+def segna_riconfermata(pren_id: int, req: RiconfermataReq, user: dict = Depends(get_current_user)):
+    """
+    «Confermato»: il cliente ha confermato che viene (mig 250). Non è uno stato: la prenotazione
+    resta Prenotata, con un segno che si mette (valore=true) e si toglie (false = passo indietro).
+    """
+    verifica_ruoli(user, "admin", "sala", "sommelier", "capo_sala", cosa="la conferma di una prenotazione")
+    conn = get_clienti_conn()
+    try:
+        r = conn.execute("SELECT stato FROM clienti_prenotazioni WHERE id = ?", (pren_id,)).fetchone()
+        if not r:
+            raise HTTPException(status_code=404, detail="Prenotazione non trovata")
+        if req.valore and r["stato"] != "RECORDED":
+            raise HTTPException(status_code=400, detail=f"Si conferma solo una prenotazione «{stati_srv.etichetta('RECORDED')}»")
+        conn.execute(
+            "UPDATE clienti_prenotazioni SET riconfermata_at = ?, updated_at = datetime('now','localtime') WHERE id = ?",
+            (datetime.now().strftime("%Y-%m-%d %H:%M:%S") if req.valore else None, pren_id))
+        conn.commit()
+        return {"id": pren_id, "riconfermata": req.valore}
     finally:
         conn.close()
 

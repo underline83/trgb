@@ -772,6 +772,16 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   prenotazioni: {
+    // 2.51 (2026-11-26): il giro della prenotazione in sala (Marco) — in Servizio un tasto solo che avanza: Prenotato →
+    //   Confermato → Seduto → libera il tavolo, «↩» per tornare indietro, gli altri cambi in «Altro». «Confermato» è un segno
+    //   sulla prenotata (mig 250 clienti_prenotazioni.riconfermata_at, PATCH /{id}/riconfermata), non uno stato nuovo;
+    //   RECORDED ora si chiama «Prenotato» (era «Confermata»); passi indietro fra gli stati. Planning e Mappa Tavoli escono
+    //   dalla barra: sono viste di Servizio (scelta Servizio / Elenco / Mappa nella testata). Loghetto TRGB (tre gobbette)
+    //   sulle prenotazioni inserite da TRGB. Archivio: colonna «Inserita» (quando e da chi). Form: orari e seggioloni a posto.
+    // 2.50 (2026-11-26): grafica del modulo uniforme, passo 2 (Marco: «prosegui con tutto il modulo») — angoli rounded-lg
+    //   ovunque (prima un misto di rounded e rounded-lg su bottoni e campi), sfondo brand-cream e larghezza max-w-7xl anche
+    //   su Recensioni, Editor Tavoli, Impostazioni e Archivio, titoli di pagina in Playfair, tasti della barra della Mappa
+    //   Tavoli da 44 px; in Servizio il riepilogo del turno sta sopra la sala e la testata resta su una riga. Solo classi.
     // 2.49 (2026-11-26): ritocchi dopo la prima prova nel browser — Mese: «Pranzo» e «Cena» scritti per intero; Servizio:
     //   toccando un orario la sala non si sposta più (riga dell'avviso sempre presente), pannello dell'ingranaggio non più
     //   tagliato in alto; «Editor Tavoli» tolto dalla barra dei tab, si apre da Impostazioni. Nell'elenco di Servizio le
@@ -862,7 +872,7 @@ const MODULE_VERSIONS = {
     // 2.16 (2026-10-19): Prenotazioni › Archivio (tutte le prenotazioni con filtri), spostato da
     //   Clienti; API nuova GET /prenotazioni/archivio/ (+ /riepilogo/). /clienti/prenotazioni rimanda qui.
     // 2.15 (2026-10-19): PrenotazioniForm accetta defaultCliente (bottone «Prenota» della scheda cliente).
-    version: "2.49",
+    version: "2.51",
     label: "Prenotazioni",
     status: "beta",
     color: "blue",
@@ -1037,6 +1047,8 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 6.15 (2026-11-26): mig 250 — clienti_prenotazioni.riconfermata_at («Confermato»), etichetta «Prenotato» per RECORDED,
+    //   passi all'indietro in prenotazioni_stati_transizioni.
     // 6.14 (2026-11-26): mig 249 — clienti_prenotazioni.durata_min (durata propria di una prenotazione, NULL = regola del turno).
     // 6.13 (2026-11-26): mig 248 — cucina_produzioni e cucina_produzioni_persone: registro delle produzioni e codice
     //   lotto a 6 caratteri (data, persona, numero produzione, leggibili solo da TRGB). Sotto-modulo nuovo
@@ -1228,7 +1240,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "6.14",
+    version: "6.15",
     label: "Sistema",
     status: "stabile",
     color: "green",

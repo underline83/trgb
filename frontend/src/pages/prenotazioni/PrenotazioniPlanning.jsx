@@ -97,7 +97,7 @@ function CellaTavolo({ pren, motore, onAssegna }) {
   return (
     <Tooltip label={`${forzato ? "Solo su un tavolo più grande del necessario (sotto il suo minimo)" : "Tavolo suggerito"}: ${s.nome} (${s.posti} posti${s.prolunghe ? ", prolunga" : ""}). Clicca per assegnarlo`}>
       <button onClick={(e) => { e.stopPropagation(); onAssegna && onAssegna([motore]); }}
-        className={`text-xs px-1.5 py-0.5 rounded border border-dashed whitespace-nowrap ${forzato ? "border-amber-400 text-amber-700" : "border-indigo-300 text-indigo-600"} hover:bg-indigo-50`}>
+        className={`text-xs px-1.5 py-0.5 rounded-lg border border-dashed whitespace-nowrap ${forzato ? "border-amber-400 text-amber-700" : "border-indigo-300 text-indigo-600"} hover:bg-indigo-50`}>
         → {s.nome}
       </button>
     </Tooltip>
@@ -126,7 +126,7 @@ function DettaglioPrenotazione({ pren, onStatoChange, onRiconferma, onUnisciDopp
         {pren.tags && pren.tags.length > 0 && (
           <div className="flex gap-1 mt-1 flex-wrap">
             {pren.tags.map((t) => (
-              <span key={t.nome} className="px-1.5 py-0.5 rounded text-[10px] font-medium text-white" style={{ backgroundColor: t.colore }}>
+              <span key={t.nome} className="px-1.5 py-0.5 rounded-lg text-[10px] font-medium text-white" style={{ backgroundColor: t.colore }}>
                 {t.nome}
               </span>
             ))}
@@ -148,7 +148,7 @@ function DettaglioPrenotazione({ pren, onStatoChange, onRiconferma, onUnisciDopp
             {d.thefork && !pren.thefork_booking_id && onUnisciDoppione && (
               <button
                 onClick={(e) => { e.stopPropagation(); onUnisciDoppione(pren, d); }}
-                className="ml-2 px-2 py-0.5 rounded border border-amber-400 bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-medium"
+                className="ml-2 px-2 py-0.5 rounded-lg border border-amber-400 bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-medium"
               >
                 Tieni quella TheFork, elimina questa
               </button>
@@ -159,13 +159,13 @@ function DettaglioPrenotazione({ pren, onStatoChange, onRiconferma, onUnisciDopp
         {pren.nota_cliente && <div>💬 Nota cliente: {pren.nota_cliente}</div>}
         {pren.menu_preset && <div>🍴 Menu: {pren.menu_preset}</div>}
         {pren.menu_evento && (
-          <div className="mt-1 p-2 rounded bg-emerald-50 border border-emerald-200 text-emerald-900 whitespace-pre-line">
+          <div className="mt-1 p-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-900 whitespace-pre-line">
             🍽️ <b>Evento confermato</b>{"\n"}{pren.menu_evento}
           </div>
         )}
         {pren.degustazione && <div>🍷 Degustazione: {pren.degustazione}</div>}
         {pren.stato === "OPTION" && !pren.preventivo_attesa && (
-          <div className="mt-1 p-2 rounded border border-dashed border-amber-300 bg-amber-50 text-amber-900">
+          <div className="mt-1 p-2 rounded-lg border border-dashed border-amber-300 bg-amber-50 text-amber-900">
             ⏳ <b>In opzione</b>{pren.tenuto_fino_al ? <> — tavolo tenuto fino al {ggmm(pren.tenuto_fino_al)}</> : " — senza data"}
             {pren.tenuto_fino_al && pren.tenuto_fino_al < new Date().toISOString().slice(0, 10) && <span className="ml-1 text-red-700 font-semibold">(scaduta)</span>}
             {onTenutoFino && (
@@ -173,32 +173,32 @@ function DettaglioPrenotazione({ pren, onStatoChange, onRiconferma, onUnisciDopp
                 <label className="text-xs">Proroga al</label>
                 <input type="date" defaultValue={pren.tenuto_fino_al || ""} max={pren.data_pasto}
                   onChange={(e) => e.target.value && onTenutoFino(pren, e.target.value)}
-                  className="px-2 py-1 text-base sm:text-xs border border-amber-300 rounded bg-white min-h-[44px] sm:min-h-[32px]" />
+                  className="px-2 py-1 text-base sm:text-xs border border-amber-300 rounded-lg bg-white min-h-[44px] sm:min-h-[32px]" />
               </div>
             )}
             <div className="mt-1 text-[11px] text-amber-800">Alla scadenza il tavolo resta tenuto: arriva l'avviso e decidi tu.</div>
           </div>
         )}
         {pren.stato === "WAITLIST" && (
-          <div className="mt-1 p-2 rounded border border-violet-200 bg-violet-50 text-violet-900">
+          <div className="mt-1 p-2 rounded-lg border border-violet-200 bg-violet-50 text-violet-900">
             🕰️ <b>Lista d'attesa</b> — non occupa tavoli. Se nel turno si libera un posto arriva l'avviso nel campanello.
           </div>
         )}
         {pren.preventivo_attesa && (
-          <div className={`mt-1 p-2 rounded border ${pren.preventivo_attesa.stato === "scaduto" ? "bg-red-50 border-red-200 text-red-900" : "bg-amber-50 border-amber-200 text-amber-900"}`}>
+          <div className={`mt-1 p-2 rounded-lg border ${pren.preventivo_attesa.stato === "scaduto" ? "bg-red-50 border-red-200 text-red-900" : "bg-amber-50 border-amber-200 text-amber-900"}`}>
             ⏳ <b>{pren.preventivo_attesa.stato === "scaduto" ? "Preventivo scaduto" : "In attesa di conferma preventivo"}</b> {pren.preventivo_attesa.numero}
             {pren.preventivo_attesa.scadenza && <> — {pren.preventivo_attesa.stato === "scaduto" ? "scaduto" : "scade"} il {(pren.preventivo_attesa.scadenza || "").split("-").reverse().slice(0, 2).join("/")}</>}
             {(onPreventivo || onLiberaTavolo) && (
               <div className="mt-1.5 flex flex-wrap gap-2">
                 {onPreventivo && (
                   <button onClick={(e) => { e.stopPropagation(); onPreventivo(pren); }}
-                    className="px-2 py-1 text-xs rounded border border-amber-300 bg-white hover:bg-amber-100 min-h-[44px] sm:min-h-[32px]">
+                    className="px-2 py-1 text-xs rounded-lg border border-amber-300 bg-white hover:bg-amber-100 min-h-[44px] sm:min-h-[32px]">
                     📋 Apri preventivo
                   </button>
                 )}
                 {onLiberaTavolo && (
                   <button onClick={(e) => { e.stopPropagation(); onLiberaTavolo(pren); }}
-                    className="px-2 py-1 text-xs rounded border border-red-300 bg-white text-red-700 hover:bg-red-50 min-h-[44px] sm:min-h-[32px]">
+                    className="px-2 py-1 text-xs rounded-lg border border-red-300 bg-white text-red-700 hover:bg-red-50 min-h-[44px] sm:min-h-[32px]">
                     🔓 Libera tavolo
                   </button>
                 )}
@@ -217,7 +217,7 @@ function DettaglioPrenotazione({ pren, onStatoChange, onRiconferma, onUnisciDopp
         {onModifica && !["LEFT"].includes(pren.stato) && (
           <button
             onClick={(e) => { e.stopPropagation(); onModifica(pren); }}
-            className="mb-2 mr-2 px-3 py-1.5 text-xs rounded min-h-[44px] sm:min-h-[36px] border border-indigo-300 text-indigo-700 hover:bg-indigo-50"
+            className="mb-2 mr-2 px-3 py-1.5 text-xs rounded-lg min-h-[44px] sm:min-h-[36px] border border-indigo-300 text-indigo-700 hover:bg-indigo-50"
           >
             ✏️ Modifica
           </button>
@@ -225,7 +225,7 @@ function DettaglioPrenotazione({ pren, onStatoChange, onRiconferma, onUnisciDopp
         {pren.telefono && ["RECORDED", "REQUESTED"].includes(pren.stato) && (
           <button
             onClick={(e) => { e.stopPropagation(); onRiconferma && onRiconferma(pren); }}
-            className={`mb-2 px-3 py-1.5 text-xs rounded min-h-[44px] sm:min-h-[36px] ${
+            className={`mb-2 px-3 py-1.5 text-xs rounded-lg min-h-[44px] sm:min-h-[36px] ${
               pren.reminder_inviato === 1
                 ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
                 : "bg-emerald-600 text-white hover:bg-emerald-700"
@@ -238,7 +238,7 @@ function DettaglioPrenotazione({ pren, onStatoChange, onRiconferma, onUnisciDopp
           <button
             onClick={(e) => { e.stopPropagation(); onPreventivo(pren); }}
             title="Crea il preventivo con cliente, data, ora e coperti di questa prenotazione (se c'è già, lo apre)"
-            className="mb-2 ml-1 px-3 py-1.5 text-xs rounded min-h-[44px] sm:min-h-[36px] bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100"
+            className="mb-2 ml-1 px-3 py-1.5 text-xs rounded-lg min-h-[44px] sm:min-h-[36px] bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100"
           >
             📋 Preventivo
           </button>
@@ -251,7 +251,7 @@ function DettaglioPrenotazione({ pren, onStatoChange, onRiconferma, onUnisciDopp
                 <button
                   key={a}
                   onClick={(e) => { e.stopPropagation(); onStatoChange(pren.id, a); }}
-                  className={`px-3 py-1 text-sm sm:text-xs text-white rounded min-h-[44px] sm:min-h-[32px] ${az.cls}`}
+                  className={`px-3 py-1 text-sm sm:text-xs text-white rounded-lg min-h-[44px] sm:min-h-[32px] ${az.cls}`}
                 >
                   {az.label}
                 </button>
@@ -306,7 +306,7 @@ function RigaPrenotazione({ pren, telefono, motore, onAssegna, onStatoChange, on
                 <TheForkInvioBadge pren={pren} />
                 <span className={`text-[15px] leading-tight font-medium truncate ${pren.cliente_id ? "text-indigo-800" : "text-neutral-600"}`}>{nome}</span>
               </div>
-              <span className="flex-shrink-0"><StatoBadge stato={pren.stato} /></span>
+              <span className="flex-shrink-0"><StatoBadge stato={pren.stato} riconfermata={!!pren.riconfermata_at} /></span>
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1">
               <span className="text-xs text-neutral-600 whitespace-nowrap">
@@ -387,7 +387,7 @@ function RigaPrenotazione({ pren, telefono, motore, onAssegna, onStatoChange, on
 
         {/* Stato */}
         <td className="px-3 py-2 text-right">
-          <StatoBadge stato={pren.stato} />
+          <StatoBadge stato={pren.stato} riconfermata={!!pren.riconfermata_at} />
         </td>
       </tr>
 
@@ -421,7 +421,7 @@ function TimelineSala({ slot, capienza, fasce, onFasce }) {
         const statoFascia = !f ? "" : !f.aperta ? " · fascia CHIUSA" : !f.online_aperta ? " · online chiuso" : f.piena ? " · fascia piena" : "";
         return (
           <Tooltip key={s.ora} label={`${s.ora}: ${s.coperti} coperti in sala, ${s.prenotazioni} prenotazioni, ${s.tavoli} tavoli · arrivano ${s.arrivi}${statoFascia}`}>
-            <div className={`flex-shrink-0 w-14 text-center rounded ${onFasce ? "cursor-pointer hover:bg-indigo-50" : ""} ${f && !f.aperta ? "opacity-50" : ""}`}
+            <div className={`flex-shrink-0 w-14 text-center rounded-lg ${onFasce ? "cursor-pointer hover:bg-indigo-50" : ""} ${f && !f.aperta ? "opacity-50" : ""}`}
               onClick={onFasce}>
               <div className={`text-[11px] font-semibold ${f && !f.aperta ? "line-through text-neutral-400" : "text-neutral-700"}`}>
                 {s.ora}{f && f.aperta && !f.online_aperta && <span className="ml-0.5 text-red-500" title="online chiuso">⊘</span>}
@@ -810,11 +810,11 @@ export default function PrenotazioniPlanning() {
 
   return (
     <div className="min-h-screen bg-brand-cream">
-      <PrenotazioniNav current="planning" />
+      <PrenotazioniNav current="servizio" />
 
       <div className="max-w-7xl mx-auto px-3 sm:px-6 py-3 sm:py-4">
         {/* Header con navigazione data */}
-        <TestataGiorno data={data} onData={setData} corto={telefono}
+        <TestataGiorno data={data} onData={setData} vista="planning" corto={telefono}
           destra={<Btn variant="primary" size="md" className="min-h-[44px] max-sm:w-full" onClick={() => setShowForm(true)}>+ Nuova prenotazione</Btn>}>
           <TastoTestata onClick={() => setShowCalendario(!showCalendario)} aria-label="Scegli il giorno dal calendario">📅</TastoTestata>
         </TestataGiorno>

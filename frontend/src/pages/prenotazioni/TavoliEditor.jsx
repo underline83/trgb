@@ -324,17 +324,17 @@ export default function TavoliEditor() {
   const conteggiSale = Object.fromEntries(sale.map(s => [s, tavoli.filter(t => (t.zona || "sala") === s).length]));
 
   if (loading) return (
-    <div className="min-h-screen bg-neutral-50">
+    <div className="min-h-screen bg-brand-cream">
       <PrenotazioniNav current="tavoli" />
       <div className="text-center py-12 text-neutral-400">Caricamento...</div>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-neutral-50">
+    <div className="min-h-screen bg-brand-cream">
       <PrenotazioniNav current="tavoli" />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 py-3 sm:py-4">
         {toast && (
           <div className={`mb-3 px-4 py-2 rounded-lg text-sm font-medium ${
             toast.type === "ok" ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-800"
@@ -344,7 +344,7 @@ export default function TavoliEditor() {
         {/* Toolbar */}
         <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
           <div className="flex items-center gap-2">
-            <h2 className="text-lg font-bold text-neutral-800">Editor Piantina</h2>
+            <h1 className="text-xl sm:text-2xl font-bold text-neutral-900" style={{ fontFamily: "'Playfair Display', Georgia, serif" }}>Editor Tavoli</h1>
             {layoutAttivo && (
               <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-medium">
                 {layoutAttivo.nome}
@@ -365,10 +365,10 @@ export default function TavoliEditor() {
             </Btn>
             <div className="flex items-center gap-1 ml-2">
               <button onClick={() => setZoom(z => Math.max(0.5, z - 0.1))}
-                className="w-6 h-6 rounded border text-xs hover:bg-neutral-100">−</button>
+                className="w-6 h-6 rounded-lg border text-xs hover:bg-neutral-100">−</button>
               <span className="text-xs text-neutral-500 w-10 text-center">{Math.round(zoom * 100)}%</span>
               <button onClick={() => setZoom(z => Math.min(2, z + 0.1))}
-                className="w-6 h-6 rounded border text-xs hover:bg-neutral-100">+</button>
+                className="w-6 h-6 rounded-lg border text-xs hover:bg-neutral-100">+</button>
             </div>
           </div>
         </div>
@@ -650,12 +650,12 @@ export default function TavoliEditor() {
                       <div className="flex gap-1">
                         {l.attivo !== 1 && (
                           <button onClick={() => attivaLayout(l.id)}
-                            className="text-[10px] px-1.5 py-0.5 bg-indigo-600 text-white rounded hover:bg-indigo-700">
+                            className="text-[10px] px-1.5 py-0.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
                             Attiva
                           </button>
                         )}
                         <button onClick={() => eliminaLayout(l.id)}
-                          className="text-[10px] px-1.5 py-0.5 text-red-500 hover:bg-red-50 rounded">
+                          className="text-[10px] px-1.5 py-0.5 text-red-500 hover:bg-red-50 rounded-lg">
                           ✕
                         </button>
                       </div>
@@ -771,11 +771,11 @@ function Combinazioni({ sala, tavoli: tavoliInteri, combinazioni, onCambio, flas
   const posti = (v, onChange) => ( // funzione, non componente: così gli input non perdono il fuoco
     <div className="flex items-center gap-2 text-xs">
       <span>posti</span>
-      <input type="number" min={1} value={v.posti_min} onChange={e => onChange({ ...v, posti_min: +e.target.value, toccati: true })} className="w-14 px-1 py-0.5 border rounded" />
+      <input type="number" min={1} value={v.posti_min} onChange={e => onChange({ ...v, posti_min: +e.target.value, toccati: true })} className="w-14 px-1 py-0.5 border rounded-lg" />
       <span>–</span>
-      <input type="number" min={1} value={v.posti} onChange={e => onChange({ ...v, posti: +e.target.value, toccati: true })} className="w-14 px-1 py-0.5 border rounded" />
+      <input type="number" min={1} value={v.posti} onChange={e => onChange({ ...v, posti: +e.target.value, toccati: true })} className="w-14 px-1 py-0.5 border rounded-lg" />
       <span className="ml-2">prolunghe</span>
-      <input type="number" min={0} max={9} value={v.prolunghe || 0} onChange={e => onChange({ ...v, prolunghe: Math.max(0, +e.target.value) })} className="w-12 px-1 py-0.5 border rounded" />
+      <input type="number" min={0} max={9} value={v.prolunghe || 0} onChange={e => onChange({ ...v, prolunghe: Math.max(0, +e.target.value) })} className="w-12 px-1 py-0.5 border rounded-lg" />
     </div>
   );
 
@@ -788,11 +788,11 @@ function Combinazioni({ sala, tavoli: tavoliInteri, combinazioni, onCambio, flas
       {della.length === 0 && !nuova && <p className="text-[11px] text-neutral-400">Nessuna: i gruppi si siedono solo sui tavoli singoli.</p>}
       {della.map(c => (
         modifica?.id === c.id ? (
-          <div key={c.id} className="space-y-1 border border-indigo-200 rounded p-2">
+          <div key={c.id} className="space-y-1 border border-indigo-200 rounded-lg p-2">
             <div className="text-xs font-medium text-neutral-800">{nomeDi(modifica.ids, modifica.prolunghe || 0)}</div>
             {posti(modifica, setModifica)}
             <div className="flex gap-2">
-              <button onClick={salvaModifica} className="text-xs px-2 py-1 rounded bg-indigo-600 text-white">Salva</button>
+              <button onClick={salvaModifica} className="text-xs px-2 py-1 rounded-lg bg-indigo-600 text-white">Salva</button>
               <button onClick={() => setModifica(null)} className="text-xs px-2 py-1 text-neutral-500">Annulla</button>
             </div>
           </div>
@@ -815,7 +815,7 @@ function Combinazioni({ sala, tavoli: tavoliInteri, combinazioni, onCambio, flas
           <div className="flex flex-wrap gap-1">
             {tavoli.map(t => (
               <button key={t.id} onClick={() => toggle(t.id)} title={t.meta ? "Metà di un tavolo dividibile" : undefined}
-                className={`text-xs px-2 py-1 rounded border ${nuova.ids.has(t.id) ? "bg-indigo-600 text-white border-indigo-600" : t.meta ? "border-dashed border-neutral-300 text-neutral-500" : "border-neutral-300 text-neutral-600"}`}>
+                className={`text-xs px-2 py-1 rounded-lg border ${nuova.ids.has(t.id) ? "bg-indigo-600 text-white border-indigo-600" : t.meta ? "border-dashed border-neutral-300 text-neutral-500" : "border-neutral-300 text-neutral-600"}`}>
                 {t.nome}{t.meta ? " ½" : ""}
               </button>
             ))}
@@ -823,7 +823,7 @@ function Combinazioni({ sala, tavoli: tavoliInteri, combinazioni, onCambio, flas
           {posti(nuova, setNuova)}
           <div className="flex gap-2">
             <button disabled={!valida(nuova)} onClick={salva}
-              className="text-xs px-2 py-1 rounded bg-indigo-600 text-white disabled:opacity-40">Salva {nuova.ids.size >= 1 ? nomeDi([...nuova.ids], nuova.prolunghe) : ""}</button>
+              className="text-xs px-2 py-1 rounded-lg bg-indigo-600 text-white disabled:opacity-40">Salva {nuova.ids.size >= 1 ? nomeDi([...nuova.ids], nuova.prolunghe) : ""}</button>
             <button onClick={() => setNuova(null)} className="text-xs px-2 py-1 text-neutral-500">Annulla</button>
           </div>
         </div>
