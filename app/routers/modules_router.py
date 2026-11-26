@@ -99,6 +99,8 @@ DEFAULT_MODULES = [
             {"key": "ingredienti", "label": "Ingredienti",          "roles": ["superadmin", "admin", "chef"]},
             {"key": "matching",    "label": "Matching",             "roles": ["superadmin", "admin"]},
             {"key": "dashboard",   "label": "Dashboard",            "roles": ["superadmin", "admin", "chef"]},
+            # Produzioni e codice lotto (2026-11-26, Marco: «admin, chef, sous chef e commis leggono e scrivono»)
+            {"key": "produzioni",  "label": "Produzioni e lotti",   "roles": ["superadmin", "admin", "chef", "sous_chef", "commis"]},
             {"key": "settings",    "label": "Impostazioni",         "roles": ["superadmin", "admin"]},
         ],
     },
@@ -244,7 +246,7 @@ MODULI_DA_AGGIUNGERE = ("pratiche", "comande")
 # runtime: una sub che manca fa ricadere canAccessSub sui ruoli del MODULO
 # (per dipendenti: anche sala, chef, sommelier...) e la protezione salta.
 SUB_DA_AGGIUNGERE = (("dipendenti", "candidati"), ("clienti", "posta"), ("clienti", "whatsapp"),
-                     ("clienti", "whatsapp_scrivere"))
+                     ("clienti", "whatsapp_scrivere"), ("ricette", "produzioni"))
 
 
 def _aggiungi_sub_nuove(data: list) -> bool:

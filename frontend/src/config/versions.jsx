@@ -256,6 +256,16 @@ const MODULE_VERSIONS = {
     status: "alpha",
     color: "orange",
   },
+  cucinaProduzioni: {
+    // 1.0 (2026-11-26): pagina «Produzioni e lotti» (/cucina/produzioni, mig 248) — registra una produzione
+    //   (cosa, chi, data, scadenza, etichette), TRGB assegna il numero del giorno e un codice lotto di 6 caratteri
+    //   che solo TRGB sa rileggere; etichetta Brother 90×29 in due varianti; «Leggi un codice».
+    //   Doc: docs/modulo_produzioni_lotto.md
+    version: "1.0",
+    label: "Produzioni e lotti",
+    status: "alpha",
+    color: "orange",
+  },
   cucinaScorte: {
     // 1.26 (2026-11-24): il «Registro» dentro al frigo mostra TUTTI i movimenti del posto (carichi, scarichi,
     //   correzioni, controlli di linea, spostamenti con da/verso, scarti, finiti) per giorno, con chi e quando;
@@ -987,6 +997,9 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 6.13 (2026-11-26): mig 248 — cucina_produzioni e cucina_produzioni_persone: registro delle produzioni e codice
+    //   lotto a 6 caratteri (data, persona, numero produzione, leggibili solo da TRGB). Sotto-modulo nuovo
+    //   ricette/produzioni nella matrice Moduli. Chiave dei codici fra i dati del locale (lotto_chiave.json).
     // 6.12 (2026-11-26): mig 247 — il form «Nuova prenotazione» è la fonte: clienti_persone (persone della scheda),
     //   clienti_prenotazioni.persona_nome/thefork_invio*, config dell'invio a TheFork (nasce spento). Platform: app/utils/telefono.py
     //   (numeri col prefisso internazionale, elenco prefissi per paese).
@@ -1174,7 +1187,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "6.12",
+    version: "6.13",
     label: "Sistema",
     status: "stabile",
     color: "green",

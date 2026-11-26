@@ -9,12 +9,14 @@
   "router_files": [
     "lista_spesa_router",
     "cucina_ubicazioni_router",
-    "cucina_scorte_router"
+    "cucina_scorte_router",
+    "cucina_produzioni_router"
   ],
   "endpoint_prefix": [
     "/lista-spesa",
     "/cucina/ubicazioni",
-    "/cucina/scorte"
+    "/cucina/scorte",
+    "/cucina/produzioni"
   ],
   "tabelle_db": [
     "lista_spesa_items",
@@ -29,8 +31,10 @@
     "cucina_conte_righe",
     "cucina_lotti",
     "cucina_manutenzioni",
-    "cucina_scorte_config"
+    "cucina_scorte_config",
+    "cucina_produzioni",
+    "cucina_produzioni_persone"
   ],
-  "frontend_route": ["/cucina", "/cucina/mobile"],
+  "frontend_route": ["/cucina", "/cucina/mobile", "/cucina/produzioni"],
   "frontend_menu_key": "cucina"
 }

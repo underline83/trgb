@@ -61,6 +61,8 @@ const MODULES_MENU = {
       { label: "Oggi (checklist)", go: "/cucina/mobile/oggi" },
       { label: "Frigoriferi e scorte", go: "/cucina/mobile/frigo" },
       { label: "Lista Spesa",   go: "/cucina/spesa" },
+      // Produzioni e codice lotto (2026-11-26): ruoli dalla matrice Moduli, ricette/produzioni
+      { label: "Produzioni e lotti", go: "/cucina/produzioni", sub: "produzioni" },
       { label: "Archivio",      go: "/ricette/archivio" },
       { label: "Ingredienti",   go: "/ricette/ingredienti" },
       { label: "Matching",      go: "/ricette/matching",   check: "admin" },

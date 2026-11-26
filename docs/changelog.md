@@ -3,6 +3,20 @@
 
 ---
 
+## 2026-11-26 — Cucina: Produzioni e codice lotto (cucinaProduzioni 1.0, sistema 6.13, mig 248) `[core]`
+
+Marco: «logica produzione lotto che dia anno mese produzione e persona che l'ha prodotto però in una chiave non comprensibile al pubblico, 6/7 cifre». Poi: anche il giorno, numero produzione a 2 cifre, vanno bene le lettere; pagina nuova in Cucina; «admin, chef, sous chef e commis leggono e scrivono».
+
+### Aggiunto
+- **Codice lotto di 6 caratteri** (lettere e cifre, senza 0/1/I/O): dentro ci sono data di produzione, persona e numero produzione, rimescolati con una chiave segreta; il sesto carattere è di controllo. Solo TRGB lo sa rileggere. Vale fino al 16/03/2036.
+- **Gestione Cucina › Produzioni e lotti** (`/cucina/produzioni`): elenco per giorno, «Nuova produzione» (cosa, chi, data, scadenza, etichette; il numero del giorno lo assegna TRGB), scheda con stampa dell'etichetta Brother 90×29 in due varianti («nome, scadenza e codice» o «solo il codice»), correzione di nome e scadenza, annullo, «Leggi un codice».
+- Registro in `foodcost.db`: `cucina_produzioni`, `cucina_produzioni_persone` (mig 248). Sotto-modulo `ricette/produzioni` nella matrice Moduli.
+- La chiave dei codici nasce da sola in `locali/<locale>/data/lotto_chiave.json` (finisce nei backup coi `*.json`).
+
+### Da sapere
+- Data, persona e numero non si correggono dopo: stanno dentro al codice. Si annulla e si registra di nuovo.
+- Non provati: endpoint dal vero, pagina nel browser, stampa sulla Brother.
+
 ## 2026-11-26 — Acquisti 3.6: le fatture ferme in «Da registrare» su FIC entrano da sole `[core]`
 
 Dopo aver visto l'elenco (44 fatture ferme da inizio ottobre, 3.594,71 €) Marco ha scelto: TRGB le importa senza aspettare la registrazione su Fatture in Cloud.

@@ -66,6 +66,8 @@ const RicetteDashboard = lazy(() => import("./pages/ricette/RicetteDashboard"));
 const DashboardCucina = lazy(() => import("./pages/cucina/DashboardCucina"));
 const ListaSpesa = lazy(() => import("./pages/cucina/ListaSpesa"));
 const CucinaPiatti = lazy(() => import("./pages/cucina/CucinaPiatti"));
+// Produzioni e codice lotto (2026-11-26, mig 248)
+const CucinaProduzioni = lazy(() => import("./pages/cucina/CucinaProduzioni"));
 const CucinaControlloMenu = lazy(() => import("./pages/cucina/CucinaControlloMenu"));
 // «Cucina da iPhone» — 4 tab Oggi/Scorte/Frigo/Spesa (2026-09-07, gemella di CantinaMobile)
 const CucinaMobile = lazy(() => import("./pages/cucina/CucinaMobile"));
@@ -409,6 +411,7 @@ export default function App() {
         <Route path="/cucina/dashboard" element={<ProtectedRoute module="ricette" sub="cucina_dashboard"><DashboardCucina /></ProtectedRoute>} />
 
         {/* --- LISTA SPESA Cucina (sotto Gestione Cucina, sessione 59 cont. c — Modulo J Fase 1) --- */}
+        <Route path="/cucina/produzioni" element={<ProtectedRoute module="ricette" sub="produzioni"><CucinaProduzioni /></ProtectedRoute>} />
         <Route path="/cucina/piatti" element={<ProtectedRoute module="ricette" roles={["admin", "chef", "sous_chef"]}><CucinaPiatti /></ProtectedRoute>} />
         <Route path="/cucina/controllo-menu" element={<ProtectedRoute module="ricette" roles={["admin"]}><CucinaControlloMenu /></ProtectedRoute>} />
         <Route path="/cucina/spesa" element={<ProtectedRoute module="ricette" sub="spesa"><ListaSpesa /></ProtectedRoute>} />

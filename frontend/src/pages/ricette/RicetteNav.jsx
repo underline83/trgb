@@ -1,4 +1,4 @@
-// @version: v1.3 — linguetta «Controllo menu» (porzioni realizzabili, 2026-11-13) · v1.2 — linguetta «Piatti che vanno» (porzioni dai conti di cassa, 2026-10-28) · v1.1-ricette-nav-orange
+// @version: v1.4 — linguetta «Produzioni e lotti» (2026-11-26) · v1.3 — linguetta «Controllo menu» (porzioni realizzabili, 2026-11-13) · v1.2 — linguetta «Piatti che vanno» (porzioni dai conti di cassa, 2026-10-28) · v1.1-ricette-nav-orange
 // Tab navigation persistente per la sezione ricette
 // Matching e Impostazioni visibili solo per admin/sommelier
 import React from "react";
@@ -15,6 +15,7 @@ const TABS = [
   { key: "archivio", label: "Ricette", path: "/ricette/archivio", icon: "📚" },
   { key: "ingredienti", label: "Ingredienti", path: "/ricette/ingredienti", icon: "🧾" },
   { key: "spesa", label: "Spesa", path: "/cucina/spesa", icon: "🛒" },
+  { key: "produzioni", label: "Produzioni e lotti", path: "/cucina/produzioni", icon: "🏷️", roles: ["admin", "chef", "sous_chef", "commis"] },
   { key: "menu", label: "Menu", path: "/menu-carta", icon: "📋", roles: ["admin", "chef", "sous_chef"] },
   { key: "controllo-menu", label: "Controllo menu", path: "/cucina/controllo-menu", icon: "✅", roles: ["admin"] },
   { key: "piatti", label: "Piatti che vanno", path: "/cucina/piatti", icon: "📈", roles: ["admin", "chef", "sous_chef"] },

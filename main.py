@@ -153,6 +153,8 @@ from app.routers.todo_router import router as todo_router  # lista personale cos
 # Doc: docs/modulo_scorte_cucina.md · mockup: docs/mockups/cucina_mobile_scorte_frigo.html
 from app.routers.cucina_ubicazioni_router import router as cucina_ubicazioni_router
 from app.routers.cucina_scorte_router import router as cucina_scorte_router
+# PRODUZIONI E CODICE LOTTO (2026-11-26, mig 248) — Doc: docs/modulo_produzioni_lotto.md
+from app.routers.cucina_produzioni_router import router as cucina_produzioni_router
 
 # CARTA BEVANDE — sub-modulo del modulo Vini (Aperitivi, Birre, Distillati, Tisane, Tè, Amari)
 from app.routers.bevande_router import router as bevande_router
@@ -909,6 +911,14 @@ if module_loader.is_router_active("cucina_scorte_router"):
         print(f"[init] cucina_scorte_db WARN: {_e}")
 _mount("cucina_ubicazioni_router", cucina_ubicazioni_router)
 _mount("cucina_scorte_router", cucina_scorte_router)
+if module_loader.is_router_active("cucina_produzioni_router"):
+    try:
+        from app.models.cucina_produzioni_db import init_cucina_produzioni_db
+        init_cucina_produzioni_db()
+        print("[init] cucina_produzioni_db OK")
+    except Exception as _e:
+        print(f"[init] cucina_produzioni_db WARN: {_e}")
+_mount("cucina_produzioni_router", cucina_produzioni_router)
 
 # CARTA BEVANDE — sub-modulo Vini
 _mount("bevande_router", bevande_router)
