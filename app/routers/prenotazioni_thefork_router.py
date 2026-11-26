@@ -15,6 +15,7 @@ Manifesto (per module.json a R8):
     POST /prenotazioni/thefork/eventi/{id}/riprova admin
     POST /prenotazioni/thefork/elabora            admin  (rielabora in sospeso/errore)
     POST /prenotazioni/thefork/prova-connessione  admin
+    POST /prenotazioni/thefork/prova-creazione    admin  (crea una prenotazione finta su TheFork e la cancella subito)
     POST /prenotazioni/thefork/sincronizza        admin  (recupero di un periodo)
   Va montato PRIMA di prenotazioni_router (che ha rotte /{pren_id}).
 """
@@ -30,6 +31,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from app.services import thefork_service as tf
+from app.services import thefork_prenota_service as tf_prenota
 from app.services.permessi import solo_admin
 
 logger = logging.getLogger("trgb.thefork")
@@ -101,6 +103,28 @@ def prova_connessione():
         raise HTTPException(409, str(e))
     except tf.TheForkErroreAPI as e:
         raise HTTPException(502, f"TheFork: {e}")
+
+
+class ProvaCreazioneReq(BaseModel):
+    data: date
+    email: str
+    nome: str
+    cognome: str
+    ora: Optional[str] = None      # HH:MM; vuoto = prima fascia prenotabile online
+    coperti: int = 2
+
+
+@router.post("/prova-creazione")
+def prova_creazione(req: ProvaCreazioneReq):
+    """Crea su TheFork una prenotazione di prova e la cancella subito (verifica del permesso)."""
+    if req.data <= date.today():
+        raise HTTPException(400, "scegli un giorno futuro")
+    if "@" not in req.email or not req.nome.strip() or not req.cognome.strip():
+        raise HTTPException(400, "servono email, nome e cognome")
+    return tf_prenota.prova_creazione(
+        req.data.isoformat(), req.email.strip(), req.nome.strip(), req.cognome.strip(),
+        ora=(req.ora or "").strip() or None, coperti=req.coperti,
+    )
 
 
 class SincronizzaReq(BaseModel):

@@ -3,6 +3,19 @@
 
 ---
 
+## 2026-11-26 — Prenotazioni 2.40: il tavolo arrivato da TheFork segue TheFork `[core]`
+Marco 24/11: «perché vedo così differenza tra i tavoli assegnati su TheFork e quelli reali?» → 26/11: la priorità a TRGB «vale se è stato inserito MANUALMENTE da TRGB; ma se è nato dalla prima importazione no».
+
+**Corretto**
+- La regola del 13/11 teneva in TRGB il primo tavolo ricevuto da TheFork e scartava ogni cambio fatto dopo su TheFork (il 24/11: 7 prenotazioni, «tenuti quelli di TRGB: tavolo» nel registro). Ora `clienti_prenotazioni.tavolo_thefork` ricorda l'ultimo tavolo detto da TheFork: se quello in TRGB è ancora quello, segue TheFork; se è stato cambiato in TRGB resta.
+
+**Note**
+- Colonna al boot (`clienti_db`), nessuna migrazione numerata, sistema invariato.
+- Le prenotazioni già arrivate con un tavolo diverso da quello di TheFork non si toccano (non si sa chi l'ha messo): al 24/11 le future con un tavolo erano 13.
+- Provato: `tests/test_thefork_tavolo.py` 11 casi su DB in memoria. **Non provato** con TheFork vero.
+
+---
+
 ## 2026-11-24 — Scorte & Frigoriferi 1.26: il Registro del frigo mostra tutto `[core]`
 Marco: «possibile che il registro dei frigoriferi funzioni così? dovrei vedere tutto».
 

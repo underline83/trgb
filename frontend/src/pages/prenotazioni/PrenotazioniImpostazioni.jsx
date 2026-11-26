@@ -1,4 +1,4 @@
-// @version: v2.12 — «In opzione»: giorni proposti e ruoli degli avvisi (2026-11-13); v2.11 — posti di una prolunga; v2.10 — online automatico (modalità, soglia tavolo, giorni); v2.9 — prolunghe disponibili; v2.8 — sale aperte di default e regole di durata del tavolo (pranzo lungo nel weekend, gruppi tutto il turno); v2.7 — indirizzo dedicato prenota.<dominio>; v2.6 — sezione «Prenotazioni dal sito» (regole, testi, email, codice per il sito); v2.5 — soglia avviso recensioni TheFork; v2.4 — giorno di chiusura con la codifica del backend (0=dom…6=sab, -1=nessuno); v2.3 — soglia «cliente frequente»; sezione TheFork (webhook B2B API: stato, registro eventi, sincronizza)
+// @version: v2.13 — TheFork: «Prova a creare una prenotazione» (crea e cancella subito, verifica del permesso) (2026-11-26); v2.12 — «In opzione»: giorni proposti e ruoli degli avvisi (2026-11-13); v2.11 — posti di una prolunga; v2.10 — online automatico (modalità, soglia tavolo, giorni); v2.9 — prolunghe disponibili; v2.8 — sale aperte di default e regole di durata del tavolo (pranzo lungo nel weekend, gruppi tutto il turno); v2.7 — indirizzo dedicato prenota.<dominio>; v2.6 — sezione «Prenotazioni dal sito» (regole, testi, email, codice per il sito); v2.5 — soglia avviso recensioni TheFork; v2.4 — giorno di chiusura con la codifica del backend (0=dom…6=sab, -1=nessuno); v2.3 — soglia «cliente frequente»; sezione TheFork (webhook B2B API: stato, registro eventi, sincronizza)
 // Modulo: prenotazioni
 // Impostazioni Prenotazioni — sidebar sinistra + sezioni (capienza, slot, template, widget, TheFork)
 import React, { useState, useEffect } from "react";
@@ -779,6 +779,7 @@ function TheForkSection() {
   const [dal, setDal] = useState(oggiIso(-7));
   const [al, setAl] = useState(oggiIso(0));
   const [filtroData, setFiltroData] = useState("updatedDate");
+  const [prova, setProva] = useState({ data: "", email: "", nome: "Prova", cognome: "TRGB" });
 
   const carica = async () => {
     try {
@@ -809,6 +810,8 @@ function TheForkSection() {
         setMsg({ type: "err", text: d.detail || `Errore ${r.status}` });
       } else if (chiave === "prova") {
         setMsg({ type: "ok", text: `Connessione ok — permessi: ${d.scope || "—"}` });
+      } else if (chiave === "creazione") {
+        setMsg({ type: d.creata && d.cancellata ? "ok" : "err", text: d.messaggio || "Nessuna risposta" });
       } else if (chiave === "elabora") {
         setMsg({ type: "ok", text: `Rielaborati ${d.elaborati} eventi` });
       } else if (chiave === "sync") {
@@ -888,6 +891,43 @@ function TheForkSection() {
             </div>
           </>
         )}
+      </div>
+
+      {/* Prova di creazione (2026-11-26) */}
+      <div className="bg-white rounded-xl border border-neutral-200 p-5 space-y-3">
+        <h4 className="font-semibold text-neutral-700 text-sm">Prova a creare una prenotazione</h4>
+        <p className="text-[11px] text-neutral-400">
+          Crea su TheFork una prenotazione finta per 2 nella prima fascia libera di quel giorno e la cancella subito:
+          serve a capire se TRGB ha il permesso di scrivere prenotazioni. TheFork manda le sue email a questo indirizzo
+          e la prenotazione compare cancellata anche in TRGB.
+        </p>
+        <div className="flex flex-wrap items-end gap-3">
+          <div>
+            <label className="block text-xs font-medium text-neutral-600 mb-1">Giorno</label>
+            <input type="date" value={prova.data} onChange={(e) => setProva({ ...prova, data: e.target.value })}
+                   className="px-3 py-2 border border-neutral-300 rounded-lg text-sm" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-neutral-600 mb-1">Email (nostra)</label>
+            <input type="email" value={prova.email} onChange={(e) => setProva({ ...prova, email: e.target.value })}
+                   className="px-3 py-2 border border-neutral-300 rounded-lg text-sm w-56" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-neutral-600 mb-1">Nome</label>
+            <input value={prova.nome} onChange={(e) => setProva({ ...prova, nome: e.target.value })}
+                   className="px-3 py-2 border border-neutral-300 rounded-lg text-sm w-28" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-neutral-600 mb-1">Cognome</label>
+            <input value={prova.cognome} onChange={(e) => setProva({ ...prova, cognome: e.target.value })}
+                   className="px-3 py-2 border border-neutral-300 rounded-lg text-sm w-28" />
+          </div>
+          <Btn variant="secondary" size="md" loading={busy === "creazione"}
+               disabled={!!busy || !stato?.credenziali_presenti || !prova.data || !prova.email}
+               onClick={() => azione("creazione", "/prenotazioni/thefork/prova-creazione", prova)}>
+            Crea e cancella subito
+          </Btn>
+        </div>
       </div>
 
       {/* Recupero periodo */}

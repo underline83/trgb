@@ -748,6 +748,11 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   prenotazioni: {
+    // 2.40 (2026-11-26): sincronizzazione TheFork — il tavolo arrivato da TheFork segue TheFork (prima TRGB
+    //   teneva il primo ricevuto e scartava i cambi fatti su TheFork); resta quello di TRGB solo se è stato
+    //   messo a mano in TRGB. Colonna clienti_prenotazioni.tavolo_thefork al boot, nessuna migrazione numerata.
+    //   Stesso giorno: Impostazioni › TheFork › «Prova a creare una prenotazione» (POST /prenotazioni/thefork/prova-creazione,
+    //   thefork_prenota_service: crea su TheFork una prenotazione finta e la cancella subito, per verificare il permesso).
     // 2.39 (2026-11-24): formato iPhone — Planning a schede sotto i 640 px (ora e coperti, nome e stato, tavolo ed
     //   etichette, nota; dettaglio a tutta larghezza con «Scheda cliente»), form a tutto schermo con «Salva» a vista
     //   e campi a 16 px, Settimana un giorno per riga, Archivio con ricerca/filtri (prima assenti sotto i 1024 px) e
@@ -791,7 +796,7 @@ const MODULE_VERSIONS = {
     // 2.16 (2026-10-19): Prenotazioni › Archivio (tutte le prenotazioni con filtri), spostato da
     //   Clienti; API nuova GET /prenotazioni/archivio/ (+ /riepilogo/). /clienti/prenotazioni rimanda qui.
     // 2.15 (2026-10-19): PrenotazioniForm accetta defaultCliente (bottone «Prenota» della scheda cliente).
-    version: "2.39",
+    version: "2.40",
     label: "Prenotazioni",
     status: "beta",
     color: "blue",

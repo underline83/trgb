@@ -416,10 +416,13 @@ def mappa_prenotazione(r: Dict[str, Any], soglia: str) -> Dict[str, Any]:
         "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }
 
-    # Tavoli: solo se TheFork ne ha assegnati, per non cancellare quelli dati in TRGB
+    # Tavoli: solo se TheFork ne ha assegnati, per non cancellare quelli dati in TRGB.
+    # `tavolo_thefork` = l'ultimo tavolo detto da TheFork: serve a capire se quello in
+    # TRGB è ancora il suo o è stato cambiato a mano (v. _priorita_trgb).
     tavoli = [t.get("name") for t in (r.get("tables") or []) if t.get("name")]
     if tavoli:
         rec["tavolo"] = "+".join(str(t) for t in tavoli)
+        rec["tavolo_thefork"] = rec["tavolo"]
 
     conto = r.get("billAmount")
     if conto and conto.get("totalPrice") is not None:
@@ -495,8 +498,29 @@ def _uguale(a: Any, b: Any) -> bool:
 # messo in TRGB («In opzione», «Lista d'attesa», o arrivato/seduto/al conto/andato)
 # non torna indietro quando TheFork dice solo «prenotata» / «da confermare».
 # La richiesta del cliente (nota_cliente) resta di TheFork: sono parole del cliente.
+#
+# Il TAVOLO (Marco, 2026-11-26): la regola vale «se è stato inserito MANUALMENTE da TRGB;
+# ma se è nato dalla prima importazione no». Quindi: se il tavolo in TRGB è ancora quello
+# che aveva detto TheFork (`tavolo_thefork`), il tavolo segue TheFork; se in TRGB è stato
+# cambiato (Planning, Mappa, Comanda, Q) è diverso da `tavolo_thefork` e resta quello di
+# TRGB. Prenotazioni arrivate prima di questa regola (`tavolo_thefork` vuoto): non si sa
+# chi ha messo il tavolo, quindi non si sovrascrive; da lì in poi vale la regola.
 CAMPI_DESCRITTIVI_TRGB = ("nota_ristorante", "occasione", "tavolo", "allergie_segnalate", "seggioloni")
 STATI_TF_NON_IMPORTANTI = ("RECORDED", "REQUESTED")
+
+
+def _stessi_tavoli(a: Any, b: Any) -> bool:
+    """«7+9» e «9+7» (o «7,9») sono gli stessi tavoli."""
+    def nomi(v):
+        return sorted(x.strip().upper() for x in str(v or "").replace(",", "+").split("+") if x.strip())
+    return nomi(a) == nomi(b)
+
+
+def _tavolo_messo_da_thefork(gia) -> bool:
+    """Il tavolo che c'è in TRGB è ancora quello detto da TheFork l'ultima volta?"""
+    if "tavolo_thefork" not in gia.keys() or gia["tavolo_thefork"] in (None, ""):
+        return False
+    return _stessi_tavoli(gia["tavolo"], gia["tavolo_thefork"])
 
 
 def _priorita_trgb(conn, rec: Dict[str, Any]) -> List[str]:
@@ -508,6 +532,10 @@ def _priorita_trgb(conn, rec: Dict[str, Any]) -> List[str]:
         return []
     tenuti = []
     for k in CAMPI_DESCRITTIVI_TRGB:
+        if k == "tavolo" and "tavolo" in rec and (
+            _tavolo_messo_da_thefork(gia) or _stessi_tavoli(gia["tavolo"], rec["tavolo"])
+        ):
+            continue   # tavolo arrivato da TheFork (o già uguale): segue TheFork
         if k in rec and k in gia.keys() and gia[k] not in (None, "") and not _uguale(gia[k], rec[k]):
             rec.pop(k)
             tenuti.append(k)
@@ -535,6 +563,10 @@ def _sincronizza_prenotazione(conn, uuid: str, solo_se_cambia: bool = False) -> 
     rec = mappa_prenotazione(r, _soglia_turno(conn))
     if not rec.get("data_pasto"):
         raise ValueError("prenotazione senza mealDate")
+    if "tavolo_thefork" in rec and "tavolo_thefork" not in {
+        c[1] for c in conn.execute("PRAGMA table_info(clienti_prenotazioni)")
+    }:
+        rec.pop("tavolo_thefork")   # DB non ancora aggiornato: si lavora come prima
     tenuti_trgb = _priorita_trgb(conn, rec)   # descrittivo: vince TRGB (2026-11-13)
 
     if solo_se_cambia:
