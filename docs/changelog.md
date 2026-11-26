@@ -3,6 +3,11 @@
 
 ---
 
+## 2026-11-26 — Prenotazioni 2.54: azioni su una riga `[core]`
+
+### Cambiato
+- Servizio: sotto lo stato, le azioni della prenotazione stanno su una riga sola, con il disegno al posto della scritta: matita (modifica), tavolo col + (assegna i tavoli), persona (scheda cliente), fumetto (riconferma su WhatsApp, con ✓ se già mandata), tre puntini (altro).
+
 ## 2026-11-26 — Prenotazioni 2.53 / sistema 6.16: «Al conto» tolto (mig 251) `[core]`
 
 ### Aggiunto

@@ -882,7 +882,9 @@ const MODULE_VERSIONS = {
     //   libero: si scrive «Completata» e il tavolo non è occupato.
     //   Il giorno nel titolo (Servizio, Elenco, Mappa) si tocca e apre un mese piccolo per saltare a un altro giorno.
     //   Servizio: tasto «tavolo +» sulla prenotazione scelta → si toccano i tavoli sulla mappa (anche più d'uno) e si assegnano.
-    version: "2.53",
+    // 2.54 (2026-11-26): Servizio, le azioni della prenotazione su una riga sola: tasti quadrati col disegno
+    //   (matita = modifica, tavolo + = assegna i tavoli, persona = scheda cliente, fumetto = WhatsApp, ⋯ = altro).
+    version: "2.54",
     label: "Prenotazioni",
     status: "beta",
     color: "blue",

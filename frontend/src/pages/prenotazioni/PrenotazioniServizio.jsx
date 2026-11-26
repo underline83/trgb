@@ -1,4 +1,4 @@
-// @version: v1.11 — tasto «tavolo +»: si assegnano i tavoli a una prenotazione toccandoli sulla mappa (2026-11-26); v1.10 — stato a quattro caselle in una riga (Prenotato · Confermato · Seduto · Libero): si tocca quella dove deve andare, avanti o indietro; le altre azioni sotto, piccole e uguali (2026-11-26); v1.9 — sul telefono gli orari sono un elenco a tendina (i tasti erano inutilizzabili) (2026-11-26); v1.8 — un tasto solo per lo stato che avanza (Prenotato → Confermato → Seduto → libera il tavolo), «↩» per tornare indietro, gli altri cambi in «Altro» (2026-11-26); v1.7 — riepilogo del turno nella riga sopra la sala (la testata resta su una riga) (2026-11-26); v1.6 — tutti i cambi di stato del Planning (stessi bottoni) e riconferma WhatsApp; testata comune del modulo (components/Testata.jsx) (2026-11-26); v1.5 — nell'elenco le stesse etichette del Planning (canale, stelle, segmento, bollino, no-show, allergie, doppione…), nome che apre la scheda cliente, note in riga (2026-11-26); v1.4 — niente barre di scorrimento (orari a colonne uguali, schede sale, elenco), piantina stretta sui tavoli, «tavoli liberi» solo nelle sale aperte (2026-11-26); v1.3 — nell'ingranaggio «Blocca le prenotazioni online» e «Chiudi servizio» (anche su TheFork), con conferma (2026-11-26); v1.2 — ingranaggio «Modifica servizio» (sale aperte, fasce e online, tavoli del turno) e matita per la sala (2026-11-26); v1.1 — stessa larghezza di pagina di Planning e Mappa, elenco a larghezza fissa e sala che non cambia misura; iPad in piedi: sala sopra, elenco sotto (2026-11-26); v1.0 — vista «Servizio»: elenco del turno e sala nella stessa schermata, striscia degli orari per vedere la sala a un'altra ora, due schede sul telefono (2026-11-26)
+// @version: v1.12 — azioni della prenotazione su una riga sola, tasti quadrati col disegno (matita, tavolo +, persona, WhatsApp, ⋯) (2026-11-26); v1.11 — tasto «tavolo +»: si assegnano i tavoli a una prenotazione toccandoli sulla mappa (2026-11-26); v1.10 — stato a quattro caselle in una riga (Prenotato · Confermato · Seduto · Libero): si tocca quella dove deve andare, avanti o indietro; le altre azioni sotto, piccole e uguali (2026-11-26); v1.9 — sul telefono gli orari sono un elenco a tendina (i tasti erano inutilizzabili) (2026-11-26); v1.8 — un tasto solo per lo stato che avanza (Prenotato → Confermato → Seduto → libera il tavolo), «↩» per tornare indietro, gli altri cambi in «Altro» (2026-11-26); v1.7 — riepilogo del turno nella riga sopra la sala (la testata resta su una riga) (2026-11-26); v1.6 — tutti i cambi di stato del Planning (stessi bottoni) e riconferma WhatsApp; testata comune del modulo (components/Testata.jsx) (2026-11-26); v1.5 — nell'elenco le stesse etichette del Planning (canale, stelle, segmento, bollino, no-show, allergie, doppione…), nome che apre la scheda cliente, note in riga (2026-11-26); v1.4 — niente barre di scorrimento (orari a colonne uguali, schede sale, elenco), piantina stretta sui tavoli, «tavoli liberi» solo nelle sale aperte (2026-11-26); v1.3 — nell'ingranaggio «Blocca le prenotazioni online» e «Chiudi servizio» (anche su TheFork), con conferma (2026-11-26); v1.2 — ingranaggio «Modifica servizio» (sale aperte, fasce e online, tavoli del turno) e matita per la sala (2026-11-26); v1.1 — stessa larghezza di pagina di Planning e Mappa, elenco a larghezza fissa e sala che non cambia misura; iPad in piedi: sala sopra, elenco sotto (2026-11-26); v1.0 — vista «Servizio»: elenco del turno e sala nella stessa schermata, striscia degli orari per vedere la sala a un'altra ora, due schede sul telefono (2026-11-26)
 // Modulo: prenotazioni
 // Idea presa da TheFork Manager (Marco 2026-11-26: «il mix tra prenotazioni e tavoli è una visual molto utile»).
 // Non sostituisce Planning né Mappa Tavoli: è una terza vista, da provare in servizio.
@@ -381,6 +381,8 @@ export default function PrenotazioniServizio() {
     const g = giro(p);
     const a = passoDi(p);
     const quieto = "px-3 min-h-[40px] text-sm font-medium rounded-lg border border-neutral-300 bg-white text-neutral-800 hover:bg-neutral-50";
+    const icona = "w-11 h-11 flex-shrink-0 rounded-lg border border-neutral-300 bg-white text-neutral-800 hover:bg-neutral-50 flex items-center justify-center";
+    const SVG = { width: 20, height: 20, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" };
     return (
     <div className="flex flex-col gap-2">
       {/* Il giro in una riga sola: quattro caselle, quella accesa è dove si trova la prenotazione.
@@ -399,24 +401,44 @@ export default function PrenotazioniServizio() {
       ) : g.avanti ? (
         <button type="button" onClick={g.avanti.fai} className={`px-4 min-h-[44px] text-sm font-bold text-white rounded-lg ${g.avanti.cls}`}>{g.avanti.label}</button>
       ) : null}
-      {/* Sotto, in piccolo e tutte uguali, le azioni che non sono il giro */}
-      <div className="flex flex-wrap gap-1.5">
-        {p.stato !== "LEFT" && <button type="button" className={quieto} onClick={() => setForm({ modifica: p })}>Modifica</button>}
-        {p.cliente_id && <button type="button" className={quieto} onClick={() => setClienteAperto(p.cliente_id)}>Scheda cliente</button>}
-        {p.telefono && ["RECORDED", "REQUESTED"].includes(p.stato) && (
-          <button type="button" className={quieto} onClick={() => riconferma(p)}>{p.reminder_inviato === 1 ? "WhatsApp (reinvia)" : "WhatsApp"}</button>
+      {/* Sotto, su una riga sola: tasti quadrati col disegno al posto della scritta (Marco 2026-11-26); il nome sta nel title */}
+      <div className="flex flex-nowrap gap-1.5">
+        {p.stato !== "LEFT" && (
+          <button type="button" className={icona} title="Modifica la prenotazione" aria-label="Modifica la prenotazione" onClick={() => setForm({ modifica: p })}>
+            <svg aria-hidden="true" {...SVG}><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" /></svg>
+          </button>
         )}
-        {telefono && <button type="button" className={quieto} onClick={() => setScheda(scheda === "elenco" ? "mappa" : "elenco")}>{scheda === "elenco" ? "Sulla mappa" : "In elenco"}</button>}
         {p.stato !== "LEFT" && (
           <button type="button" onClick={() => (assegno?.id === p.id ? setAssegno(null) : apriAssegno(p))} aria-pressed={assegno?.id === p.id}
             title="Assegna i tavoli toccandoli sulla mappa" aria-label="Assegna i tavoli toccandoli sulla mappa"
-            className={`px-3 min-h-[40px] rounded-lg border flex items-center gap-1 text-sm font-bold ${assegno?.id === p.id ? "border-indigo-800 bg-indigo-800 text-white" : "border-neutral-300 bg-white text-neutral-800 hover:bg-neutral-50"}`}>
-            <svg aria-hidden="true" width="22" height="18" viewBox="0 0 24 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="8" rx="2" /><path d="M6 12v5M18 12v5" /></svg>
-            <span aria-hidden="true">+</span>
+            className={`${icona} ${assegno?.id === p.id ? "!border-indigo-800 !bg-indigo-800 !text-white" : ""}`}>
+            <svg aria-hidden="true" {...SVG}><rect x="2" y="7" width="15" height="6" rx="1.5" /><path d="M5 13v5M14 13v5" /><path d="M20 3v6M17 6h6" /></svg>
+          </button>
+        )}
+        {p.cliente_id && (
+          <button type="button" className={icona} title="Scheda del cliente" aria-label="Scheda del cliente" onClick={() => setClienteAperto(p.cliente_id)}>
+            <svg aria-hidden="true" {...SVG}><circle cx="12" cy="8" r="4" /><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7" /></svg>
+          </button>
+        )}
+        {p.telefono && ["RECORDED", "REQUESTED"].includes(p.stato) && (
+          <button type="button" className={`${icona} relative`} onClick={() => riconferma(p)}
+            title={p.reminder_inviato === 1 ? "Riconferma su WhatsApp (già mandata: reinvia)" : "Riconferma su WhatsApp"} aria-label={p.reminder_inviato === 1 ? "Riconferma su WhatsApp, già mandata: reinvia" : "Riconferma su WhatsApp"}>
+            <svg aria-hidden="true" {...SVG}><path d="M21 11.5a8.5 8.5 0 0 1-12.6 7.4L3 20l1.2-5.1A8.5 8.5 0 1 1 21 11.5z" /><path d="M9 9.5c0 3 2.5 5.5 5.5 5.5" /></svg>
+            {p.reminder_inviato === 1 && <span aria-hidden="true" className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-emerald-600 text-white text-[10px] leading-4 text-center font-bold">✓</span>}
+          </button>
+        )}
+        {telefono && (
+          <button type="button" className={icona} title={scheda === "elenco" ? "Vedi sulla mappa" : "Torna all'elenco"} aria-label={scheda === "elenco" ? "Vedi sulla mappa" : "Torna all'elenco"}
+            onClick={() => setScheda(scheda === "elenco" ? "mappa" : "elenco")}>
+            {scheda === "elenco"
+              ? <svg aria-hidden="true" {...SVG}><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2z" /><path d="M9 4v14M15 6v14" /></svg>
+              : <svg aria-hidden="true" {...SVG}><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" /></svg>}
           </button>
         )}
         {g.fuoriGiro.length > 0 && (
-          <button type="button" className={quieto} onClick={() => setAltroAperto(altroAperto === p.id ? null : p.id)} aria-expanded={altroAperto === p.id}>Altro {altroAperto === p.id ? "▴" : "▾"}</button>
+          <button type="button" className={`${icona} ml-auto`} title="Altre azioni" aria-label="Altre azioni" onClick={() => setAltroAperto(altroAperto === p.id ? null : p.id)} aria-expanded={altroAperto === p.id}>
+            <svg aria-hidden="true" {...SVG}><circle cx="5" cy="12" r="1.3" /><circle cx="12" cy="12" r="1.3" /><circle cx="19" cy="12" r="1.3" /></svg>
+          </button>
         )}
       </div>
       {altroAperto === p.id && (
