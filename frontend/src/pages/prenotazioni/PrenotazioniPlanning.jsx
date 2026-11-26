@@ -1,4 +1,4 @@
-// @version: v1.19-thefork — segno «su TheFork / da mandare / solo TRGB» sulle prenotazioni prese in TRGB e nome di chi ha prenotato per la scheda (2026-11-26); v1.18-telefono — su iPad dritto le etichette vanno a capo e «Stato» non esce più dalla tabella; su iPhone le righe diventano schede (ora e coperti a sinistra, nome e stato, tavolo ed etichette, nota), intestazione del turno e barra della data che vanno a capo, tasti da pollice (2026-11-24); v1.17-apri — ?apri=<id> apre la prenotazione e ci scorre sopra (link dalla Home, 2026-11-20); v1.16-chiusure — turno chiuso nel calendario chiusure: banner rosso, «Nessuna prenotazione» diventa «Turno chiuso» (2026-11-19); v1.15-stelle — stelle TRGB e pallino del segmento accanto al nome (al posto della ⭐ VIP TheFork) (2026-11-16); v1.14-stati — «In opzione» (tavolo tenuto fino al…, proroga, coperti a parte) e «Lista d'attesa» (sezione propria, non occupa); pulsanti di stato dai passaggi permessi della tabella stati (sparito «Seduto» su «Da confermare», che dava errore) (2026-11-13); v1.13-scadenza-preventivo — ⏳ prenotazione in attesa di conferma preventivo (scadenza), «Libera tavolo», motivo della cancellazione (2026-11-03); v1.12-motore — tavolo suggerito dal motore per tavoli (clic = assegna, «Assegna i suggeriti»), «non entra» in rosso, tavoli doppi; v1.11-sale — sale aperte/chiuse per turno nell'intestazione (capienza dai tavoli); v1.10-modifica — «✏️ Modifica» nella riga aperta (stesso form della nuova prenotazione); v1.9-nome — nome anche col solo cognome; v1.8-menu-evento — menù dell'evento confermato nella riga aperta; v1.7-preventivo — tasto «📋 Preventivo» nella riga aperta (crea o apre il preventivo della prenotazione, solo per chi può crearli); v1.6-fasce — fasce orarie del turno (apertura, limiti, online anche su TheFork); v1.5-affidabilita — badge no-show del cliente, riconferma WhatsApp; v1.4 scheda inline — scheda cliente aperta dentro il Planning; v1.3 timeline — bollino cliente (prima/occasionale/frequente) + timeline sala per orario; badge «doppione?»
+// @version: v1.21 — testata comune del modulo (frecce, titolo, Oggi, «+ Nuova prenotazione» uguali a Servizio) (2026-11-26); v1.20 — le etichette accanto al nome sono un componente condiviso con «Servizio» (components/EtichetteCliente.jsx) (2026-11-26); v1.19-thefork — segno «su TheFork / da mandare / solo TRGB» sulle prenotazioni prese in TRGB e nome di chi ha prenotato per la scheda (2026-11-26); v1.18-telefono — su iPad dritto le etichette vanno a capo e «Stato» non esce più dalla tabella; su iPhone le righe diventano schede (ora e coperti a sinistra, nome e stato, tavolo ed etichette, nota), intestazione del turno e barra della data che vanno a capo, tasti da pollice (2026-11-24); v1.17-apri — ?apri=<id> apre la prenotazione e ci scorre sopra (link dalla Home, 2026-11-20); v1.16-chiusure — turno chiuso nel calendario chiusure: banner rosso, «Nessuna prenotazione» diventa «Turno chiuso» (2026-11-19); v1.15-stelle — stelle TRGB e pallino del segmento accanto al nome (al posto della ⭐ VIP TheFork) (2026-11-16); v1.14-stati — «In opzione» (tavolo tenuto fino al…, proroga, coperti a parte) e «Lista d'attesa» (sezione propria, non occupa); pulsanti di stato dai passaggi permessi della tabella stati (sparito «Seduto» su «Da confermare», che dava errore) (2026-11-13); v1.13-scadenza-preventivo — ⏳ prenotazione in attesa di conferma preventivo (scadenza), «Libera tavolo», motivo della cancellazione (2026-11-03); v1.12-motore — tavolo suggerito dal motore per tavoli (clic = assegna, «Assegna i suggeriti»), «non entra» in rosso, tavoli doppi; v1.11-sale — sale aperte/chiuse per turno nell'intestazione (capienza dai tavoli); v1.10-modifica — «✏️ Modifica» nella riga aperta (stesso form della nuova prenotazione); v1.9-nome — nome anche col solo cognome; v1.8-menu-evento — menù dell'evento confermato nella riga aperta; v1.7-preventivo — tasto «📋 Preventivo» nella riga aperta (crea o apre il preventivo della prenotazione, solo per chi può crearli); v1.6-fasce — fasce orarie del turno (apertura, limiti, online anche su TheFork); v1.5-affidabilita — badge no-show del cliente, riconferma WhatsApp; v1.4 scheda inline — scheda cliente aperta dentro il Planning; v1.3 timeline — bollino cliente (prima/occasionale/frequente) + timeline sala per orario; badge «doppione?»
 // Modulo: prenotazioni
 // Vista planning giornaliero — modulo Prenotazioni TRGB
 import React, { useState, useEffect, useCallback } from "react";
@@ -8,9 +8,11 @@ import PrenotazioniNav from "./PrenotazioniNav";
 import PrenotazioniForm from "./PrenotazioniForm";
 import MiniCalendario from "./components/MiniCalendario";
 import StatoBadge from "./components/StatoBadge";
-import usePrenotazioniStati from "./components/statiPrenotazioni";
+import usePrenotazioniStati, { azioneStato } from "./components/statiPrenotazioni";
 import CanaleBadge from "./components/CanaleBadge";
 import TheForkInvioBadge from "./components/TheForkInvioBadge";
+import EtichetteCliente from "./components/EtichetteCliente";
+import TestataGiorno, { TastoTestata } from "./components/Testata";
 import FasceTurno from "./components/FasceTurno";
 import Tooltip from "../../components/Tooltip";
 import ClientiScheda from "../clienti/ClientiScheda";
@@ -103,79 +105,7 @@ function CellaTavolo({ pren, motore, onAssegna }) {
 }
 
 // Pulsanti di stato (2026-11-13): uno per ogni passaggio permesso dalla tabella stati
-const AZIONI_STATO = {
-  SEATED:   { label: "✅ Seduto", cls: "bg-emerald-600 hover:bg-emerald-700" },
-  ARRIVED:  { label: "🚶 Arrivato", cls: "bg-teal-600 hover:bg-teal-700" },
-  BILL:     { label: "🧾 Al conto", cls: "bg-amber-600 hover:bg-amber-700" },
-  LEFT:     { label: "🚪 Andato via", cls: "bg-neutral-500 hover:bg-neutral-600" },
-  OPTION:   { label: "⏳ In opzione", cls: "bg-amber-500 hover:bg-amber-600" },
-  WAITLIST: { label: "🕰️ Lista d'attesa", cls: "bg-violet-500 hover:bg-violet-600" },
-  CANCELED: { label: "✖ Cancella", cls: "bg-neutral-400 hover:bg-neutral-500" },
-  NO_SHOW:  { label: "👻 No-show", cls: "bg-red-500 hover:bg-red-600" },
-  REFUSED:  { label: "⛔ Rifiuta", cls: "bg-red-400 hover:bg-red-500" },
-};
-function azioneStato(da, a) {
-  if (a === "RECORDED") {
-    return ["CANCELED", "NO_SHOW", "REFUSED"].includes(da)
-      ? { label: "↩ Ripristina", cls: "bg-indigo-500 hover:bg-indigo-600" }
-      : { label: "✓ Conferma", cls: "bg-indigo-600 hover:bg-indigo-700" };
-  }
-  return AZIONI_STATO[a] || { label: a, cls: "bg-neutral-500 hover:bg-neutral-600" };
-}
 const ggmm = (iso) => (iso || "").split("-").reverse().slice(0, 2).join("/");
-
-// Etichette accanto al nome (stelle, segmento, no-show, riconferma, evento, preventivo,
-// bollino, allergie, NUOVA, DOPPIONE?): le stesse nella riga del computer e nella scheda del telefono
-function EtichetteCliente({ pren }) {
-  return (
-    <>
-      {pren.profilo && (
-        <>
-          <Stelle nere={pren.profilo.stelle_nere} argento={pren.profilo.stelle_argento} oro={pren.profilo.stella_oro} className="text-xs" />
-          {pren.profilo.segmento && pren.profilo.segmento !== "mai_venuto" && <SegmentoPill segmento={pren.profilo.segmento} compatto />}
-        </>
-      )}
-      {pren.no_show_totali > 0 && (
-        <Tooltip label={`Affidabilità: ${pren.no_show_totali} no-show e ${pren.cancellate_totali || 0} cancellazioni in passato`}>
-          <span className="px-1.5 py-0.5 bg-red-50 text-red-700 border border-red-200 text-[10px] font-semibold rounded-full whitespace-nowrap">
-            {pren.no_show_totali} no-show
-          </span>
-        </Tooltip>
-      )}
-      {pren.reminder_inviato === 1 && (
-        <Tooltip label="Riconferma WhatsApp inviata"><span className="text-emerald-600 text-xs">✓💬</span></Tooltip>
-      )}
-      {pren.menu_evento && (
-        <Tooltip label="Evento confermato: menù nella riga aperta"><span className="text-xs">🍽️</span></Tooltip>
-      )}
-      {pren.preventivo_attesa && (
-        <Tooltip label={`In attesa di conferma preventivo ${pren.preventivo_attesa.numero}${pren.preventivo_attesa.scadenza ? ` — scade il ${(pren.preventivo_attesa.scadenza || "").split("-").reverse().slice(0, 2).join("/")}` : ""}`}>
-          <span className={`text-xs ${pren.preventivo_attesa.stato === "scaduto" ? "text-red-600" : "text-amber-600"}`}>⏳</span>
-        </Tooltip>
-      )}
-      {pren.bollino && BOLLINI[pren.bollino] && (
-        <Tooltip label={`${pren.visite_precedenti || 0} visite prima di oggi`}>
-          <span className={`px-1.5 py-0.5 border text-[10px] font-medium rounded-full whitespace-nowrap ${BOLLINI[pren.bollino].cls}`}>
-            {BOLLINI[pren.bollino].label}
-          </span>
-        </Tooltip>
-      )}
-      {(pren.allergie || pren.allergie_segnalate) && (
-        <Tooltip label={pren.allergie || pren.allergie_segnalate}>
-          <span className="text-red-500 text-xs">⚠️</span>
-        </Tooltip>
-      )}
-      {pren.stato === "REQUESTED" && (
-        <span className="px-1.5 py-0.5 bg-blue-500 text-white text-[10px] font-bold rounded-full">NUOVA</span>
-      )}
-      {pren.possibili_doppioni && pren.possibili_doppioni.length > 0 && (
-        <Tooltip label={pren.possibili_doppioni.map((d) => `Uguale a ${d.ora} ${d.nome} (${d.pax} pax${d.thefork ? ", TheFork" : ", a mano"}): ${d.motivi.join(", ")}`).join(" · ")}>
-          <span className="px-1.5 py-0.5 bg-amber-100 text-amber-800 border border-amber-300 text-[10px] font-bold rounded-full">DOPPIONE?</span>
-        </Tooltip>
-      )}
-    </>
-  );
-}
 
 // Riga aperta: cliente, dettagli, azioni. Tre colonne da md in su, una sotto l'altra sul telefono
 function DettaglioPrenotazione({ pren, onStatoChange, onRiconferma, onUnisciDoppione, onPreventivo, onModifica, onLiberaTavolo, onTenutoFino }) {
@@ -477,12 +407,6 @@ function RigaPrenotazione({ pren, telefono, motore, onAssegna, onStatoChange, on
 // ============================================================
 // TABELLA TURNO (pranzo o cena)
 // ============================================================
-// Bollino cliente come in TheFork Manager (visite fatte PRIMA di quel giorno; soglia in config)
-const BOLLINI = {
-  prima:       { label: "Prima visita", cls: "bg-sky-50 text-sky-700 border-sky-200" },
-  occasionale: { label: "Occasionale",  cls: "bg-neutral-50 text-neutral-600 border-neutral-200" },
-  frequente:   { label: "Frequente",    cls: "bg-amber-50 text-amber-800 border-amber-300" },
-};
 
 // Timeline sala: coperti in sala per orario (arrivo + durata media del turno)
 function TimelineSala({ slot, capienza, fasce, onFasce }) {
@@ -890,30 +814,10 @@ export default function PrenotazioniPlanning() {
 
       <div className="max-w-7xl mx-auto px-3 sm:px-6 py-3 sm:py-4">
         {/* Header con navigazione data */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3 sm:mb-4">
-          <div className="flex items-center gap-2">
-            <Btn variant="secondary" size="sm" className="max-sm:min-h-[44px] max-sm:min-w-[44px]" onClick={() => setData(shiftDate(data, -1))}>◀</Btn>
-            <div className="text-center flex-1 min-w-0 sm:flex-none sm:min-w-[260px]">
-              <div className="text-base sm:text-lg font-bold text-neutral-800 truncate">{telefono ? formatDataCorta(data) : formatData(data)}</div>
-              {data === oggi() && (
-                <span className="text-xs text-indigo-600 font-medium">Oggi</span>
-              )}
-            </div>
-            <Btn variant="secondary" size="sm" className="max-sm:min-h-[44px] max-sm:min-w-[44px]" onClick={() => setData(shiftDate(data, 1))}>▶</Btn>
-            {data !== oggi() && (
-              <Btn variant="chip" tone="violet" size="sm" className="max-sm:min-h-[44px]" onClick={() => setData(oggi())}>
-                Oggi
-              </Btn>
-            )}
-            <Btn variant="secondary" size="sm" className="max-sm:min-h-[44px] max-sm:min-w-[44px]" onClick={() => setShowCalendario(!showCalendario)}>
-              📅
-            </Btn>
-          </div>
-
-          <Btn variant="chip" tone="violet" size="md" className="w-full sm:w-auto max-sm:min-h-[44px]" onClick={() => setShowForm(true)}>
-            + Nuova Prenotazione
-          </Btn>
-        </div>
+        <TestataGiorno data={data} onData={setData} corto={telefono}
+          destra={<Btn variant="primary" size="md" className="min-h-[44px] max-sm:w-full" onClick={() => setShowForm(true)}>+ Nuova prenotazione</Btn>}>
+          <TastoTestata onClick={() => setShowCalendario(!showCalendario)} aria-label="Scegli il giorno dal calendario">📅</TastoTestata>
+        </TestataGiorno>
 
         {/* Mini-calendario */}
         {showCalendario && (

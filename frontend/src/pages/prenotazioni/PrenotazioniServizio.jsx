@@ -1,4 +1,4 @@
-// @version: v1.4 — niente barre di scorrimento (orari a colonne uguali, schede sale, elenco), piantina stretta sui tavoli, «tavoli liberi» solo nelle sale aperte (2026-11-26); v1.3 — nell'ingranaggio «Blocca le prenotazioni online» e «Chiudi servizio» (anche su TheFork), con conferma (2026-11-26); v1.2 — ingranaggio «Modifica servizio» (sale aperte, fasce e online, tavoli del turno) e matita per la sala (2026-11-26); v1.1 — stessa larghezza di pagina di Planning e Mappa, elenco a larghezza fissa e sala che non cambia misura; iPad in piedi: sala sopra, elenco sotto (2026-11-26); v1.0 — vista «Servizio»: elenco del turno e sala nella stessa schermata, striscia degli orari per vedere la sala a un'altra ora, due schede sul telefono (2026-11-26)
+// @version: v1.6 — tutti i cambi di stato del Planning (stessi bottoni) e riconferma WhatsApp; testata comune del modulo (components/Testata.jsx) (2026-11-26); v1.5 — nell'elenco le stesse etichette del Planning (canale, stelle, segmento, bollino, no-show, allergie, doppione…), nome che apre la scheda cliente, note in riga (2026-11-26); v1.4 — niente barre di scorrimento (orari a colonne uguali, schede sale, elenco), piantina stretta sui tavoli, «tavoli liberi» solo nelle sale aperte (2026-11-26); v1.3 — nell'ingranaggio «Blocca le prenotazioni online» e «Chiudi servizio» (anche su TheFork), con conferma (2026-11-26); v1.2 — ingranaggio «Modifica servizio» (sale aperte, fasce e online, tavoli del turno) e matita per la sala (2026-11-26); v1.1 — stessa larghezza di pagina di Planning e Mappa, elenco a larghezza fissa e sala che non cambia misura; iPad in piedi: sala sopra, elenco sotto (2026-11-26); v1.0 — vista «Servizio»: elenco del turno e sala nella stessa schermata, striscia degli orari per vedere la sala a un'altra ora, due schede sul telefono (2026-11-26)
 // Modulo: prenotazioni
 // Idea presa da TheFork Manager (Marco 2026-11-26: «il mix tra prenotazioni e tavoli è una visual molto utile»).
 // Non sostituisce Planning né Mappa Tavoli: è una terza vista, da provare in servizio.
@@ -12,7 +12,11 @@ import PrenotazioniForm from "./PrenotazioniForm";
 import StatoBadge from "./components/StatoBadge";
 import TheForkInvioBadge from "./components/TheForkInvioBadge";
 import FasceTurno from "./components/FasceTurno";
-import usePrenotazioniStati from "./components/statiPrenotazioni";
+import EtichetteCliente from "./components/EtichetteCliente";
+import CanaleBadge from "./components/CanaleBadge";
+import ClientiScheda from "../clienti/ClientiScheda";
+import usePrenotazioniStati, { azioneStato } from "./components/statiPrenotazioni";
+import TestataGiorno, { TastoTestata } from "./components/Testata";
 import { CANVAS_W, CANVAS_H, FormaTavolo, FormaElemento, SchedeSale } from "./components/Piantina";
 import { Btn } from "../../components/ui";
 import useTelefono from "../../hooks/useTelefono";
@@ -57,6 +61,7 @@ export default function PrenotazioniServizio() {
   const [chiedo, setChiedo] = useState(null);              // "online" | "chiudi": conferma in due tempi
   const [motivo, setMotivo] = useState("");
   const [lavoro, setLavoro] = useState(false);
+  const [clienteAperto, setClienteAperto] = useState(null);   // scheda cliente aperta dall'elenco, come nel Planning
   const righeRef = useRef({});
 
   const flash = (type, text) => { setToast({ type, text }); setTimeout(() => setToast(null), 3000); };
@@ -175,6 +180,20 @@ export default function PrenotazioniServizio() {
     } catch { flash("err", "Errore di connessione"); }
   };
 
+  // Riconferma su WhatsApp, come nel Planning: la finestra si apre subito, poi arriva il link
+  const riconferma = async (p) => {
+    const finestra = window.open("", "_blank");
+    try {
+      const r = await apiFetch(`${API_BASE}/prenotazioni/${p.id}/wa-link?tipo=reminder`);
+      const d = await r.json();
+      if (!r.ok) { finestra && finestra.close(); flash("err", d.detail || "Errore"); return; }
+      if (finestra) finestra.location.href = d.link; else window.open(d.link, "_blank");
+      await apiFetch(`${API_BASE}/prenotazioni/${p.id}/inviato?tipo=reminder`, { method: "POST" });
+      flash("ok", `Riconferma aperta su WhatsApp per ${nomeDi(p)}`);
+      carica();
+    } catch { finestra && finestra.close(); flash("err", "Errore di connessione"); }
+  };
+
   // Apre/chiude una sala per questo giorno e turno (la stessa chiamata del Planning)
   const cambiaSala = async (zona, aperta) => {
     try {
@@ -242,7 +261,6 @@ export default function PrenotazioniServizio() {
     setChiedo(null); setLavoro(false); leggiRapidi(); carica();
   };
 
-  const giorno = (n) => { const d = new Date(`${data}T12:00:00`); d.setDate(d.getDate() + n); setData(giornoLocale(d)); };
   const titoloGiorno = new Date(`${data}T12:00:00`).toLocaleDateString("it-IT", { weekday: "long", day: "numeric", month: "long" });
   const hhmm = (m) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
   const slotAdesso = inTurno ? [...orari].reverse().find((o) => minuti(o.ora) <= adessoMin)?.ora : null;
@@ -251,10 +269,16 @@ export default function PrenotazioniServizio() {
   const Azioni = ({ p }) => (
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap gap-2">
-        {["ARRIVED", "SEATED", "LEFT"].filter((s) => puo(p.stato, s)).map((s, i) => (
-          <Btn key={s} size="md" variant={i === 0 ? "primary" : "secondary"} onClick={() => cambiaStato(p, s)}>{info(s).etichetta}</Btn>
-        ))}
-        <Btn size="md" variant="secondary" onClick={() => setForm({ modifica: p })}>Modifica</Btn>
+        {/* Gli stessi cambi di stato del Planning (stesse etichette e colori), poi Modifica e riconferma */}
+        {(info(p.stato).transizioni || []).map((a) => {
+          const az = azioneStato(p.stato, a);
+          return <button key={a} type="button" onClick={() => cambiaStato(p, a)} className={`px-3 min-h-[44px] text-sm font-medium text-white rounded-lg ${az.cls}`}>{az.label}</button>;
+        })}
+        {p.stato !== "LEFT" && <Btn size="md" variant="secondary" className="min-h-[44px]" onClick={() => setForm({ modifica: p })}>✏️ Modifica</Btn>}
+        {p.cliente_id && <Btn size="md" variant="secondary" className="min-h-[44px]" onClick={() => setClienteAperto(p.cliente_id)}>👤 Scheda cliente</Btn>}
+        {p.telefono && ["RECORDED", "REQUESTED"].includes(p.stato) && (
+          <Btn size="md" variant="secondary" className="min-h-[44px]" onClick={() => riconferma(p)}>💬 {p.reminder_inviato === 1 ? "Riconferma inviata — reinvia" : "Riconferma su WhatsApp"}</Btn>
+        )}
         {telefono && <Btn size="md" variant="secondary" onClick={() => setScheda(scheda === "elenco" ? "mappa" : "elenco")}>{scheda === "elenco" ? "Vedi sulla mappa" : "Apri in elenco"}</Btn>}
       </div>
       {(p.nota_ristorante || p.allergie_segnalate || p.nota_cliente) && (
@@ -282,16 +306,31 @@ export default function PrenotazioniServizio() {
             return (
               <div key={p.id} ref={(el) => { righeRef.current[p.id] = el; }}
                 className={`rounded-xl px-3 py-2.5 flex flex-col gap-2 ${sel ? "bg-indigo-50 border-2 border-indigo-700" : "bg-white border border-neutral-200"}`}>
-                <button type="button" onClick={() => (sel ? setSceltaId(null) : scegli(p))} aria-expanded={sel}
-                  className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 items-center text-left min-h-[32px]">
+                {/* Tutta la riga seleziona; il nome apre la scheda cliente. Stesse etichette del Planning (stelle, bollino, allergie…) */}
+                <div role="button" tabIndex={0} aria-expanded={sel}
+                  onClick={() => (sel ? setSceltaId(null) : scegli(p))}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); sel ? setSceltaId(null) : scegli(p); } }}
+                  className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 items-start text-left min-h-[32px] cursor-pointer">
                   <span className="min-w-0">
-                    <span className="block text-[15px] font-semibold truncate">{nomeDi(p)}{p.vip === 1 ? " ★" : ""}</span>
-                    <span className="block text-xs text-neutral-600">
-                      {p.pax} {p.pax === 1 ? "persona" : "persone"} · {p.tavolo ? `tavolo ${nomiTavolo(p.tavolo).join(" + ")}` : <span className="text-amber-700 font-medium">senza tavolo</span>}
+                    <span className="flex items-center flex-wrap gap-x-1.5 gap-y-1">
+                      <CanaleBadge canale={p.canale} fonte={p.fonte} />
+                      {p.cliente_id ? (
+                        <button type="button" onClick={(e) => { e.stopPropagation(); setClienteAperto(p.cliente_id); }}
+                          className="text-[15px] font-semibold text-indigo-800 hover:underline text-left">{nomeDi(p)}</button>
+                      ) : <span className="text-[15px] font-semibold">{nomeDi(p)}</span>}
+                      {p.vip === 1 && <span title="VIP" className="text-amber-500">★</span>}
+                      {p.persona_nome && (p.nome || p.cognome) && <span className="text-xs text-indigo-700">· scheda {[p.nome, p.cognome].filter(Boolean).join(" ")}</span>}
+                      <EtichetteCliente pren={p} />
+                      <TheForkInvioBadge pren={p} />
                     </span>
+                    <span className="block text-xs text-neutral-600 mt-0.5">
+                      {p.pax} {p.pax === 1 ? "persona" : "persone"} · {p.tavolo ? `tavolo ${nomiTavolo(p.tavolo).join(" + ")}` : <span className="text-amber-700 font-medium">senza tavolo</span>}
+                      {p.tavolo_esterno === 1 ? " · esterno" : ""}{p.occasione ? ` · ${p.occasione}` : ""}
+                    </span>
+                    {(p.nota_ristorante || p.nota_cliente) && !sel && <span className="block text-xs text-neutral-500 truncate">{[p.nota_ristorante, p.nota_cliente].filter(Boolean).join(" · ")}</span>}
                   </span>
-                  <span className="flex items-center gap-1.5"><TheForkInvioBadge pren={p} /><StatoBadge stato={p.stato} /></span>
-                </button>
+                  <StatoBadge stato={p.stato} />
+                </div>
                 {sel && <Azioni p={p} />}
               </div>
             );
@@ -325,12 +364,17 @@ export default function PrenotazioniServizio() {
   const Sala = (
     <div className="flex flex-col gap-2">
       {Striscia}
-      {ora != null && (
-        <div className="flex items-center justify-between gap-2 text-[13px] text-emerald-900 bg-emerald-50 border border-emerald-600 rounded-lg pl-3 pr-1.5 py-1.5">
-          <span>Stai guardando la sala <strong>alle {hhmm(ora)}</strong>: {liberi} tavoli liberi. Tocca un tavolo libero per prenotarlo a quell'ora.</span>
-          <Btn size="md" variant="secondary" onClick={() => setOra(null)}>{inTurno ? "Torna ad adesso" : "Tutto il turno"}</Btn>
-        </div>
-      )}
+      {/* Riga sempre presente e alta uguale: toccando un orario la sala sotto non si sposta */}
+      <div className={`flex items-center justify-between gap-2 text-[13px] rounded-lg pl-3 pr-1.5 min-h-[48px] border ${ora != null ? "text-emerald-900 bg-emerald-50 border-emerald-600" : "text-neutral-600 bg-transparent border-transparent"}`}>
+        {ora != null ? (
+          <>
+            <span>Stai guardando la sala <strong>alle {hhmm(ora)}</strong>: {liberi} tavoli liberi. Tocca un tavolo libero per prenotarlo a quell'ora.</span>
+            <button type="button" onClick={() => setOra(null)} className="flex-shrink-0 whitespace-nowrap px-3 min-h-[36px] rounded-lg border border-neutral-300 bg-white text-sm font-semibold text-neutral-800">{inTurno ? "Torna ad adesso" : "Tutto il turno"}</button>
+          </>
+        ) : (
+          <span>{vivo ? "La sala adesso." : "La sala in tutto il turno."} Tocca un orario per vederla a quell'ora.</span>
+        )}
+      </div>
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1"><SchedeSale sale={sale} attiva={salaAttiva} onChange={setSala} /></div>
         {/* La matita: la sala di QUESTO turno nella Mappa Tavoli (sposta, unisci, blocca); la piantina fissa non cambia */}
@@ -387,28 +431,15 @@ export default function PrenotazioniServizio() {
       <div className="max-w-7xl mx-auto px-3 sm:px-6 py-3 sm:py-4">
         {toast && <div className={`mb-3 px-4 py-2 rounded-lg text-sm font-medium ${toast.type === "ok" ? "bg-emerald-100 text-emerald-800" : "bg-red-100 text-red-800"}`}>{toast.text}</div>}
 
-        <div className="flex items-center justify-between gap-2 flex-wrap mb-3">
-          <div className="flex items-center gap-2 flex-wrap">
-            <button type="button" onClick={() => giorno(-1)} aria-label="Giorno prima" className="w-11 h-11 rounded-lg border border-neutral-300 bg-white">◀</button>
-            <h1 className="text-xl sm:text-2xl font-bold capitalize" style={{ fontFamily: "'Playfair Display', Georgia, serif" }}>{titoloGiorno}</h1>
-            <button type="button" onClick={() => giorno(1)} aria-label="Giorno dopo" className="w-11 h-11 rounded-lg border border-neutral-300 bg-white">▶</button>
-            {!oggi && <Btn size="md" variant="secondary" onClick={() => setData(giornoLocale())}>Oggi</Btn>}
-            <span className="flex rounded-lg border border-neutral-400 overflow-hidden text-sm">
-              {["pranzo", "cena"].map((t) => (
-                <button key={t} type="button" onClick={() => setTurno(t)} aria-pressed={turno === t}
-                  className={`px-3.5 min-h-[44px] capitalize ${turno === t ? "bg-indigo-900 text-white font-bold" : "bg-white text-neutral-700"}`}>{t}</button>
-              ))}
-            </span>
-            <button type="button" onClick={() => setImpServizio(true)} title="Modifica questo servizio: sale aperte, fasce orarie e online" aria-label="Modifica questo servizio"
-              className="w-11 h-11 rounded-lg border border-neutral-300 bg-white hover:bg-neutral-50 flex items-center justify-center text-neutral-700">
-              <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
-            </button>
-          </div>
-          <div className="flex items-center gap-3 flex-wrap">
+        <TestataGiorno data={data} onData={setData} turno={turno} onTurno={setTurno} corto={telefono}
+          destra={<>
             <span className="text-sm text-neutral-700">{attive.length} prenotazioni · {coperti} coperti{carico.capienza ? ` su ${carico.capienza}` : ""} · {liberi} tavoli liberi {vivo ? "adesso" : ora != null ? `alle ${hhmm(ora)}` : "nel turno"}</span>
-            <Btn size="md" variant="primary" onClick={() => setForm({ nuova: {} })}>+ Nuova prenotazione</Btn>
-          </div>
-        </div>
+            <Btn size="md" variant="primary" className="min-h-[44px] max-sm:w-full" onClick={() => setForm({ nuova: {} })}>+ Nuova prenotazione</Btn>
+          </>}>
+          <TastoTestata onClick={() => setImpServizio(true)} title="Modifica questo servizio: sale aperte, fasce orarie e online" aria-label="Modifica questo servizio">
+            <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
+          </TastoTestata>
+        </TestataGiorno>
 
         {telefono ? (
           <>
@@ -431,9 +462,17 @@ export default function PrenotazioniServizio() {
         )}
       </div>
 
+      {clienteAperto && (
+        <div className="fixed inset-0 z-[70] bg-black/40 flex items-start justify-center p-0 sm:p-4 overflow-y-auto" onClick={() => { setClienteAperto(null); carica(); }}>
+          <div className="bg-white w-full sm:max-w-5xl sm:rounded-2xl shadow-xl p-2 sm:p-4" onClick={(e) => e.stopPropagation()}>
+            <button type="button" onClick={() => { setClienteAperto(null); carica(); }} className="mb-2 text-sm text-indigo-700 font-medium min-h-[44px]">← Torna al servizio</button>
+            <ClientiScheda clienteId={clienteAperto} embedded onClose={() => { setClienteAperto(null); carica(); }} />
+          </div>
+        </div>
+      )}
       {impServizio && (
-        <div className="fixed inset-0 z-40 bg-black/40 flex items-start sm:items-center justify-center p-0 sm:p-4" onClick={() => setImpServizio(false)}>
-          <div className="bg-white w-full sm:max-w-xl sm:rounded-2xl shadow-xl max-h-full overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-[70] bg-black/40 flex items-start sm:items-center justify-center p-0 sm:p-4" onClick={() => setImpServizio(false)}>
+          <div className="bg-white w-full sm:max-w-xl sm:rounded-2xl shadow-xl max-h-screen sm:max-h-[calc(100vh-2rem)] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-200">
               <div>
                 <h2 className="text-lg font-bold">Modifica servizio</h2>

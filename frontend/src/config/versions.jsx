@@ -772,6 +772,14 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   prenotazioni: {
+    // 2.49 (2026-11-26): ritocchi dopo la prima prova nel browser — Mese: «Pranzo» e «Cena» scritti per intero; Servizio:
+    //   toccando un orario la sala non si sposta più (riga dell'avviso sempre presente), pannello dell'ingranaggio non più
+    //   tagliato in alto; «Editor Tavoli» tolto dalla barra dei tab, si apre da Impostazioni. Nell'elenco di Servizio le
+    //   stesse etichette del Planning (components/EtichetteCliente.jsx, ora condiviso) e il nome che apre la scheda cliente
+    //   (anche «👤 Scheda cliente» fra le azioni); tutti i cambi di stato del Planning (azioneStato ora in statiPrenotazioni.js)
+    //   e la riconferma WhatsApp. Primo passo per uniformare la grafica del modulo: components/Testata.jsx (frecce, titolo
+    //   Playfair, Oggi, pranzo/cena, tasti 44 px) usata da Servizio, Planning, Mappa Tavoli e Mese; «+ Nuova prenotazione»
+    //   uguale ovunque; Mappa Tavoli su sfondo brand-cream.
     // 2.48 (2026-11-26): vista «Mese» al posto di «Settimana» (Marco: «serve a poco») — calendario del mese con coperti di
     //   pranzo e cena sulla capienza, opzioni e chiusure; un tocco sul turno apre «Servizio», sul giorno il Planning.
     //   GET /prenotazioni/mese/{anno}/{mese}. I vecchi indirizzi /settimana aprono il mese; PrenotazioniSettimana.jsx non è più usato.
@@ -854,7 +862,7 @@ const MODULE_VERSIONS = {
     // 2.16 (2026-10-19): Prenotazioni › Archivio (tutte le prenotazioni con filtri), spostato da
     //   Clienti; API nuova GET /prenotazioni/archivio/ (+ /riepilogo/). /clienti/prenotazioni rimanda qui.
     // 2.15 (2026-10-19): PrenotazioniForm accetta defaultCliente (bottone «Prenota» della scheda cliente).
-    version: "2.48",
+    version: "2.49",
     label: "Prenotazioni",
     status: "beta",
     color: "blue",

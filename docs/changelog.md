@@ -3,6 +3,15 @@
 
 ---
 
+## 2026-11-26 — Prenotazioni 2.49: ritocchi a Servizio e Mese `[core]`
+
+### Cambiato
+- Mese: «Pranzo» e «Cena» scritti per intero (P e C solo sul telefono).
+- Servizio: toccando un orario la sala resta ferma; il pannello «Modifica servizio» non esce più sopra lo schermo.
+- «Editor Tavoli» non è più nella barra dei tab: si apre da Impostazioni.
+- Servizio: accanto al nome le stesse etichette del Planning (canale, stelle, bollino, no-show, allergie, doppione), tutti i cambi di stato, la riconferma su WhatsApp; il nome (o «Scheda cliente») apre la scheda del cliente.
+- Grafica del modulo, primo passo: la riga in alto (frecce, titolo, Oggi, pranzo/cena, «+ Nuova prenotazione») è la stessa in Servizio, Planning, Mappa Tavoli e Mese.
+
 ## 2026-11-26 — Prenotazioni 2.48: il mese al posto della settimana `[core]`
 
 ### Cambiato

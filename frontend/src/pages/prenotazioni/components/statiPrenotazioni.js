@@ -74,3 +74,24 @@ export default function usePrenotazioniStati() {
     gruppo: (nome) => stati.filter((s) => s[nome]).map((s) => s.codice),
   };
 }
+
+// Bottoni dei cambi di stato: stesse etichette e colori in Planning e in Servizio (2026-11-26, prima in PrenotazioniPlanning.jsx)
+export const AZIONI_STATO = {
+  SEATED:   { label: "✅ Seduto", cls: "bg-emerald-600 hover:bg-emerald-700" },
+  ARRIVED:  { label: "🚶 Arrivato", cls: "bg-teal-600 hover:bg-teal-700" },
+  BILL:     { label: "🧾 Al conto", cls: "bg-amber-600 hover:bg-amber-700" },
+  LEFT:     { label: "🚪 Andato via", cls: "bg-neutral-500 hover:bg-neutral-600" },
+  OPTION:   { label: "⏳ In opzione", cls: "bg-amber-500 hover:bg-amber-600" },
+  WAITLIST: { label: "🕰️ Lista d'attesa", cls: "bg-violet-500 hover:bg-violet-600" },
+  CANCELED: { label: "✖ Cancella", cls: "bg-neutral-400 hover:bg-neutral-500" },
+  NO_SHOW:  { label: "👻 No-show", cls: "bg-red-500 hover:bg-red-600" },
+  REFUSED:  { label: "⛔ Rifiuta", cls: "bg-red-400 hover:bg-red-500" },
+};
+export function azioneStato(da, a) {
+  if (a === "RECORDED") {
+    return ["CANCELED", "NO_SHOW", "REFUSED"].includes(da)
+      ? { label: "↩ Ripristina", cls: "bg-indigo-500 hover:bg-indigo-600" }
+      : { label: "✓ Conferma", cls: "bg-indigo-600 hover:bg-indigo-700" };
+  }
+  return AZIONI_STATO[a] || { label: a, cls: "bg-neutral-500 hover:bg-neutral-600" };
+}

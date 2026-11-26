@@ -1,4 +1,4 @@
-// @version: v1.0 — il mese a colpo d'occhio, al posto della vista settimanale (Marco 2026-11-26: «la settimanale serve a poco»)
+// @version: v1.1 — «Pranzo» e «Cena» scritti per intero (P e C solo sul telefono) (2026-11-26); v1.0 — il mese a colpo d'occhio, al posto della vista settimanale (Marco 2026-11-26: «la settimanale serve a poco»)
 // Modulo: prenotazioni
 // Per ogni giorno: coperti di pranzo e cena sulla capienza (barra), prenotazioni, opzioni, chiusure.
 // Un tocco su pranzo o cena apre la vista Servizio di quel turno; il numero del giorno apre il Planning.
@@ -6,24 +6,24 @@ import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import PrenotazioniNav from "./PrenotazioniNav";
-import { Btn } from "../../components/ui";
+import { TastoTestata, TitoloTestata } from "./components/Testata";
 
 const GIORNI = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
 const giornoLocale = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
 function Turno({ etichetta, count, pax, capienza, chiuso, motivo, onClick }) {
   if (chiuso && !count) {
-    return <div className="rounded-md px-1.5 py-1 text-[11px] text-neutral-500 bg-neutral-100 truncate" title={motivo || "Chiuso"}>{etichetta} · chiuso</div>;
+    return <div className="rounded-md px-1.5 py-1 text-[11px] text-neutral-600 bg-neutral-100 truncate" title={motivo || "Chiuso"}><span className="sm:hidden">{etichetta[0]}</span><span className="hidden sm:inline">{etichetta}</span> · {etichetta === "Cena" ? "chiusa" : "chiuso"}</div>;
   }
   const pct = capienza ? Math.min(100, Math.round((pax / capienza) * 100)) : 0;
   const pieno = capienza > 0 && pax >= capienza;
   return (
     <button type="button" onClick={onClick}
-      title={`${etichetta === "P" ? "Pranzo" : "Cena"}: ${count} prenotazioni, ${pax} coperti${capienza ? ` su ${capienza}` : ""}`}
+      title={`${etichetta}: ${count} prenotazioni, ${pax} coperti${capienza ? ` su ${capienza}` : ""}`}
       className={`w-full text-left rounded-md border px-1.5 py-1 min-h-[30px] sm:min-h-[34px] transition hover:border-indigo-500 ${
         pax ? "bg-white border-indigo-200" : "bg-white border-neutral-200"}`}>
       <span className="flex items-baseline justify-between gap-1 tabular-nums">
-        <span className="text-[10px] font-semibold text-neutral-500">{etichetta}</span>
+        <span className="text-[10px] sm:text-[11px] font-semibold text-neutral-600"><span className="sm:hidden">{etichetta[0]}</span><span className="hidden sm:inline">{etichetta}</span></span>
         <span className={`text-xs sm:text-[13px] font-semibold ${pax ? (pieno ? "text-red-700" : "text-indigo-900") : "text-neutral-400"}`}>
           {pax || "—"}<span className="hidden sm:inline font-normal text-neutral-500">{pax && capienza ? `/${capienza}` : ""}</span>
         </span>
@@ -67,10 +67,10 @@ export default function PrenotazioniMese() {
       <div className="max-w-7xl mx-auto px-2 sm:px-6 py-3 sm:py-4">
         <div className="flex items-center justify-between gap-2 flex-wrap mb-3">
           <div className="flex items-center gap-2">
-            <button type="button" onClick={() => sposta(-1)} aria-label="Mese prima" className="w-11 h-11 rounded-lg border border-neutral-300 bg-white">◀</button>
-            <h1 className="text-xl sm:text-2xl font-bold capitalize min-w-[9.5rem] text-center" style={{ fontFamily: "'Playfair Display', Georgia, serif" }}>{titolo}</h1>
-            <button type="button" onClick={() => sposta(1)} aria-label="Mese dopo" className="w-11 h-11 rounded-lg border border-neutral-300 bg-white">▶</button>
-            {!questoMese && <Btn size="md" variant="secondary" onClick={() => { setAnno(adesso.getFullYear()); setMese(adesso.getMonth() + 1); }}>Questo mese</Btn>}
+            <TastoTestata onClick={() => sposta(-1)} aria-label="Mese prima">◀</TastoTestata>
+            <TitoloTestata className="min-w-[9.5rem] text-center">{titolo}</TitoloTestata>
+            <TastoTestata onClick={() => sposta(1)} aria-label="Mese dopo">▶</TastoTestata>
+            {!questoMese && <TastoTestata onClick={() => { setAnno(adesso.getFullYear()); setMese(adesso.getMonth() + 1); }}>Questo mese</TastoTestata>}
           </div>
           {dati && <span className="text-sm text-neutral-700">{dati.totale_prenotazioni} prenotazioni · {dati.totale_coperti} coperti nel mese</span>}
         </div>
@@ -90,7 +90,7 @@ export default function PrenotazioniMese() {
               const n = Number(g.data.slice(8));
               return (
                 <div key={g.data}
-                  className={`rounded-lg sm:rounded-xl border p-1 sm:p-2 flex flex-col gap-1 min-h-[92px] sm:min-h-[112px] ${
+                  className={`rounded-lg sm:rounded-xl border p-1 sm:p-2 flex flex-col gap-1 min-h-[92px] sm:min-h-[100px] ${
                     !g.nel_mese ? "bg-transparent border-transparent opacity-40"
                     : g.chiuso ? "bg-neutral-100 border-neutral-200"
                     : eOggi ? "bg-indigo-50 border-indigo-500 ring-2 ring-indigo-200" : "bg-white border-neutral-200"}`}>
@@ -103,9 +103,9 @@ export default function PrenotazioniMese() {
                     <div className="text-[11px] text-neutral-500 px-1 truncate" title={g.motivo_chiusura || ""}>Chiuso{g.motivo_chiusura ? <span className="hidden sm:inline"> · {g.motivo_chiusura}</span> : ""}</div>
                   ) : (
                     <>
-                      <Turno etichetta="P" count={g.pranzo_count} pax={g.pranzo_pax} capienza={g.capienza_pranzo} chiuso={g.pranzo_chiuso}
+                      <Turno etichetta="Pranzo" count={g.pranzo_count} pax={g.pranzo_pax} capienza={g.capienza_pranzo} chiuso={g.pranzo_chiuso}
                         motivo={g.motivo_chiusura} onClick={() => navigate(`/prenotazioni/servizio/${g.data}/pranzo`)} />
-                      <Turno etichetta="C" count={g.cena_count} pax={g.cena_pax} capienza={g.capienza_cena} chiuso={g.cena_chiuso}
+                      <Turno etichetta="Cena" count={g.cena_count} pax={g.cena_pax} capienza={g.capienza_cena} chiuso={g.cena_chiuso}
                         motivo={g.motivo_chiusura} onClick={() => navigate(`/prenotazioni/servizio/${g.data}/cena`)} />
                     </>
                   )}
@@ -116,7 +116,7 @@ export default function PrenotazioniMese() {
         )}
 
         <div className="mt-3 text-xs text-neutral-600">
-          P = pranzo, C = cena: coperti prenotati e barra sulla capienza del turno (rossa quando è pieno). Tocca un turno per aprirlo in «Servizio», il numero del giorno per il Planning.
+          Coperti prenotati e barra sulla capienza del turno (rossa quando è pieno). Tocca un turno per aprirlo in «Servizio», il numero del giorno per il Planning.
         </div>
       </div>
     </div>

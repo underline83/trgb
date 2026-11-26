@@ -1,4 +1,4 @@
-// @version: v2.11 — apribile dalla matita di «Servizio» sulla sala giusta e già in «Sposta» (2026-11-26); v2.10 — su iPhone la mappa prende tutta la larghezza e i riquadri (prenotazione scelta, senza tavolo, riepilogo) scendono sotto; tasti da pollice (2026-11-24); v2.9 — «In opzione»: tavolo ambra tratteggiato, «✓ Conferma» (2026-11-13); v2.8 — «✂️ Dividi» anche da un tavolo occupato (scheda prenotazione); v2.7 — Sposta, Unisci e Sala com'era vicini; v2.6 — «✂️ Stacca» anche da un'unione occupata (scheda prenotazione); v2.5-sposta — tavoli trascinabili per il turno (in assegnazione o con «✋ Sposta»), «↺ Sala com'era»; v2.4-unioni — «🔗 Unisci» (anche assegnando): tavoli uniti per il turno disegnati come un rettangolo unico, «Stacca»; uniti anche i tavoli di una stessa prenotazione; v2.3-menu-nei-bordi — menu del tavolo sempre dentro la mappa; v2.2-dividi — tavoli dividibili spezzati in A/B per il turno; v2.1-menu-tavolo — clic su tavolo libero: aggiungi prenotazione / blocca tavolo (come TheFork Manager)
+// @version: v2.12 — testata comune del modulo e sfondo brand-cream come le altre pagine (2026-11-26); v2.11 — apribile dalla matita di «Servizio» sulla sala giusta e già in «Sposta» (2026-11-26); v2.10 — su iPhone la mappa prende tutta la larghezza e i riquadri (prenotazione scelta, senza tavolo, riepilogo) scendono sotto; tasti da pollice (2026-11-24); v2.9 — «In opzione»: tavolo ambra tratteggiato, «✓ Conferma» (2026-11-13); v2.8 — «✂️ Dividi» anche da un tavolo occupato (scheda prenotazione); v2.7 — Sposta, Unisci e Sala com'era vicini; v2.6 — «✂️ Stacca» anche da un'unione occupata (scheda prenotazione); v2.5-sposta — tavoli trascinabili per il turno (in assegnazione o con «✋ Sposta»), «↺ Sala com'era»; v2.4-unioni — «🔗 Unisci» (anche assegnando): tavoli uniti per il turno disegnati come un rettangolo unico, «Stacca»; uniti anche i tavoli di una stessa prenotazione; v2.3-menu-nei-bordi — menu del tavolo sempre dentro la mappa; v2.2-dividi — tavoli dividibili spezzati in A/B per il turno; v2.1-menu-tavolo — clic su tavolo libero: aggiungi prenotazione / blocca tavolo (come TheFork Manager)
 // Modulo: prenotazioni
 // Mappa serale tavoli — vista operativa con assegnazione, Fase 2 Prenotazioni
 import React, { useState, useEffect, useCallback, useRef } from "react";
@@ -9,6 +9,7 @@ import StatoBadge from "./components/StatoBadge";
 import PrenotazioniForm from "./PrenotazioniForm";
 import { Btn } from "../../components/ui";
 import { CANVAS_W, CANVAS_H, COLORE_TAVOLO, FormaTavolo, FormaElemento, SchedeSale } from "./components/Piantina";
+import TestataGiorno from "./components/Testata";
 
 const COLORI_STATO = {
   LIBERO:    { fill: COLORE_TAVOLO, stroke: "#9fbfba", text: "#1f2937" }, // verde salvia (come TheFork)
@@ -281,14 +282,14 @@ export default function TavoliMappa() {
   const senzaTavolo = mappaData?.senza_tavolo || [];
 
   if (loading && !mappaData) return (
-    <div className="min-h-screen bg-neutral-50">
+    <div className="min-h-screen bg-brand-cream">
       <PrenotazioniNav current="mappa" />
       <div className="text-center py-12 text-neutral-400">Caricamento mappa...</div>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-neutral-50">
+    <div className="min-h-screen bg-brand-cream">
       <PrenotazioniNav current="mappa" />
 
       <div className="max-w-7xl mx-auto px-3 sm:px-6 py-3 sm:py-4">
@@ -300,31 +301,10 @@ export default function TavoliMappa() {
 
         {/* Header: data + turno */}
         <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-          <div className="flex items-center gap-2">
-            <Btn variant="secondary" size="sm" onClick={prevDay}>◀</Btn>
-            <input type="date" value={data} onChange={e => setData(e.target.value)}
-              className="px-3 py-1.5 border rounded-lg text-sm max-sm:text-base max-sm:min-w-0 max-sm:flex-1" />
-            <Btn variant="secondary" size="sm" onClick={nextDay}>▶</Btn>
-            <Btn variant="ghost" size="sm" onClick={() => setData(today)}>Oggi</Btn>
-          </div>
-          <div className="flex items-center gap-1 bg-neutral-100 rounded-lg p-0.5">
-            <button
-              onClick={() => setTurno("pranzo")}
-              className={`px-3 py-1 max-sm:px-5 max-sm:py-2 text-sm rounded-md transition ${
-                turno === "pranzo" ? "bg-white shadow-sm font-medium text-indigo-700" : "text-neutral-500"
-              }`}
-            >
-              Pranzo
-            </button>
-            <button
-              onClick={() => setTurno("cena")}
-              className={`px-3 py-1 max-sm:px-5 max-sm:py-2 text-sm rounded-md transition ${
-                turno === "cena" ? "bg-white shadow-sm font-medium text-indigo-700" : "text-neutral-500"
-              }`}
-            >
-              Cena
-            </button>
-          </div>
+          <TestataGiorno data={data} onData={setData} turno={turno} onTurno={setTurno}>
+            <input type="date" value={data} onChange={e => e.target.value && setData(e.target.value)} aria-label="Scegli il giorno"
+              className="px-2 min-h-[44px] border border-neutral-300 rounded-lg text-sm max-sm:text-base bg-white" />
+          </TestataGiorno>
           <div className="flex items-center gap-2 flex-wrap">
             {assegnando && !unendo && (
               <div className="px-3 py-1.5 bg-amber-100 text-amber-800 rounded-lg text-xs font-medium">
