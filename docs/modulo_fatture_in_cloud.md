@@ -23,7 +23,7 @@ L'integrazione è **opzionale**: il modulo Acquisti funziona anche con il solo i
 
 ---
 
-## 2. I 17 endpoint reali (`app/routers/fattureincloud_router.py`)
+## 2. I 18 endpoint reali (`app/routers/fattureincloud_router.py`)
 
 | # | Metodo | Path (relativo al prefix `/fic`) | Summary FastAPI | Riga |
 |---|--------|---------------------------|-----------------|------|
@@ -44,6 +44,10 @@ L'integrazione è **opzionale**: il modulo Acquisti funziona anche con il solo i
 | 15 | GET | `/debug-detail/{fic_id}` | Debug: dettaglio raw da FIC API | 1133 |
 | 16 | POST | `/refetch-righe-xml/{db_id}` | Recupera righe da XML SDI per una fattura | 1328 |
 | 17 | POST | `/bulk-refetch-righe-xml` | Recupero massivo righe da XML per fatture FIC senza dettaglio | 1355 |
+| 18 | GET | `/da-registrare` | Documenti ricevuti su FIC ancora «Da registrare» (live) | — |
+
+> **2026-11-26 — #18 `/da-registrare`** (sola lettura, admin): legge `GET /c/{cid}/received_documents/pending`, cioè «Acquisti › Da registrare» di FIC. La sync legge solo le **Spese** (`type=expense`): una fattura arrivata dallo SDI ma non ancora registrata su FIC non entra in TRGB finché qualcuno non la registra (FIC **non** permette di registrarla via API — guida «Pending Received Documents Management»). L'endpoint serve a vedere cosa è fermo lì; oggi senza pagina. Aperto: decidere con Marco se TRGB deve importarle direttamente da lì.
+> **2026-11-26 — `/sync/count`**: FIC rifiuta `per_page < 5` (422); ora chiede 5 e legge `total`.
 
 > Tabella verificata sul codice il 2026-08-03 (`grep ^@router\.`): 17 decorator, righe coincidenti. Da riaggiornare se cambiano firme o si aggiungono endpoint.
 

@@ -16,6 +16,7 @@ Endpoint:
   GET  /fic/fatture            — lista fatture FIC (da fe_fatture con fonte='fic')
   GET  /fic/sync-log           — storico sincronizzazioni
   GET  /fic/fornitori          — lista fornitori da FIC (live)
+  GET  /fic/da-registrare      — documenti ancora «Da registrare» su FIC (live, sola lettura)
 """
 
 import json
@@ -497,7 +498,9 @@ def fic_sync_count(
             anno = datetime.now().year
         params = {
             "type": "expense",
-            "per_page": 1,
+            # 2026-11-26: FIC rifiuta per_page < 5 (422 «The per page must be
+            # at least 5»). Il totale sta comunque in `total`.
+            "per_page": 5,
             "page": 1,
             "q": f"date >= '{anno}-01-01' and date <= '{anno}-12-31'",
         }
@@ -506,6 +509,50 @@ def fic_sync_count(
         return {"anno": anno, "total": total}
     finally:
         conn.close()
+
+
+@router.get("/da-registrare", summary="Documenti ricevuti su FIC ancora «Da registrare» (live)")
+def fic_da_registrare(
+    max_pagine: int = Query(10, ge=1, le=50, description="Pagine da 100 documenti da leggere al massimo"),
+):
+    """
+    Modulo: acquisti.
+    Legge da Fatture in Cloud i documenti di «Acquisti › Da registrare»
+    (`/received_documents/pending`): le fatture elettroniche arrivate dallo SDI
+    che nessuno ha ancora registrato fra le Spese. La sync (`POST /fic/sync`)
+    legge solo le Spese, quindi finché una fattura resta qui TRGB non la vede.
+    Sola lettura: non scrive niente né in TRGB né su FIC (FIC non permette di
+    registrare un documento via API). I documenti sono restituiti così come li
+    dà FIC.
+    """
+    conn = get_db()
+    try:
+        cfg = get_config(conn)
+        if not cfg:
+            raise HTTPException(400, "Fatture in Cloud non collegato")
+        token = cfg["access_token"]
+        cid = cfg["company_id"]
+    finally:
+        conn.close()
+
+    documenti: list = []
+    totale = None
+    pagina = 1
+    while pagina <= max_pagine:
+        data = fic_get(token, f"/c/{cid}/received_documents/pending", {"per_page": 100, "page": pagina})
+        blocco = data.get("data") or []
+        documenti.extend(blocco)
+        if totale is None:
+            totale = data.get("total")
+        ultima = data.get("last_page") or pagina
+        if not blocco or pagina >= ultima:
+            break
+        pagina += 1
+    return {
+        "totale": totale if totale is not None else len(documenti),
+        "letti": len(documenti),
+        "documenti": documenti,
+    }
 
 
 @router.get("/sync/progress", summary="Progresso sincronizzazione in corso")

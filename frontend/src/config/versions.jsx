@@ -456,7 +456,8 @@ const MODULE_VERSIONS = {
     // v3.4 (2026-11-02): note di credito collegate alla fattura che stornano
     //   (A.1 fase 3, mig 223) — la cifra della NC conta come pagata; pannello
     //   «Note di credito» nel Riepilogo del dettaglio.
-    version: "3.4",
+    // v3.5 (2026-11-26): FIC — GET /fic/da-registrare (fatture ferme in «Da registrare», sola lettura) + fix /fic/sync/count.
+    version: "3.5",
     label: "Gestione Acquisti",
     status: "stabile",
     color: "green",

@@ -3,6 +3,19 @@
 
 ---
 
+## 2026-11-26 — Acquisti/FIC: vedere le fatture ferme in «Da registrare» `[core]`
+
+Marco: «alcune fatture come quelle di Bugan sono sicuro che vengano inviate, ma se restano su FIC poi non te le passa l'API». Vero: la sync legge solo le Spese registrate.
+
+### Aggiunto
+- `GET /fic/da-registrare` (admin, sola lettura): elenco live dei documenti di «Acquisti › Da registrare» di Fatture in Cloud (`/received_documents/pending`). Non scrive niente.
+
+### Corretto
+- `GET /fic/sync/count` dava 422: FIC ora vuole `per_page` ≥ 5.
+
+### Aperto
+- Se e come importare in TRGB le fatture ferme in «Da registrare» (FIC non permette di registrarle via API): decide Marco dopo aver visto cosa c'è.
+
 ## 2026-11-26 — Flussi di Cassa 1.24: l'import della banca non scarta più i movimenti gemelli `[core]`
 
 Marco, riconciliando: «dovresti avere due importi da 1800… io ne vedo due». In banca c'erano, in TRGB uno solo. Confronto riga per riga con l'estratto 2–25/11: 13 movimenti persi su 169 (1 bonifico stipendio da 1.800 € e 12 commissioni da 0,85 €).
