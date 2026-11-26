@@ -12,7 +12,7 @@ import usePrenotazioniStati, { azioneStato } from "./components/statiPrenotazion
 import CanaleBadge from "./components/CanaleBadge";
 import TheForkInvioBadge from "./components/TheForkInvioBadge";
 import EtichetteCliente from "./components/EtichetteCliente";
-import TestataGiorno, { TastoTestata } from "./components/Testata";
+import TestataGiorno, { TastoTestata, TastoNuova } from "./components/Testata";
 import FasceTurno from "./components/FasceTurno";
 import Tooltip from "../../components/Tooltip";
 import ClientiScheda from "../clienti/ClientiScheda";
@@ -815,7 +815,7 @@ export default function PrenotazioniPlanning() {
       <div className="max-w-7xl mx-auto px-3 sm:px-6 py-3 sm:py-4">
         {/* Header con navigazione data */}
         <TestataGiorno data={data} onData={setData} vista="planning" corto={telefono}
-          destra={<Btn variant="primary" size="md" className="min-h-[44px] max-sm:w-full" onClick={() => setShowForm(true)}>+ Nuova prenotazione</Btn>}>
+          destra={<TastoNuova onClick={() => setShowForm(true)} />}>
           <TastoTestata onClick={() => setShowCalendario(!showCalendario)} aria-label="Scegli il giorno dal calendario">📅</TastoTestata>
         </TestataGiorno>
 

@@ -31,6 +31,16 @@ export function SceltaTurno({ turno, onChange }) {
   );
 }
 
+// «+ Nuova prenotazione»: lo stesso tasto in tutte le viste (su schermi stretti resta «+ Nuova», così la riga non va a capo)
+export function TastoNuova({ onClick }) {
+  return (
+    <button type="button" onClick={onClick}
+      className="px-4 min-h-[44px] rounded-lg bg-brand-blue text-white text-sm font-semibold hover:bg-blue-700 whitespace-nowrap max-sm:flex-1">
+      + Nuova<span className="max-xl:hidden"> prenotazione</span>
+    </button>
+  );
+}
+
 // Le tre viste dello stesso servizio (Marco 2026-11-26: «Planning e Mappa Tavoli diventano visualizzazioni interne a
 // Servizio»): non sono più tab della barra, si passa dall'una all'altra da qui restando su giorno e turno.
 const VISTE = [["servizio", "Servizio"], ["planning", "Elenco"], ["mappa", "Mappa"]];

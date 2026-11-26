@@ -3,6 +3,12 @@
 
 ---
 
+## 2026-11-26 — Prenotazioni 2.52: stessa riga in alto nelle tre viste `[core]`
+
+### Cambiato
+- In Servizio, Elenco e Mappa la scelta della vista e «+ Nuova prenotazione» stanno sempre nello stesso punto, in alto a destra. La Mappa ha ora anche lei «+ Nuova prenotazione»; «Sposta» e «Unisci» sono scesi nella riga sotto.
+- Sul telefono, nella scheda Mappa, gli orari sono un elenco a tendina.
+
 ## 2026-11-26 — Prenotazioni 2.51 / sistema 6.15: il giro della prenotazione, Servizio al centro (mig 250) `[core]`
 
 ### Cambiato

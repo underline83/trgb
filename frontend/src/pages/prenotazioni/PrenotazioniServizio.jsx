@@ -1,4 +1,4 @@
-// @version: v1.8 — un tasto solo per lo stato che avanza (Prenotato → Confermato → Seduto → libera il tavolo), «↩» per tornare indietro, gli altri cambi in «Altro» (2026-11-26); v1.7 — riepilogo del turno nella riga sopra la sala (la testata resta su una riga) (2026-11-26); v1.6 — tutti i cambi di stato del Planning (stessi bottoni) e riconferma WhatsApp; testata comune del modulo (components/Testata.jsx) (2026-11-26); v1.5 — nell'elenco le stesse etichette del Planning (canale, stelle, segmento, bollino, no-show, allergie, doppione…), nome che apre la scheda cliente, note in riga (2026-11-26); v1.4 — niente barre di scorrimento (orari a colonne uguali, schede sale, elenco), piantina stretta sui tavoli, «tavoli liberi» solo nelle sale aperte (2026-11-26); v1.3 — nell'ingranaggio «Blocca le prenotazioni online» e «Chiudi servizio» (anche su TheFork), con conferma (2026-11-26); v1.2 — ingranaggio «Modifica servizio» (sale aperte, fasce e online, tavoli del turno) e matita per la sala (2026-11-26); v1.1 — stessa larghezza di pagina di Planning e Mappa, elenco a larghezza fissa e sala che non cambia misura; iPad in piedi: sala sopra, elenco sotto (2026-11-26); v1.0 — vista «Servizio»: elenco del turno e sala nella stessa schermata, striscia degli orari per vedere la sala a un'altra ora, due schede sul telefono (2026-11-26)
+// @version: v1.9 — sul telefono gli orari sono un elenco a tendina (i tasti erano inutilizzabili) (2026-11-26); v1.8 — un tasto solo per lo stato che avanza (Prenotato → Confermato → Seduto → libera il tavolo), «↩» per tornare indietro, gli altri cambi in «Altro» (2026-11-26); v1.7 — riepilogo del turno nella riga sopra la sala (la testata resta su una riga) (2026-11-26); v1.6 — tutti i cambi di stato del Planning (stessi bottoni) e riconferma WhatsApp; testata comune del modulo (components/Testata.jsx) (2026-11-26); v1.5 — nell'elenco le stesse etichette del Planning (canale, stelle, segmento, bollino, no-show, allergie, doppione…), nome che apre la scheda cliente, note in riga (2026-11-26); v1.4 — niente barre di scorrimento (orari a colonne uguali, schede sale, elenco), piantina stretta sui tavoli, «tavoli liberi» solo nelle sale aperte (2026-11-26); v1.3 — nell'ingranaggio «Blocca le prenotazioni online» e «Chiudi servizio» (anche su TheFork), con conferma (2026-11-26); v1.2 — ingranaggio «Modifica servizio» (sale aperte, fasce e online, tavoli del turno) e matita per la sala (2026-11-26); v1.1 — stessa larghezza di pagina di Planning e Mappa, elenco a larghezza fissa e sala che non cambia misura; iPad in piedi: sala sopra, elenco sotto (2026-11-26); v1.0 — vista «Servizio»: elenco del turno e sala nella stessa schermata, striscia degli orari per vedere la sala a un'altra ora, due schede sul telefono (2026-11-26)
 // Modulo: prenotazioni
 // Idea presa da TheFork Manager (Marco 2026-11-26: «il mix tra prenotazioni e tavoli è una visual molto utile»).
 // Non sostituisce Planning né Mappa Tavoli: è una terza vista, da provare in servizio.
@@ -16,7 +16,7 @@ import EtichetteCliente from "./components/EtichetteCliente";
 import CanaleBadge from "./components/CanaleBadge";
 import ClientiScheda from "../clienti/ClientiScheda";
 import usePrenotazioniStati, { azioneStato } from "./components/statiPrenotazioni";
-import TestataGiorno, { TastoTestata } from "./components/Testata";
+import TestataGiorno, { TastoTestata, TastoNuova } from "./components/Testata";
 import { CANVAS_W, CANVAS_H, FormaTavolo, FormaElemento, SchedeSale } from "./components/Piantina";
 import { Btn } from "../../components/ui";
 import useTelefono from "../../hooks/useTelefono";
@@ -388,7 +388,23 @@ export default function PrenotazioniServizio() {
     </div>
   );
 
-  const Striscia = (
+  // Sul telefono i tasti degli orari sono troppo piccoli da toccare: lì c'è un elenco a tendina
+  const ElencoOrari = (
+    <label className="flex flex-col gap-1 text-xs text-neutral-600">
+      Vedi la sala
+      <select value={ora == null ? "" : String(ora)} onChange={(e) => setOra(e.target.value === "" ? null : Number(e.target.value))}
+        className="w-full px-3 min-h-[48px] rounded-lg border border-neutral-300 bg-white text-base text-neutral-900 tabular-nums">
+        <option value="">{inTurno ? "Adesso" : "Tutto il turno"}</option>
+        {orari.map((o) => (
+          <option key={o.ora} value={minuti(o.ora)}>
+            {o.ora} — {o.coperti}{carico.capienza ? `/${carico.capienza}` : ""} coperti · {o.tavoli} tavoli{o.ora === slotAdesso ? " (adesso)" : ""}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+
+  const Striscia = telefono ? ElencoOrari : (
     // Tutti gli orari stanno nella riga, a colonne uguali: nessuna barra di scorrimento (né di lato né in verticale)
     <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${Math.max(orari.length, 1)}, minmax(0, 1fr))` }}>
       {orari.map((o) => {
@@ -481,7 +497,7 @@ export default function PrenotazioniServizio() {
 
         <TestataGiorno data={data} onData={setData} turno={turno} onTurno={setTurno} vista="servizio" corto={telefono}
           destra={<>
-            <Btn size="md" variant="primary" className="min-h-[44px] max-sm:w-full" onClick={() => setForm({ nuova: {} })}>+ Nuova prenotazione</Btn>
+            <TastoNuova onClick={() => setForm({ nuova: {} })} />
           </>}>
           <TastoTestata onClick={() => setImpServizio(true)} title="Modifica questo servizio: sale aperte, fasce orarie e online" aria-label="Modifica questo servizio">
             <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>

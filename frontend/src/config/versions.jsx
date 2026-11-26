@@ -772,6 +772,9 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   prenotazioni: {
+    // 2.52 (2026-11-26): la riga in alto è identica in Servizio, Elenco e Mappa — a destra sempre «Servizio / Elenco / Mappa»
+    //   e «+ Nuova prenotazione» (tasto unico TastoNuova, c'è anche in Mappa), gli attrezzi della Mappa nella riga sotto;
+    //   sul telefono gli orari della scheda Mappa sono un elenco a tendina.
     // 2.51 (2026-11-26): il giro della prenotazione in sala (Marco) — in Servizio un tasto solo che avanza: Prenotato →
     //   Confermato → Seduto → libera il tavolo, «↩» per tornare indietro, gli altri cambi in «Altro». «Confermato» è un segno
     //   sulla prenotata (mig 250 clienti_prenotazioni.riconfermata_at, PATCH /{id}/riconfermata), non uno stato nuovo;
@@ -872,7 +875,7 @@ const MODULE_VERSIONS = {
     // 2.16 (2026-10-19): Prenotazioni › Archivio (tutte le prenotazioni con filtri), spostato da
     //   Clienti; API nuova GET /prenotazioni/archivio/ (+ /riepilogo/). /clienti/prenotazioni rimanda qui.
     // 2.15 (2026-10-19): PrenotazioniForm accetta defaultCliente (bottone «Prenota» della scheda cliente).
-    version: "2.51",
+    version: "2.52",
     label: "Prenotazioni",
     status: "beta",
     color: "blue",
