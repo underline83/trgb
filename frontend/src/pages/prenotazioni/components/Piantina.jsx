@@ -42,7 +42,7 @@ export function FormaElemento({ e, stroke = "none", strokeWidth = 0 }) {
 export function SchedeSale({ sale, attiva, onChange, conteggi = {} }) {
   if (!sale || sale.length === 0) return null;
   return (
-    <div className="flex gap-1 border-b border-neutral-200 mb-3 overflow-x-auto">
+    <div className="flex gap-1 border-b border-neutral-200 mb-3 overflow-x-auto overflow-y-hidden">
       {sale.map((s) => (
         <button key={s} onClick={() => onChange(s)}
           className={`px-4 py-2 text-sm whitespace-nowrap border-b-2 -mb-px min-h-[44px] transition ${

@@ -778,6 +778,10 @@ const MODULE_VERSIONS = {
     //   Servizio, Planning, Mappa e Mese hanno la stessa larghezza di pagina (max-w-7xl, come la barra dei tab): passando da
     //   un tab all'altro su iPad niente si allarga o si stringe. In «Servizio», accanto alle sale, la matita apre la Mappa
     //   Tavoli di quel giorno e turno, sulla stessa sala e già in «Sposta» (modifiche valide solo per quel servizio).
+    //   Ingranaggio «Modifica servizio» accanto a giorno e turno (come TheFork Manager): sale aperte per quel servizio,
+    //   fasce orarie e online (pannello FasceTurno che c'era già), tavoli del turno. Niente di nuovo sul backend.
+    //   Nell'ingranaggio anche i due bottoni rapidi: «Blocca le prenotazioni online» (tutte le fasce del turno, PUT /fasce,
+    //   scritto su TheFork) e «Chiudi servizio» (turno chiuso nel calendario chiusure, solo admin), con conferma e riapertura.
     // 2.47 (2026-11-26): «Servizio» è la pagina d'arrivo di Prenotazioni (Marco) — /prenotazioni, l'azione rapida della Home,
     //   il primo tab e la prima voce del menu portano lì. Il Planning resta, un tab più in là.
     // 2.46 (2026-11-26): vista «Servizio» (tab nuovo, non sostituisce Planning né Mappa): elenco del turno a sinistra e sala

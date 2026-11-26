@@ -8,6 +8,11 @@
 ### Cambiato
 - Il tab «Settimana» diventa **«Mese»**: calendario del mese, e per ogni giorno i coperti di pranzo e di cena con una barra sulla capienza (rossa quando il turno è pieno), i coperti in opzione e le chiusure. Un tocco sul turno apre «Servizio» di quel turno, sul numero del giorno il Planning.
 
+### Aggiunto (stessa 2.48)
+- In «Servizio», **ingranaggio «Modifica servizio»** accanto a giorno e turno: sale aperte per quel servizio, fasce orarie e online, tavoli del turno, e i due bottoni rapidi **«Blocca le prenotazioni online»** (tutti gli orari del turno, anche su TheFork) e **«Chiudi servizio»** (solo amministratori; le prenotazioni già prese restano). Tutti e due chiedono conferma e si possono riaprire.
+- **Matita** accanto alle sale: apre la Mappa Tavoli di quel turno, sulla stessa sala, pronta a spostare i tavoli.
+- Servizio, Planning, Mappa Tavoli e Mese hanno la stessa larghezza di pagina.
+
 ## 2026-11-26 — Prenotazioni 2.47: si arriva su «Servizio» `[core]`
 
 ### Cambiato
