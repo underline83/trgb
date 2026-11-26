@@ -23,7 +23,7 @@ L'integrazione è **opzionale**: il modulo Acquisti funziona anche con il solo i
 
 ---
 
-## 2. I 18 endpoint reali (`app/routers/fattureincloud_router.py`)
+## 2. I 19 endpoint reali (`app/routers/fattureincloud_router.py`)
 
 | # | Metodo | Path (relativo al prefix `/fic`) | Summary FastAPI | Riga |
 |---|--------|---------------------------|-----------------|------|
@@ -45,8 +45,10 @@ L'integrazione è **opzionale**: il modulo Acquisti funziona anche con il solo i
 | 16 | POST | `/refetch-righe-xml/{db_id}` | Recupera righe da XML SDI per una fattura | 1328 |
 | 17 | POST | `/bulk-refetch-righe-xml` | Recupero massivo righe da XML per fatture FIC senza dettaglio | 1355 |
 | 18 | GET | `/da-registrare` | Documenti ricevuti su FIC ancora «Da registrare» (live) | — |
+| 19 | POST | `/da-registrare/importa` | Importa in TRGB le fatture ferme in «Da registrare» su FIC | — |
 
 > **2026-11-26 — #18 `/da-registrare`** (sola lettura, admin): legge `GET /c/{cid}/received_documents/pending`, cioè «Acquisti › Da registrare» di FIC. La sync legge solo le **Spese** (`type=expense`): una fattura arrivata dallo SDI ma non ancora registrata su FIC non entra in TRGB finché qualcuno non la registra (FIC **non** permette di registrarla via API — guida «Pending Received Documents Management»). L'endpoint serve a vedere cosa è fermo lì; oggi senza pagina. Aperto: decidere con Marco se TRGB deve importarle direttamente da lì.
+> **2026-11-26 — Fase 3 della sync: «Da registrare»** (decisione di Marco: «farei la 1»). Dopo lista e dettaglio, `POST /fic/sync` chiama `_importa_da_registrare`: per ogni documento pendente con allegato `.xml`/`.p7m` scarica l'XML e lo passa a `fe_import._process_single_xml`, la stessa strada dell'import XML manuale (`fonte='xml'`, righe, auto-categorie). Dedup: stesso XML → saltato; già presente da FIC per piva+numero+data → agganciato. Quando il documento viene poi registrato su FIC, la sync lo unisce col record XML (dedup vs XML di §4). Su FIC non si scrive niente. Un documento che non si scarica finisce in `error_details` e non ferma la sync. `SyncResult` porta `da_registrare_importate` / `da_registrare_errori`, mostrati in Impostazioni Acquisti. #19 lancia la sola fase 3. Motivo: al 26/11/2026 c'erano 44 fatture ferme da inizio ottobre (Coffee Lab, Amazon Business, SIAE, Aruba, DUC…), tutte con pagamento già in banca e nessuna fattura in TRGB. **Provato** su copia del DB con FIC finto (importa, non duplica, salta PDF, regge il download fallito); **non provato** con FIC vero prima del push.
 > **2026-11-26 — `/sync/count`**: FIC rifiuta `per_page < 5` (422); ora chiede 5 e legge `total`.
 
 > Tabella verificata sul codice il 2026-08-03 (`grep ^@router\.`): 17 decorator, righe coincidenti. Da riaggiornare se cambiano firme o si aggiungono endpoint.

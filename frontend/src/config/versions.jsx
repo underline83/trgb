@@ -457,7 +457,8 @@ const MODULE_VERSIONS = {
     //   (A.1 fase 3, mig 223) — la cifra della NC conta come pagata; pannello
     //   «Note di credito» nel Riepilogo del dettaglio.
     // v3.5 (2026-11-26): FIC — GET /fic/da-registrare (fatture ferme in «Da registrare», sola lettura) + fix /fic/sync/count.
-    version: "3.5",
+    // v3.6 (2026-11-26): la sync FIC importa anche le fatture ferme in «Da registrare» (dall'XML, senza aspettare la registrazione su FIC).
+    version: "3.6",
     label: "Gestione Acquisti",
     status: "stabile",
     color: "green",

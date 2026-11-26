@@ -672,6 +672,12 @@ export default function FattureImpostazioni() {
                     {syncResult.righe_importate > 0 && (
                       <span className="text-teal-600">, {syncResult.righe_importate} righe dettaglio</span>
                     )}
+                    {syncResult.da_registrare_importate > 0 && (
+                      <span className="text-brand-blue">, {syncResult.da_registrare_importate} prese da «Da registrare»</span>
+                    )}
+                    {syncResult.da_registrare_errori > 0 && (
+                      <span className="text-brand-red">, {syncResult.da_registrare_errori} non lette da «Da registrare»</span>
+                    )}
                     {" — "}{syncResult.totale_api} totali su FIC
                   </p>
 

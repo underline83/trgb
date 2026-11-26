@@ -17,6 +17,7 @@ Endpoint:
   GET  /fic/sync-log           — storico sincronizzazioni
   GET  /fic/fornitori          — lista fornitori da FIC (live)
   GET  /fic/da-registrare      — documenti ancora «Da registrare» su FIC (live, sola lettura)
+  POST /fic/da-registrare/importa — li importa in fe_fatture dall'XML (lo fa anche ogni sync)
 """
 
 import json
@@ -139,6 +140,8 @@ class SyncResult(BaseModel):
     righe_importate: int = 0
     totale_api: int = 0
     note_credito: int = 0   # note di credito processate (A.1 fase 1)
+    da_registrare_importate: int = 0   # fatture prese da «Da registrare» (2026-11-26)
+    da_registrare_errori: int = 0
     note: str = ""
     error_details: list[str] = []
     items: list[SyncResultItem] = []
@@ -511,30 +514,8 @@ def fic_sync_count(
         conn.close()
 
 
-@router.get("/da-registrare", summary="Documenti ricevuti su FIC ancora «Da registrare» (live)")
-def fic_da_registrare(
-    max_pagine: int = Query(10, ge=1, le=50, description="Pagine da 100 documenti da leggere al massimo"),
-):
-    """
-    Modulo: acquisti.
-    Legge da Fatture in Cloud i documenti di «Acquisti › Da registrare»
-    (`/received_documents/pending`): le fatture elettroniche arrivate dallo SDI
-    che nessuno ha ancora registrato fra le Spese. La sync (`POST /fic/sync`)
-    legge solo le Spese, quindi finché una fattura resta qui TRGB non la vede.
-    Sola lettura: non scrive niente né in TRGB né su FIC (FIC non permette di
-    registrare un documento via API). I documenti sono restituiti così come li
-    dà FIC.
-    """
-    conn = get_db()
-    try:
-        cfg = get_config(conn)
-        if not cfg:
-            raise HTTPException(400, "Fatture in Cloud non collegato")
-        token = cfg["access_token"]
-        cid = cfg["company_id"]
-    finally:
-        conn.close()
-
+def _leggi_da_registrare(token: str, cid, max_pagine: int = 50) -> tuple[list, Optional[int]]:
+    """Elenco live di «Acquisti › Da registrare» di FIC, così come lo dà FIC."""
     documenti: list = []
     totale = None
     pagina = 1
@@ -548,11 +529,102 @@ def fic_da_registrare(
         if not blocco or pagina >= ultima:
             break
         pagina += 1
+    return documenti, totale
+
+
+def _importa_da_registrare(token: str, cid) -> dict:
+    """
+    Modulo: acquisti. Decisione di Marco del 2026-11-26.
+    Importa in TRGB le fatture elettroniche ferme in «Da registrare» su FIC,
+    senza aspettare che qualcuno le registri fra le Spese: scarica l'XML
+    allegato e lo passa alla STESSA strada dell'import XML manuale
+    (`fe_import._process_single_xml`), quindi stessi controlli:
+      - già importato (stesso XML) → saltato;
+      - già presente da FIC (piva+numero+data) → agganciato, niente doppione.
+    Quando poi il documento viene registrato su FIC, la sync lo ritrova per
+    piva+numero+data e lo unisce (dedup vs XML, già esistente).
+    Su FIC non scrive niente. Un documento che non si scarica o non si legge
+    finisce in `errori` e non ferma gli altri.
+    """
+    from app.routers import fe_import
+    from app.utils.fatturapa_parser import extract_xml_bytes
+
+    documenti, totale = _leggi_da_registrare(token, cid)
+    importate: list = []
+    gia_presenti: list = []
+    errori: list = []
+    senza_xml = 0
+
+    conn = fe_import._get_conn()
+    try:
+        fe_import._ensure_tables(conn)
+        cur = conn.cursor()
+        for d in documenti:
+            nome = (d.get("filename") or "").strip() or f"fic_da_registrare_{d.get('id')}.xml"
+            url = d.get("attachment_url")
+            if not url or not nome.lower().endswith((".xml", ".p7m")):
+                senza_xml += 1
+                continue
+            try:
+                r = httpx.get(url, timeout=30, follow_redirects=True)
+                if r.status_code != 200:
+                    raise RuntimeError(f"download HTTP {r.status_code}")
+                xml = extract_xml_bytes(r.content)
+                fe_import._process_single_xml(xml, nome, cur, conn, importate, gia_presenti, errori)
+            except Exception as e:  # un documento rotto non ferma gli altri
+                errori.append({"filename": nome, "errore": str(e)[:200], "oggetto": d.get("subject")})
+    finally:
+        conn.close()
+
+    return {
+        "su_fic": totale if totale is not None else len(documenti),
+        "importate": importate,
+        "gia_presenti": len(gia_presenti),
+        "senza_xml": senza_xml,
+        "errori": errori,
+    }
+
+
+@router.get("/da-registrare", summary="Documenti ricevuti su FIC ancora «Da registrare» (live)")
+def fic_da_registrare():
+    """
+    Modulo: acquisti.
+    Legge da Fatture in Cloud i documenti di «Acquisti › Da registrare»
+    (`/received_documents/pending`): le fatture elettroniche arrivate dallo SDI
+    che nessuno ha ancora registrato fra le Spese. Sola lettura: i documenti
+    sono restituiti così come li dà FIC.
+    """
+    conn = get_db()
+    try:
+        cfg = get_config(conn)
+        if not cfg:
+            raise HTTPException(400, "Fatture in Cloud non collegato")
+        token = cfg["access_token"]
+        cid = cfg["company_id"]
+    finally:
+        conn.close()
+    documenti, totale = _leggi_da_registrare(token, cid)
     return {
         "totale": totale if totale is not None else len(documenti),
         "letti": len(documenti),
         "documenti": documenti,
     }
+
+
+@router.post("/da-registrare/importa", summary="Importa in TRGB le fatture ferme in «Da registrare» su FIC")
+def fic_da_registrare_importa():
+    """Modulo: acquisti. Vedi `_importa_da_registrare`. Lo fa già ogni sync;
+    questo endpoint serve a lanciarlo da solo."""
+    conn = get_db()
+    try:
+        cfg = get_config(conn)
+        if not cfg:
+            raise HTTPException(400, "Fatture in Cloud non collegato")
+        token = cfg["access_token"]
+        cid = cfg["company_id"]
+    finally:
+        conn.close()
+    return _importa_da_registrare(token, cid)
 
 
 @router.get("/sync/progress", summary="Progresso sincronizzazione in corso")
@@ -920,13 +992,32 @@ def fic_sync(
 
         conn.commit()
 
+        # Fase 3 (2026-11-26) — «Da registrare»: le fatture arrivate dallo SDI
+        # e non ancora registrate fra le Spese di FIC. Dopo le fasi 1-2, così
+        # quelle già registrate sono già in fe_fatture e non si duplicano.
+        # Un errore qui non fa fallire la sync.
+        dr_importate = 0
+        dr_errori = 0
+        try:
+            _sync_progress["phase"] = "da_registrare"
+            dr = _importa_da_registrare(token, cid)
+            dr_importate = len(dr["importate"])
+            dr_errori = len(dr["errori"])
+            for e in dr["errori"]:
+                error_details.append(f"Da registrare — {e.get('filename')}: {e.get('errore')}")
+        except Exception as e:
+            dr_errori = 1
+            error_details.append(f"Da registrare: {str(e)[:200]}")
+            print(f"⚠️ FIC da registrare: {e}")
+
         # Aggiorna log
         note = (
             f"Anno {anno}: {nuove} nuove, {aggiornate} agg, "
             f"{duplicate_xml} già da XML (fase1), {merged_xml} uniti (fase2), "
             f"{skipped_non_fattura} non-fatture skippate, "
             f"{note_credito} note di credito, "
-            f"{righe_importate} righe, totale API: {totale_api}"
+            f"{righe_importate} righe, totale API: {totale_api}, "
+            f"da registrare: {dr_importate} importate, {dr_errori} errori"
         )
         conn.execute(
             """
@@ -952,6 +1043,8 @@ def fic_sync(
             righe_importate=righe_importate,
             totale_api=totale_api,
             note_credito=note_credito,
+            da_registrare_importate=dr_importate,
+            da_registrare_errori=dr_errori,
             note=f"Sincronizzazione {anno} completata",
             error_details=error_details[:50],  # max 50 errori dettagliati
             items=[SyncResultItem(**it) for it in sync_items],

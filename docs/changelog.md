@@ -3,6 +3,14 @@
 
 ---
 
+## 2026-11-26 — Acquisti 3.6: le fatture ferme in «Da registrare» su FIC entrano da sole `[core]`
+
+Dopo aver visto l'elenco (44 fatture ferme da inizio ottobre, 3.594,71 €) Marco ha scelto: TRGB le importa senza aspettare la registrazione su Fatture in Cloud.
+
+### Aggiunto
+- La sync FIC ha una terza fase: scarica l'XML dei documenti di «Da registrare» e li importa come l'import XML manuale. Niente doppioni quando poi vengono registrati su FIC (uniti per P.IVA + numero + data).
+- `POST /fic/da-registrare/importa` per lanciare solo questa fase; in Impostazioni Acquisti il risultato della sync dice quante ne ha prese da lì.
+
 ## 2026-11-26 — Acquisti/FIC: vedere le fatture ferme in «Da registrare» `[core]`
 
 Marco: «alcune fatture come quelle di Bugan sono sicuro che vengano inviate, ma se restano su FIC poi non te le passa l'API». Vero: la sync legge solo le Spese registrate.
