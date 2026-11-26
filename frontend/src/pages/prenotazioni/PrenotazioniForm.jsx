@@ -11,7 +11,7 @@ const OCCASIONI = ["", "Compleanno", "Anniversario", "Laurea", "Cresima", "Batte
 // Nomi delle lingue dei clienti (il codice completo, es. en_GB, resta quello dell'elenco prefissi)
 const NOMI_LINGUA = { it: "Italiano", en: "Inglese", fr: "Francese", de: "Tedesco", es: "Spagnolo", nl: "Olandese", pt: "Portoghese", pl: "Polacco", ru: "Russo", sv: "Svedese", da: "Danese", ja: "Giapponese", zh: "Cinese" };
 
-export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTurno, defaultCliente, prenotazione, onClose, onSuccess }) {
+export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTurno, defaultOra, defaultCliente, prenotazione, onClose, onSuccess }) {
   // Modifica (2026-10-28): con «prenotazione» il form parte dai suoi dati e salva con PUT
   const modifica = !!prenotazione;
   const P = prenotazione || {};
@@ -82,7 +82,9 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
         if (defaultTurno && !modifica) {
           let slots = [];
           try { slots = JSON.parse((defaultTurno === "pranzo" ? cfg.slot_pranzo : cfg.slot_cena) || "[]"); } catch { slots = []; }
-          if (slots.length) setForm((f) => ({ ...f, ora_pasto: slots[0] }));
+          // dalla vista Servizio arriva anche l'ora che si stava guardando
+          if (defaultOra) setForm((f) => ({ ...f, ora_pasto: defaultOra }));
+          else if (slots.length) setForm((f) => ({ ...f, ora_pasto: slots[0] }));
         }
       })
       .catch(() => {});

@@ -42,6 +42,7 @@ from app.utils import telefono as tel
 logger = logging.getLogger("trgb.thefork.invio")
 
 CIVILITY = ("mr", "mrs", "ms", "mr_and_mrs", "mx", "doctor", "professor", "company")
+SENZA_NOME = "-"                         # segnaposto mandato a TheFork per il nome o il cognome che manca
 _MANCA = "Manca sulla scheda — "         # inizio della nota quando la scheda del cliente non basta
 _RIPROVA = ("NO_AVAILABILITY",)          # l'orario non è prenotabile online: si aspetta
 _cache_modello: Dict[str, Any] = {"quando": 0.0, "regex": None}
@@ -114,7 +115,9 @@ def _cliente_per_thefork(conn, c) -> Dict[str, Any]:
     nome, cognome = (c["nome"] or "").strip(), (c["cognome"] or "").strip()
     if not cognome and not nome:
         raise ValueError("il cliente non ha un nome")
-    dati = {"email": email, "firstName": nome or cognome, "lastName": cognome or nome,
+    # TheFork vuole nome E cognome: se in scheda ce n'è uno solo, l'altro è un trattino
+    # (Marco 2026-11-26, opzione A: prima «Devasini» finiva in tutti e due i campi).
+    dati = {"email": email, "firstName": nome or SENZA_NOME, "lastName": cognome or SENZA_NOME,
             "locale": _lingua(c["lingua"], numero), "civility": _titolo(conn, c["titolo"])}
     if numero:
         dati["phone"] = numero
@@ -182,9 +185,21 @@ def invia(conn, pid: int) -> Dict[str, Any]:
         (f"A nome {p['persona_nome']}" if p["persona_nome"] else ""), (p["nota_ristorante"] or "").strip()) if x)
     try:
         with tf._lock_elabora:   # la sincronizzazione non deve vedere la prenotazione prima che la riga abbia il suo codice
-            r = prenota.crea_prenotazione(
-                f"{p['data_pasto']}T{str(p['ora_pasto'])[:5]}", int(p["pax"]), cli["dati"],
-                nota_ristorante=nota_r or None, nota_cliente=(p["nota_cliente"] or None))
+            quando = f"{p['data_pasto']}T{str(p['ora_pasto'])[:5]}"
+            dati = cli["dati"]
+            try:
+                r = prenota.crea_prenotazione(quando, int(p["pax"]), dati,
+                                              nota_ristorante=nota_r or None, nota_cliente=(p["nota_cliente"] or None))
+            except tf.TheForkErroreAPI as e:
+                # Se TheFork non accetta il trattino al posto del nome, una volta sola si riprova
+                # col nome ripetuto (come si faceva prima): meglio doppio che non mandata.
+                if SENZA_NOME not in (dati["firstName"], dati["lastName"]) or e.status != 400 or _codice(e) in _RIPROVA:
+                    raise
+                logger.warning("TheFork ha rifiutato il trattino come nome (#%s: %s): riprovo col nome ripetuto", pid, _codice(e) or e.status)
+                unico = dati["lastName"] if dati["firstName"] == SENZA_NOME else dati["firstName"]
+                dati = {**dati, "firstName": unico, "lastName": unico}
+                r = prenota.crea_prenotazione(quando, int(p["pax"]), dati,
+                                              nota_ristorante=nota_r or None, nota_cliente=(p["nota_cliente"] or None))
             uuid = r.get("reservationUuid")
             if r.get("paymentMethodRequest") and cli["servizio"]:
                 # TheFork chiede la carta per email, ma l'email è di servizio: si ritira da TheFork

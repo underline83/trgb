@@ -146,6 +146,7 @@ const PrenotazioniArchivio = lazy(() => import("./pages/prenotazioni/Prenotazion
 const PrenotazioniRecensioni = lazy(() => import("./pages/prenotazioni/PrenotazioniRecensioni"));
 const TavoliEditor = lazy(() => import("./pages/prenotazioni/TavoliEditor"));
 const TavoliMappa = lazy(() => import("./pages/prenotazioni/TavoliMappa"));
+const PrenotazioniServizio = lazy(() => import("./pages/prenotazioni/PrenotazioniServizio"));
 
 // CUCINA (MVP checklist + task)
 // SceltaMacellaio appartiene semanticamente al modulo "ricette" ma il file
@@ -628,6 +629,8 @@ export default function App() {
         <Route path="/prenotazioni/tavoli" element={<ProtectedRoute module="prenotazioni"><TavoliEditor /></ProtectedRoute>} />
         <Route path="/prenotazioni/mappa" element={<ProtectedRoute module="prenotazioni"><TavoliMappa /></ProtectedRoute>} />
         <Route path="/prenotazioni/mappa/:data/:turno" element={<ProtectedRoute module="prenotazioni"><TavoliMappa /></ProtectedRoute>} />
+        <Route path="/prenotazioni/servizio" element={<ProtectedRoute module="prenotazioni"><PrenotazioniServizio /></ProtectedRoute>} />
+        <Route path="/prenotazioni/servizio/:data/:turno" element={<ProtectedRoute module="prenotazioni"><PrenotazioniServizio /></ProtectedRoute>} />
 
         {/* --- SELEZIONI DEL GIORNO (modulo unico 4 zone: macellaio/pescato/salumi/formaggi) --- */}
         <Route path="/selezioni" element={<Navigate to="/selezioni/macellaio" replace />} />

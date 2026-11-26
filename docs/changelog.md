@@ -3,6 +3,21 @@
 
 ---
 
+## 2026-11-26 — Prenotazioni 2.46: vista «Servizio», prenotazioni e tavoli insieme `[core]`
+
+### Aggiunto
+- **Prenotazioni › Servizio** (tab nuovo; Planning e Mappa Tavoli restano come sono): elenco del turno a sinistra, sala a destra. Toccando una prenotazione si accendono i suoi tavoli; toccando un tavolo si apre la sua prenotazione, con «Arrivato / Seduto / Completata» e «Modifica».
+- **Striscia degli orari** sopra la sala (coperti sulla capienza e tavoli occupati): toccando un orario la sala si vede com'è a quell'ora; un tocco su un tavolo libero apre «Nuova prenotazione» con quel tavolo e quell'ora.
+- Sul telefono: due schede, Elenco e Mappa, con il salto dall'una all'altra.
+
+### Da sapere
+- Non si trascina ancora una prenotazione su un tavolo: per cambiare tavolo si usa «Modifica» o la Mappa Tavoli.
+
+## 2026-11-26 — Prenotazioni 2.45: niente più nome doppio su TheFork `[core]`
+
+### Corretto
+- Una scheda col solo cognome arrivava su TheFork con lo stesso nome in tutti e due i campi («Devasini Devasini»). Ora nel campo che manca va un trattino; se TheFork non lo accetta, si riprova da sola col nome ripetuto. Al ritorno dalla sincronizzazione né il trattino né il nome ripetuto finiscono sulla scheda di TRGB.
+
 ## 2026-11-26 — Prenotazioni 2.44: il numero cercato passa al cliente nuovo `[core]`
 
 ### Corretto

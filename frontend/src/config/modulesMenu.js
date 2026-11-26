@@ -132,6 +132,7 @@ const MODULES_MENU = {
     color: "bg-indigo-50 border-indigo-200 text-indigo-900", hoverBg: "hover:bg-indigo-50",
     sub: [
       { label: "Planning",      go: "/prenotazioni/planning/" + new Date().toISOString().slice(0, 10) },
+      { label: "Servizio",      go: "/prenotazioni/servizio" },
       { label: "Mappa Tavoli",  go: "/prenotazioni/mappa" },
       { label: "Settimana",     go: "/prenotazioni/settimana/" + new Date().toISOString().slice(0, 10) },
       { label: "Archivio",      go: "/prenotazioni/archivio" },

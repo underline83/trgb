@@ -858,9 +858,20 @@ def get_carico(data: str, turno: str, user: dict = Depends(get_current_user)):
         righe = [dict(r) for r in conn.execute(
             "SELECT id, data_pasto, ora_pasto, pax, stato, tavolo, durata_min FROM clienti_prenotazioni "
             "WHERE data_pasto = ? AND turno = ?", (data, turno))]
+        # Per la vista «Servizio»: da che minuto a che minuto ogni prenotazione tiene il tavolo
+        # (stessa regola del motore tavoli: durata propria, gruppo = tutto il turno, altrimenti la regola)
+        dur = durata_tavolo(config, turno, data)
+        try:
+            soglia_gruppo = int(config.get("gruppo_turno_intero") or 10)
+        except ValueError:
+            soglia_gruppo = 10
+        non_occ = stati_srv.non_occupano()
+        intervalli = {str(p["id"]): list(tavoli_srv._intervallo(p, dur, soglia_gruppo))
+                      for p in righe if p.get("stato") not in non_occ and p.get("ora_pasto")}
         return {"data": data, "turno": turno, "capienza": _capienza_turno(conn, data, turno, config),
-                "durata_regola": durata_tavolo(config, turno, data),
-                "orari": _timeline_turno(righe, config, turno)}
+                "durata_regola": dur,
+                "orari": _timeline_turno(righe, config, turno),
+                "intervalli": intervalli}
     finally:
         conn.close()
 

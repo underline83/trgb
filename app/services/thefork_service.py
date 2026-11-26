@@ -323,6 +323,21 @@ def _tieni_trgb(conn, rec: Dict[str, Any]) -> None:
         logger.warning("tieni_trgb: %s", e)
 
 
+def _nome_vero(nome: Optional[str], cognome: Optional[str]) -> Dict[str, str]:
+    """
+    Nome e cognome che tornano da TheFork senza i segnaposto messi da TRGB: il trattino
+    (scheda con un nome solo) e il nome ripetuto uguale nei due campi non sono dati del cliente.
+    """
+    n, c = (nome or "").strip(), (cognome or "").strip()
+    if n == "-":
+        n = ""
+    if c == "-":
+        c = ""
+    if n and c and n.lower() == c.lower():
+        n = ""
+    return {"nome": n, "cognome": c}
+
+
 def mappa_cliente(c: Dict[str, Any]) -> Dict[str, Any]:
     """Cliente API → record `clienti` (colonne e formati dell'import XLSX)."""
     nascita = None
@@ -336,8 +351,7 @@ def mappa_cliente(c: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "thefork_id": c.get("customerUuid"),
         "titolo": _titolo(c.get("civility")),
-        "nome": (c.get("firstName") or "").strip(),
-        "cognome": (c.get("lastName") or "").strip(),
+        **_nome_vero(c.get("firstName"), c.get("lastName")),
         "email": _email_vera(c.get("email")),   # l'email di servizio di TRGB non è un dato del cliente
         "telefono": pulisci_telefono(c.get("phone")),
         "telefono2": pulisci_telefono(c.get("secondaryPhone")),

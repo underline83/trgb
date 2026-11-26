@@ -66,6 +66,8 @@ class Base(unittest.TestCase):
             if metodo == "POST":
                 if self.modo == "chiuso":
                     raise tf.TheForkErroreAPI(400, '{"data":{"code":"NO_AVAILABILITY"}}')
+                if self.modo == "no_trattino" and "-" in (corpo["customer"]["firstName"], corpo["customer"]["lastName"]):
+                    raise tf.TheForkErroreAPI(400, '{"data":{"code":"INVALID_CUSTOMER_FIRSTNAME"}}')
                 if self.modo == "rifiuto":
                     raise tf.TheForkErroreAPI(400, '{"data":{"code":"INVALID_CUSTOMER_EMAIL"}}')
                 return {"reservationUuid": f"U{len(self.chiamate)}",
@@ -154,6 +156,24 @@ class Invio(Base):
         self.assertEqual([c for c in self.chiamate if c[0] == "POST"], [])
         pid = self.pren(cliente=3)                                          # né email né telefono
         self.assertEqual(invio.dopo_creazione(pid)["stato"], "da_mandare")  # aspetta che la scheda sia completa
+
+    def test_solo_cognome_va_col_trattino(self):
+        """26/11, opzione A di Marco: «Devasini» non deve finire in nome e cognome."""
+        c = self.conn()
+        c.execute("UPDATE clienti SET nome = NULL, cognome = 'Devasini' WHERE id = 1")
+        c.commit(); c.close()
+        self.assertEqual(invio.dopo_creazione(self.pren())["stato"], "inviata")
+        cli = self.chiamate[-1][2]["customer"]
+        self.assertEqual((cli["firstName"], cli["lastName"]), ("-", "Devasini"))
+        # se TheFork rifiuta il trattino: una seconda prova col nome ripetuto, e parte lo stesso
+        self.modo = "no_trattino"
+        self.assertEqual(invio.dopo_creazione(self.pren())["stato"], "inviata")
+        cli = self.chiamate[-1][2]["customer"]
+        self.assertEqual((cli["firstName"], cli["lastName"]), ("Devasini", "Devasini"))
+        # al ritorno da TheFork né il trattino né il nome ripetuto diventano il nome del cliente
+        self.assertEqual(tf._nome_vero("-", "Devasini"), {"nome": "", "cognome": "Devasini"})
+        self.assertEqual(tf._nome_vero("devasini", "Devasini"), {"nome": "", "cognome": "Devasini"})
+        self.assertEqual(tf._nome_vero("Ciro", "Ravelli"), {"nome": "Ciro", "cognome": "Ravelli"})
 
     def test_scheda_completata_dopo_parte_da_sola(self):
         """26/11: Marco salva senza numero, poi lo aggiunge alla scheda: deve partire al giro dopo."""
