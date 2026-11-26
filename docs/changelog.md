@@ -8,6 +8,8 @@
 ### Cambiato
 - In Servizio, Elenco e Mappa la scelta della vista e «+ Nuova prenotazione» stanno sempre nello stesso punto, in alto a destra. La Mappa ha ora anche lei «+ Nuova prenotazione»; «Sposta» e «Unisci» sono scesi nella riga sotto.
 - Sul telefono, nella scheda Mappa, gli orari sono un elenco a tendina.
+- Sopra la sala, accanto a Osteria / Dehor / Veranda, il segno di aperta (pallino verde) o chiusa (nome barrato e «chiusa») per quel servizio.
+- Servizio, stato della prenotazione: quattro caselle in una riga (Prenotato · Confermato · Seduto · Libero). Quella accesa dice dov'è; si tocca quella dove deve andare, in avanti o indietro. Modifica, Scheda cliente, WhatsApp e «Altro» stanno sotto, piccoli e tutti uguali.
 
 ## 2026-11-26 — Prenotazioni 2.51 / sistema 6.15: il giro della prenotazione, Servizio al centro (mig 250) `[core]`
 

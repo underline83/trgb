@@ -1,4 +1,4 @@
-// @version: v1.0 — forme della piantina condivise da Editor Tavoli e Mappa Tavoli
+// @version: v1.1 — sulle schede delle sale il segno aperta/chiusa per quel servizio (2026-11-26); v1.0 — forme della piantina condivise da Editor Tavoli e Mappa Tavoli
 // Modulo: prenotazioni
 import React from "react";
 
@@ -39,7 +39,8 @@ export function FormaElemento({ e, stroke = "none", strokeWidth = 0 }) {
 }
 
 // Schede delle sale (Osteria / Dehor / Veranda…)
-export function SchedeSale({ sale, attiva, onChange, conteggi = {} }) {
+// `aperte` (facoltativo): {sala: true|false} per questo servizio → pallino verde «aperta» o grigio barrato «chiusa»
+export function SchedeSale({ sale, attiva, onChange, conteggi = {}, aperte = null }) {
   if (!sale || sale.length === 0) return null;
   return (
     <div className="flex gap-1 border-b border-neutral-200 mb-3 overflow-x-auto overflow-y-hidden">
@@ -48,7 +49,13 @@ export function SchedeSale({ sale, attiva, onChange, conteggi = {} }) {
           className={`px-4 py-2 text-sm whitespace-nowrap border-b-2 -mb-px min-h-[44px] transition ${
             attiva === s ? "border-brand-ink text-neutral-900 font-semibold" : "border-transparent text-neutral-500 hover:text-neutral-800"
           }`}>
-          {s}{conteggi[s] != null && <span className="ml-1 text-xs text-neutral-400">{conteggi[s]}</span>}
+          {aperte && aperte[s] != null && (
+            <span aria-hidden="true" className={`inline-block w-2.5 h-2.5 rounded-full mr-1.5 align-middle ${aperte[s] ? "bg-emerald-600" : "bg-white border-2 border-neutral-400"}`} />
+          )}
+          <span className={aperte && aperte[s] === false ? "line-through decoration-neutral-400" : ""}>{s}</span>
+          {aperte && aperte[s] === false && <span className="ml-1.5 text-[11px] font-medium text-neutral-500 uppercase tracking-wide">chiusa</span>}
+          {aperte && aperte[s] != null && <span className="sr-only">{aperte[s] ? " (aperta)" : " (chiusa)"}</span>}
+          {conteggi[s] != null && <span className="ml-1 text-xs text-neutral-400">{conteggi[s]}</span>}
         </button>
       ))}
     </div>

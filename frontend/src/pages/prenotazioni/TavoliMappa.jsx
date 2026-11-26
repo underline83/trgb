@@ -346,7 +346,8 @@ export default function TavoliMappa() {
           </div>
         </div>
 
-        <SchedeSale sale={sale} attiva={salaAttiva} onChange={setSala} conteggi={occupatiPerSala} />
+        <SchedeSale sale={sale} attiva={salaAttiva} onChange={setSala} conteggi={occupatiPerSala}
+          aperte={Object.fromEntries((mappaData?.sale_stato || []).map((x) => [x.zona, !!x.aperta]))} />
 
         <div className="flex flex-col md:flex-row gap-3 md:gap-4">
           {/* ── Canvas Mappa ── */}

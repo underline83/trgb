@@ -1,4 +1,4 @@
-// @version: v1.9 — sul telefono gli orari sono un elenco a tendina (i tasti erano inutilizzabili) (2026-11-26); v1.8 — un tasto solo per lo stato che avanza (Prenotato → Confermato → Seduto → libera il tavolo), «↩» per tornare indietro, gli altri cambi in «Altro» (2026-11-26); v1.7 — riepilogo del turno nella riga sopra la sala (la testata resta su una riga) (2026-11-26); v1.6 — tutti i cambi di stato del Planning (stessi bottoni) e riconferma WhatsApp; testata comune del modulo (components/Testata.jsx) (2026-11-26); v1.5 — nell'elenco le stesse etichette del Planning (canale, stelle, segmento, bollino, no-show, allergie, doppione…), nome che apre la scheda cliente, note in riga (2026-11-26); v1.4 — niente barre di scorrimento (orari a colonne uguali, schede sale, elenco), piantina stretta sui tavoli, «tavoli liberi» solo nelle sale aperte (2026-11-26); v1.3 — nell'ingranaggio «Blocca le prenotazioni online» e «Chiudi servizio» (anche su TheFork), con conferma (2026-11-26); v1.2 — ingranaggio «Modifica servizio» (sale aperte, fasce e online, tavoli del turno) e matita per la sala (2026-11-26); v1.1 — stessa larghezza di pagina di Planning e Mappa, elenco a larghezza fissa e sala che non cambia misura; iPad in piedi: sala sopra, elenco sotto (2026-11-26); v1.0 — vista «Servizio»: elenco del turno e sala nella stessa schermata, striscia degli orari per vedere la sala a un'altra ora, due schede sul telefono (2026-11-26)
+// @version: v1.10 — stato a quattro caselle in una riga (Prenotato · Confermato · Seduto · Libero): si tocca quella dove deve andare, avanti o indietro; le altre azioni sotto, piccole e uguali (2026-11-26); v1.9 — sul telefono gli orari sono un elenco a tendina (i tasti erano inutilizzabili) (2026-11-26); v1.8 — un tasto solo per lo stato che avanza (Prenotato → Confermato → Seduto → libera il tavolo), «↩» per tornare indietro, gli altri cambi in «Altro» (2026-11-26); v1.7 — riepilogo del turno nella riga sopra la sala (la testata resta su una riga) (2026-11-26); v1.6 — tutti i cambi di stato del Planning (stessi bottoni) e riconferma WhatsApp; testata comune del modulo (components/Testata.jsx) (2026-11-26); v1.5 — nell'elenco le stesse etichette del Planning (canale, stelle, segmento, bollino, no-show, allergie, doppione…), nome che apre la scheda cliente, note in riga (2026-11-26); v1.4 — niente barre di scorrimento (orari a colonne uguali, schede sale, elenco), piantina stretta sui tavoli, «tavoli liberi» solo nelle sale aperte (2026-11-26); v1.3 — nell'ingranaggio «Blocca le prenotazioni online» e «Chiudi servizio» (anche su TheFork), con conferma (2026-11-26); v1.2 — ingranaggio «Modifica servizio» (sale aperte, fasce e online, tavoli del turno) e matita per la sala (2026-11-26); v1.1 — stessa larghezza di pagina di Planning e Mappa, elenco a larghezza fissa e sala che non cambia misura; iPad in piedi: sala sopra, elenco sotto (2026-11-26); v1.0 — vista «Servizio»: elenco del turno e sala nella stessa schermata, striscia degli orari per vedere la sala a un'altra ora, due schede sul telefono (2026-11-26)
 // Modulo: prenotazioni
 // Idea presa da TheFork Manager (Marco 2026-11-26: «il mix tra prenotazioni e tavoli è una visual molto utile»).
 // Non sostituisce Planning né Mappa Tavoli: è una terza vista, da provare in servizio.
@@ -35,6 +35,15 @@ const COLORI = {
   bloccato: { fill: "#e5e7eb", stroke: "#6b7280", text: "#6b7280" },
 };
 const LEGENDA = [["libero", "libero"], ["arrivo", "prenotato, deve arrivare"], ["seduto", "al tavolo"], ["scelto", "selezionato"]];
+
+// Il giro di una prenotazione in sala, come lo dice Marco: prenota, conferma, si siede, va via
+const PASSI = [
+  { nome: "Prenotato", acceso: "bg-indigo-700" },
+  { nome: "Confermato", acceso: "bg-teal-700" },
+  { nome: "Seduto", acceso: "bg-emerald-700" },
+  { nome: "Libero", acceso: "bg-neutral-700" },
+];
+const PASSI_STATI = ["RECORDED", "ARRIVED", "SEATED", "BILL", "PARTIALLY_ARRIVED", "LEFT"];
 
 export default function PrenotazioniServizio() {
   const { data: paramData, turno: paramTurno } = useParams();
@@ -206,8 +215,49 @@ export default function PrenotazioniServizio() {
     if (p.stato === "RECORDED" && p.riconfermata_at) indietro = { label: "Torna a prenotato", corto: "Prenotato", fai: () => segnaConfermata(p, false) };
     else if (["SEATED", "ARRIVED"].includes(p.stato) && va("RECORDED")) { usati.add("RECORDED"); indietro = { label: "Torna indietro: non è ancora seduto", corto: p.riconfermata_at ? "Confermato" : "Prenotato", fai: () => cambiaStato(p, "RECORDED") }; }
     else if (["LEFT", "BILL"].includes(p.stato) && va("SEATED")) { usati.add("SEATED"); indietro = { label: "Torna a seduto", corto: "Seduto", fai: () => cambiaStato(p, "SEATED") }; }
-    // da prenotato si può anche sedere subito, senza passare da «Confermato»: resta in «Altro»
-    return { avanti, indietro, altri: perm.filter((a) => !usati.has(a)) };
+    // «fuoriGiro»: i cambi che non sono una delle quattro caselle (arrivato, al conto, opzione, cancella, no-show, rifiuta)
+    const delGiro = ["RECORDED", "SEATED", "LEFT"];
+    return { avanti, indietro, altri: perm.filter((a) => !usati.has(a)), fuoriGiro: perm.filter((a) => !delGiro.includes(a) || !PASSI_STATI.includes(p.stato)) };
+  };
+
+  // In che casella del giro si trova (−1 = fuori dal giro: richiesta, opzione, lista d'attesa…)
+  const passoDi = (p) => {
+    if (p.stato === "RECORDED") return p.riconfermata_at ? 1 : 0;
+    if (p.stato === "ARRIVED") return 1;
+    if (["SEATED", "BILL", "PARTIALLY_ARRIVED"].includes(p.stato)) return 2;
+    if (p.stato === "LEFT") return 3;
+    return -1;
+  };
+
+  // Porta la prenotazione alla casella toccata, anche saltando o tornando indietro di più passi:
+  // fa in fila i cambi che servono (es. da «Libero» a «Prenotato»: prima seduto, poi prenotato).
+  const vaiAlPasso = async (p, k) => {
+    const cambia = async (stato) => {
+      const r = await apiFetch(`${API_BASE}/prenotazioni/${p.id}/stato`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ stato }) });
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.detail || "Non riuscito"); }
+    };
+    const segno = async (valore) => {
+      const r = await apiFetch(`${API_BASE}/prenotazioni/${p.id}/riconfermata`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ valore }) });
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.detail || "Non riuscito"); }
+    };
+    setLavoro(true);
+    try {
+      let st = p.stato;
+      if (k <= 1) {                                   // Prenotato o Confermato: lo stato è «prenotata»
+        if (st === "LEFT") { await cambia("SEATED"); st = "SEATED"; }
+        if (st === "BILL") { await cambia("SEATED"); st = "SEATED"; }
+        if (st !== "RECORDED") await cambia("RECORDED");
+        await segno(k === 1);
+      } else if (k === 2) {                           // Seduto
+        if (st !== "SEATED") await cambia("SEATED");
+      } else {                                        // Libero
+        if (!["SEATED", "BILL"].includes(st)) await cambia("SEATED");
+        await cambia("LEFT");
+      }
+      flash("ok", `${nomeDi(p)}: ${PASSI[k].nome}`);
+    } catch (e) { flash("err", e.message || "Errore di connessione"); }
+    setLavoro(false);
+    carica();
   };
 
   // Riconferma su WhatsApp, come nel Planning: la finestra si apre subito, poi arriva il link
@@ -296,39 +346,50 @@ export default function PrenotazioniServizio() {
   const slotAdesso = inTurno ? [...orari].reverse().find((o) => minuti(o.ora) <= adessoMin)?.ora : null;
 
   // ── Pezzi ──
-  const Azioni = ({ p }) => (
+  const Azioni = ({ p }) => {
+    const g = giro(p);
+    const a = passoDi(p);
+    const quieto = "px-3 min-h-[40px] text-sm font-medium rounded-lg border border-neutral-300 bg-white text-neutral-800 hover:bg-neutral-50";
+    return (
     <div className="flex flex-col gap-2">
-      <div className="flex flex-wrap gap-2">
-        {/* Un tasto solo che fa avanzare: Prenotato → Confermato → Seduto → libera il tavolo; accanto «↩» torna indietro
-            di un passo. Tutto il resto (arrivato, al conto, opzione, cancella, no-show, rifiuta) sta in «Altro». */}
-        {(() => {
-          const g = giro(p);
-          return (
-            <>
-              {g.avanti && <button type="button" onClick={g.avanti.fai} className={`px-4 min-h-[44px] text-sm font-bold text-white rounded-lg ${g.avanti.cls}`}>{g.avanti.label}</button>}
-              {g.indietro && <button type="button" onClick={g.indietro.fai} title={g.indietro.label} className="px-3 min-h-[44px] text-sm font-medium rounded-lg border border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50">↩ {g.indietro.corto}</button>}
-              {g.altri.length > 0 && (
-                <button type="button" onClick={() => setAltroAperto(altroAperto === p.id ? null : p.id)} aria-expanded={altroAperto === p.id}
-                  className="px-3 min-h-[44px] text-sm font-medium rounded-lg border border-neutral-300 bg-white text-neutral-700 hover:bg-neutral-50">Altro {altroAperto === p.id ? "▴" : "▾"}</button>
-              )}
-              {altroAperto === p.id && (
-                <div className="basis-full flex flex-wrap gap-2">
-                  {g.altri.map((a) => {
-                    const az = azioneStato(p.stato, a);
-                    return <button key={a} type="button" onClick={() => cambiaStato(p, a)} className={`px-3 min-h-[44px] text-sm font-medium text-white rounded-lg ${az.cls}`}>{az.label}</button>;
-                  })}
-                </div>
-              )}
-            </>
-          );
-        })()}
-        {p.stato !== "LEFT" && <Btn size="md" variant="secondary" className="min-h-[44px]" onClick={() => setForm({ modifica: p })}>✏️ Modifica</Btn>}
-        {p.cliente_id && <Btn size="md" variant="secondary" className="min-h-[44px]" onClick={() => setClienteAperto(p.cliente_id)}>👤 Scheda cliente</Btn>}
+      {/* Il giro in una riga sola: quattro caselle, quella accesa è dove si trova la prenotazione.
+          Si tocca la casella dove deve andare: avanti o indietro, senza altri tasti. */}
+      {a >= 0 ? (
+        <div className="grid grid-cols-4 rounded-lg border border-neutral-300 overflow-hidden bg-white" role="group" aria-label="Stato della prenotazione">
+          {PASSI.map((s, k) => (
+            <button key={s.nome} type="button" disabled={lavoro || k === a} onClick={() => vaiAlPasso(p, k)} aria-pressed={k === a}
+              title={k === a ? `Adesso: ${s.nome}` : k < a ? `Torna a «${s.nome}»` : `Passa a «${s.nome}»`}
+              className={`min-h-[44px] px-1 text-[13px] leading-tight border-l first:border-l-0 border-neutral-300 transition ${
+                k === a ? `${s.acceso} text-white font-bold` : k < a ? "bg-neutral-100 text-neutral-500" : "bg-white text-neutral-800 hover:bg-neutral-50"}`}>
+              {k < a ? "✓ " : ""}{s.nome}
+            </button>
+          ))}
+        </div>
+      ) : g.avanti ? (
+        <button type="button" onClick={g.avanti.fai} className={`px-4 min-h-[44px] text-sm font-bold text-white rounded-lg ${g.avanti.cls}`}>{g.avanti.label}</button>
+      ) : null}
+      {/* Sotto, in piccolo e tutte uguali, le azioni che non sono il giro */}
+      <div className="flex flex-wrap gap-1.5">
+        {p.stato !== "LEFT" && <button type="button" className={quieto} onClick={() => setForm({ modifica: p })}>Modifica</button>}
+        {p.cliente_id && <button type="button" className={quieto} onClick={() => setClienteAperto(p.cliente_id)}>Scheda cliente</button>}
         {p.telefono && ["RECORDED", "REQUESTED"].includes(p.stato) && (
-          <Btn size="md" variant="secondary" className="min-h-[44px]" onClick={() => riconferma(p)}>💬 {p.reminder_inviato === 1 ? "Riconferma inviata — reinvia" : "Riconferma su WhatsApp"}</Btn>
+          <button type="button" className={quieto} onClick={() => riconferma(p)}>{p.reminder_inviato === 1 ? "WhatsApp (reinvia)" : "WhatsApp"}</button>
         )}
-        {telefono && <Btn size="md" variant="secondary" onClick={() => setScheda(scheda === "elenco" ? "mappa" : "elenco")}>{scheda === "elenco" ? "Vedi sulla mappa" : "Apri in elenco"}</Btn>}
+        {telefono && <button type="button" className={quieto} onClick={() => setScheda(scheda === "elenco" ? "mappa" : "elenco")}>{scheda === "elenco" ? "Sulla mappa" : "In elenco"}</button>}
+        {g.fuoriGiro.length > 0 && (
+          <button type="button" className={quieto} onClick={() => setAltroAperto(altroAperto === p.id ? null : p.id)} aria-expanded={altroAperto === p.id}>Altro {altroAperto === p.id ? "▴" : "▾"}</button>
+        )}
       </div>
+      {altroAperto === p.id && (
+        <div className="flex flex-wrap gap-1.5">
+          {g.fuoriGiro.map((x) => {
+            const az = azioneStato(p.stato, x);
+            const rosso = ["CANCELED", "NO_SHOW", "REFUSED"].includes(x);
+            return <button key={x} type="button" onClick={() => cambiaStato(p, x)}
+              className={`px-3 min-h-[40px] text-sm font-medium rounded-lg border bg-white hover:bg-neutral-50 ${rosso ? "border-red-300 text-red-700" : "border-neutral-300 text-neutral-800"}`}>{az.label.replace(/^[^A-Za-zÀ-ú]+/, "")}</button>;
+          })}
+        </div>
+      )}
       {(p.nota_ristorante || p.allergie_segnalate || p.nota_cliente) && (
         <div className="text-xs text-neutral-600">
           {p.allergie_segnalate && <span className="text-red-700 font-medium">Allergie: {p.allergie_segnalate} · </span>}
@@ -336,7 +397,8 @@ export default function PrenotazioniServizio() {
         </div>
       )}
     </div>
-  );
+    );
+  };
 
   const Elenco = (
     <div className="flex flex-col gap-1.5">
@@ -440,7 +502,8 @@ export default function PrenotazioniServizio() {
         )}
       </div>
       <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0 flex-1"><SchedeSale sale={sale} attiva={salaAttiva} onChange={setSala} /></div>
+        <div className="min-w-0 flex-1"><SchedeSale sale={sale} attiva={salaAttiva} onChange={setSala}
+            aperte={Object.fromEntries((mappa?.sale_stato || []).map((x) => [x.zona, !!x.aperta]))} /></div>
         {/* La matita: la sala di QUESTO turno nella Mappa Tavoli (sposta, unisci, blocca); la piantina fissa non cambia */}
         <button type="button" title={`Modifica la sala ${salaAttiva || ""} per questo turno`} aria-label="Modifica la sala per questo turno"
           onClick={() => navigate(`/prenotazioni/mappa/${data}/${turno}?sposta=1${salaAttiva ? `&sala=${encodeURIComponent(salaAttiva)}` : ""}`)}

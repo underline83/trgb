@@ -775,6 +775,9 @@ const MODULE_VERSIONS = {
     // 2.52 (2026-11-26): la riga in alto è identica in Servizio, Elenco e Mappa — a destra sempre «Servizio / Elenco / Mappa»
     //   e «+ Nuova prenotazione» (tasto unico TastoNuova, c'è anche in Mappa), gli attrezzi della Mappa nella riga sotto;
     //   sul telefono gli orari della scheda Mappa sono un elenco a tendina.
+    //   Stato in Servizio rifatto (Marco: «non mi convincono»): quattro caselle in una riga, Prenotato · Confermato · Seduto ·
+    //   Libero; si tocca quella dove deve andare (avanti o indietro, anche di più passi); le altre azioni sotto, piccole.
+    //   Schede delle sale (Servizio e Mappa): pallino verde = aperta in quel servizio, cerchio vuoto + nome barrato + «chiusa».
     // 2.51 (2026-11-26): il giro della prenotazione in sala (Marco) — in Servizio un tasto solo che avanza: Prenotato →
     //   Confermato → Seduto → libera il tavolo, «↩» per tornare indietro, gli altri cambi in «Altro». «Confermato» è un segno
     //   sulla prenotata (mig 250 clienti_prenotazioni.riconfermata_at, PATCH /{id}/riconfermata), non uno stato nuovo;
