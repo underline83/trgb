@@ -344,7 +344,8 @@ def _prenotazioni(conn, data: str, turno: str) -> List[Dict[str, Any]]:
     nome = "COALESCE(NULLIF(p.nome_ospite,''), NULLIF(c.nome,''), '') || ' ' || COALESCE(NULLIF(p.cognome_ospite,''), c.cognome, '')" \
         if "nome_ospite" in cols else "COALESCE(c.nome,'') || ' ' || COALESCE(c.cognome,'')"
     return [dict(r) for r in conn.execute(f"""
-        SELECT p.id, p.ora_pasto, p.pax, p.tavolo, p.stato, TRIM({nome}) AS nome
+        SELECT p.id, p.ora_pasto, p.pax, p.tavolo, p.stato, TRIM({nome}) AS nome,
+               {"p.durata_min" if "durata_min" in cols else "NULL"} AS durata_min
         FROM clienti_prenotazioni p LEFT JOIN clienti c ON c.id = p.cliente_id
         WHERE p.data_pasto = ? AND p.turno = ? AND p.stato NOT IN ({','.join('?' * len(_attive_no()))})
         ORDER BY p.ora_pasto, p.id
@@ -355,6 +356,9 @@ def _prenotazioni(conn, data: str, turno: str) -> List[Dict[str, Any]]:
 
 def _intervallo(p, dur: int, soglia: int) -> Tuple[int, int]:
     a = _minuti(p.get("ora_pasto")) or 0
+    propria = p.get("durata_min")   # durata scritta su questa prenotazione (mig 249): vince sulle regole
+    if propria:
+        return (a, a + int(propria))
     return (0, TUTTO_TURNO) if (p.get("pax") or 0) >= soglia else (a, a + dur)
 
 
@@ -560,8 +564,8 @@ class Verificatore:
         self.fuori_prima = len(base["senza_posto"])
         self.ha_tavoli = bool(self.unita)
 
-    def verifica(self, pax: int, ora: str) -> Dict[str, Any]:
-        nuova = {"id": "_nuova", "ora_pasto": ora, "pax": pax, "tavolo": None}
+    def verifica(self, pax: int, ora: str, durata_min: Optional[int] = None) -> Dict[str, Any]:
+        nuova = {"id": "_nuova", "ora_pasto": ora, "pax": pax, "tavolo": None, "durata_min": durata_min or None}
         r = risolvi(self.pren + [nuova], self.unita, self.k["dur"], self.k["soglia"], self.k["prolunghe_max"], mappa=self.k["mappa"], ambigui=self.k["ambigui"])
         fuori_dopo = len(r["senza_posto"])
         u = r["assegnate"].get("_nuova") or r["forzate"].get("_nuova")
@@ -570,9 +574,10 @@ class Verificatore:
                 "forzato": entra and "_nuova" in r["forzate"]}
 
 
-def verifica(conn, data: str, turno: str, pax: int, ora: str, escludi_id: Optional[int] = None) -> Dict[str, Any]:
+def verifica(conn, data: str, turno: str, pax: int, ora: str, escludi_id: Optional[int] = None,
+             durata_min: Optional[int] = None) -> Dict[str, Any]:
     """Una prenotazione nuova (pax, ora) entra senza spostare fuori nessun altro? Dove?"""
-    return Verificatore(conn, data, turno, escludi_id).verifica(pax, ora)
+    return Verificatore(conn, data, turno, escludi_id).verifica(pax, ora, durata_min)
 
 
 def unione_da_prenotazione(conn, pren_id: int, origine: str = "thefork", solo_se_manca: bool = False) -> Optional[str]:

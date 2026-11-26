@@ -1,4 +1,4 @@
-// @version: v1.8-fonte — il form è la fonte: prefisso per paese, scheda riconosciuta da telefono o email mentre scrivi, persone della scheda («chi sta prenotando»), esito verso TheFork (2026-11-26); v1.7-telefono — su iPhone a tutto schermo con titolo e «Salva» sempre a vista, campi a 16 px (Safari non ingrandisce la pagina), orari e ± da pollice (2026-11-24); v1.6-stati — si nasce Confermata, In opzione (con «tenuto fino al») o in Lista d'attesa; in modifica la data dell'opzione (2026-11-13); v1.5-motore — «entra / non entra» col tavolo suggerito dal motore per tavoli, «Usa» lo scrive (anche le unioni) (2026-10-29); v1.4 — stesso form per modificare una prenotazione (prop «prenotazione», PUT) (2026-10-28); v1.3 — defaultCliente: aperto dalla scheda cliente con il cliente già scelto (2026-10-19); v1.2-fasce — slot chiusi/pieni segnati e avviso sulla fascia; v1.1-tavolo-turno — apribile dalla mappa con tavolo e turno già scelti; tavoli bloccati non selezionabili
+// @version: v1.9-thefork — copiato dal form di TheFork Manager: carico su ogni orario (arrivi e coperti in sala), durata sulla singola prenotazione, titolo e lingua del cliente nuovo, «apri WhatsApp con la conferma» al salvataggio (2026-11-26); v1.8-fonte — il form è la fonte: prefisso per paese, scheda riconosciuta da telefono o email mentre scrivi, persone della scheda («chi sta prenotando»), esito verso TheFork (2026-11-26); v1.7-telefono — su iPhone a tutto schermo con titolo e «Salva» sempre a vista, campi a 16 px (Safari non ingrandisce la pagina), orari e ± da pollice (2026-11-24); v1.6-stati — si nasce Confermata, In opzione (con «tenuto fino al») o in Lista d'attesa; in modifica la data dell'opzione (2026-11-13); v1.5-motore — «entra / non entra» col tavolo suggerito dal motore per tavoli, «Usa» lo scrive (anche le unioni) (2026-10-29); v1.4 — stesso form per modificare una prenotazione (prop «prenotazione», PUT) (2026-10-28); v1.3 — defaultCliente: aperto dalla scheda cliente con il cliente già scelto (2026-10-19); v1.2-fasce — slot chiusi/pieni segnati e avviso sulla fascia; v1.1-tavolo-turno — apribile dalla mappa con tavolo e turno già scelti; tavoli bloccati non selezionabili
 // Form modale per nuova prenotazione — modulo Prenotazioni TRGB
 import React, { useState, useEffect, useRef } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
@@ -7,6 +7,9 @@ const CANALI = ["Telefono", "WhatsApp", "Walk-in", "Email", "Altro"];
 // Chi è la persona che prenota per la scheda (facoltativo)
 const RELAZIONI = ["", "moglie", "marito", "compagno/a", "figlio/a", "genitore", "segreteria", "altro"];
 const OCCASIONI = ["", "Compleanno", "Anniversario", "Laurea", "Cresima", "Battesimo", "Cena aziendale", "Altro"];
+
+// Nomi delle lingue dei clienti (il codice completo, es. en_GB, resta quello dell'elenco prefissi)
+const NOMI_LINGUA = { it: "Italiano", en: "Inglese", fr: "Francese", de: "Tedesco", es: "Spagnolo", nl: "Olandese", pt: "Portoghese", pl: "Polacco", ru: "Russo", sv: "Svedese", da: "Danese", ja: "Giapponese", zh: "Cinese" };
 
 export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTurno, defaultCliente, prenotazione, onClose, onSuccess }) {
   // Modifica (2026-10-28): con «prenotazione» il form parte dai suoi dati e salva con PUT
@@ -33,8 +36,11 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
     nuovo_telefono: "",
     nuovo_email: "",
     nuovo_prefisso: "",
+    nuovo_titolo: "",
+    nuovo_lingua: "",
     persona_nome: "",
     persona_relazione: "",
+    durata_min: P.durata_min || "",
     // 2026-11-13: stato di partenza e, per «In opzione», fino a quando si tiene il tavolo
     stato: "RECORDED",
     tenuto_fino_al: P.tenuto_fino_al || "",
@@ -55,6 +61,9 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
   const [riconosciuti, setRiconosciuti] = useState([]);
   const [persone, setPersone] = useState([]);
   const [nuovaPersona, setNuovaPersona] = useState(false);
+  // Carico del turno per orario (arrivi e coperti in sala) e conferma WhatsApp al salvataggio
+  const [carico, setCarico] = useState({ orari: [], capienza: 0, durata_regola: null });
+  const [mandaConferma, setMandaConferma] = useState(false);
   const searchRef = useRef(null);
   const searchTimeout = useRef(null);
 
@@ -172,11 +181,39 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
     : null;
   const slotCorrente = turnoCorrente === "pranzo" ? slotPranzo : slotCena;
 
+  useEffect(() => {
+    apiFetch(`${API_BASE}/prenotazioni/carico/${form.data_pasto}/${turnoCorrente}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setCarico(d || { orari: [], capienza: 0, durata_regola: null }))
+      .catch(() => setCarico({ orari: [], capienza: 0, durata_regola: null }));
+  }, [form.data_pasto, turnoCorrente]);
+  // Passi di 30 minuti attorno alla durata di regola del turno, più «tutto il turno»
+  const durateScelta = (() => {
+    const base = carico.durata_regola || 0;
+    if (!base) return [];
+    const out = [];
+    for (let m = Math.max(30, base - 60); m <= base + 90; m += 30) if (m !== base) out.push(m);
+    return out;
+  })();
+  // Lingue proposte: quelle dei paesi dell'elenco prefissi; quella del prefisso scelto è la proposta
+  const tuttiPrefissi = [...prefissi.frequenti, ...prefissi.altri];
+  const linguaDalPrefisso = (tuttiPrefissi.find((p) => p.prefisso === (form.nuovo_prefisso || prefissi.locale)) || {}).lingua || "";
+  const lingueScelta = (() => {
+    const viste = new Set(); const out = [];
+    for (const p of tuttiPrefissi) {
+      const corta = (p.lingua || "").slice(0, 2);
+      if (corta && NOMI_LINGUA[corta] && !viste.has(corta)) { viste.add(corta); out.push(p.lingua); }
+    }
+    return out;
+  })();
+  const oreMin = (m) => `${Math.floor(m / 60)} h${m % 60 ? ` ${m % 60} min` : ""}`;
+
   // Motore per tavoli: la prenotazione entra senza lasciare fuori nessuno? Su quale tavolo?
   const [posto, setPosto] = useState(null);
   useEffect(() => {
     if (!form.data_pasto || !form.ora_pasto || !form.pax) { setPosto(null); return; }
     const q = new URLSearchParams({ data: form.data_pasto, turno: turnoCorrente, pax: form.pax, ora: form.ora_pasto });
+    if (form.durata_min) q.set("durata", form.durata_min);
     if (modifica && P.id) q.set("escludi_id", P.id);
     const t = setTimeout(() => {
       apiFetch(`${API_BASE}/prenotazioni/motore/verifica?${q}`)
@@ -185,7 +222,7 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
         .catch(() => setPosto(null));
     }, 300);
     return () => clearTimeout(t);
-  }, [form.data_pasto, form.ora_pasto, form.pax, turnoCorrente]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [form.data_pasto, form.ora_pasto, form.pax, form.durata_min, turnoCorrente]); // eslint-disable-line react-hooks/exhaustive-deps
   const tavoloProposto = posto && posto.entra && posto.tavolo ? posto.tavolo.tavoli.join("+") : "";
 
   const selezionaCliente = (c) => {
@@ -214,6 +251,8 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
       return;
     }
     setSubmitting(true);
+    // La finestra di WhatsApp si apre subito (prima delle chiamate), altrimenti il browser la blocca
+    const finestraWa = !modifica && mandaConferma ? window.open("", "_blank") : null;
     try {
       const r = modifica
         ? await apiFetch(`${API_BASE}/prenotazioni/${P.id}`, {
@@ -224,6 +263,7 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
               canale: form.canale, nota_ristorante: form.nota_ristorante, nota_cliente: form.nota_cliente,
               occasione: form.occasione, allergie_segnalate: form.allergie_segnalate,
               tavolo_esterno: form.tavolo_esterno, seggioloni: form.seggioloni,
+              ...((form.durata_min || "") !== (P.durata_min || "") ? { durata_min: Number(form.durata_min) || 0 } : {}),
               ...(form.cliente_id && form.cliente_id !== P.cliente_id ? { cliente_id: form.cliente_id } : {}),
               ...(P.stato === "OPTION" && (form.tenuto_fino_al || "") !== (P.tenuto_fino_al || "") ? { tenuto_fino_al: form.tenuto_fino_al } : {}),
             }),
@@ -231,20 +271,35 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
         : await apiFetch(`${API_BASE}/prenotazioni/`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ ...form, tenuto_fino_al: form.stato === "OPTION" ? (form.tenuto_fino_al || null) : null }),
+            body: JSON.stringify({ ...form, durata_min: Number(form.durata_min) || null, tenuto_fino_al: form.stato === "OPTION" ? (form.tenuto_fino_al || null) : null }),
           });
       if (r.ok) {
         const d = await r.json().catch(() => ({}));
+        if (finestraWa) {
+          try {
+            const rw = await apiFetch(`${API_BASE}/prenotazioni/${d.id}/wa-link?tipo=conferma`);
+            const dw = await rw.json();
+            if (rw.ok && dw.link) {
+              finestraWa.location.href = dw.link;
+              await apiFetch(`${API_BASE}/prenotazioni/${d.id}/inviato?tipo=conferma`, { method: "POST" });
+            } else {
+              finestraWa.close();
+              alert(`Prenotazione salvata, ma la conferma WhatsApp non si può aprire: ${dw.detail || "manca il telefono"}`);
+            }
+          } catch { finestraWa.close(); }
+        }
         const tfk = d.thefork || {};
         if (tfk.stato === "da_mandare") alert("Prenotazione salvata. Su TheFork non è ancora partita (orario non prenotabile online): TRGB riprova da solo.");
         else if (tfk.stato === "no") alert(`Prenotazione salvata, ma resta solo in TRGB: ${tfk.nota || "non può andare su TheFork"}.`);
         else if (tfk.stato === "errore") alert(`Prenotazione salvata in TRGB, ma TheFork l'ha rifiutata: ${tfk.nota || ""}`);
         onSuccess(d);
       } else {
+        if (finestraWa) finestraWa.close();
         const err = await r.json();
         alert(err.detail || (modifica ? "Errore nella modifica" : "Errore nella creazione"));
       }
     } catch {
+      if (finestraWa) finestraWa.close();
       alert("Errore di connessione");
     }
     setSubmitting(false);
@@ -327,11 +382,14 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
                   const f = fasce.find((x) => x.ora === s);
                   const chiusa = f && !f.aperta;
                   const piena = f && f.piena;
+                  // Carico a quell'ora: quanti arrivano e quanti sono già in sala (come su TheFork Manager)
+                  const c = carico.orari.find((x) => x.ora === s);
+                  const descr = c ? `${c.arrivi} in arrivo a quest'ora · ${c.coperti} coperti in sala${carico.capienza ? ` su ${carico.capienza}` : ""}` : "";
                   return (
                     <button
                       key={s}
                       type="button"
-                      title={chiusa ? "Fascia chiusa" : piena ? `Fascia piena (${f.coperti}/${f.max_coperti})` : ""}
+                      title={[chiusa ? "Fascia chiusa" : piena ? `Fascia piena (${f.coperti}/${f.max_coperti})` : "", descr].filter(Boolean).join(" — ")}
                       onClick={() => setForm({ ...form, ora_pasto: s })}
                       className={`px-3 py-2.5 text-sm sm:px-2 sm:py-1 sm:text-xs rounded border transition ${
                         form.ora_pasto === s
@@ -341,7 +399,12 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
                           : "bg-white text-neutral-600 border-neutral-300 hover:bg-neutral-50"
                       }`}
                     >
-                      {s}
+                      <span className="block">{s}</span>
+                      {c && (
+                        <span className={`block text-[10px] leading-tight font-normal ${form.ora_pasto === s ? "text-indigo-100" : "text-neutral-400"}`}>
+                          +{c.arrivi} · {c.coperti}{carico.capienza ? `/${carico.capienza}` : ""}
+                        </span>
+                      )}
                     </button>
                   );
                 })}
@@ -584,9 +647,50 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
                     className="min-w-0 px-2 py-1.5 border border-neutral-300 rounded text-base sm:text-sm max-sm:min-h-[44px]"
                   />
                 </div>
+                {/* Titolo e lingua: servono a TheFork e ai messaggi; la lingua, se vuota, viene dal prefisso */}
+                <div className="grid grid-cols-2 gap-2">
+                  <select
+                    aria-label="Titolo"
+                    value={form.nuovo_titolo}
+                    onChange={(e) => setForm({ ...form, nuovo_titolo: e.target.value })}
+                    className="min-w-0 px-2 py-1.5 border border-neutral-300 rounded text-base sm:text-sm max-sm:min-h-[44px] bg-white"
+                  >
+                    <option value="">Titolo —</option>
+                    <option value="Mr">Sig.</option>
+                    <option value="Mrs">Sig.ra</option>
+                  </select>
+                  <select
+                    aria-label="Lingua"
+                    value={form.nuovo_lingua}
+                    onChange={(e) => setForm({ ...form, nuovo_lingua: e.target.value })}
+                    className="min-w-0 px-2 py-1.5 border border-neutral-300 rounded text-base sm:text-sm max-sm:min-h-[44px] bg-white"
+                  >
+                    <option value="">Lingua: dal prefisso{linguaDalPrefisso ? ` (${NOMI_LINGUA[linguaDalPrefisso.slice(0, 2)] || linguaDalPrefisso})` : ""}</option>
+                    {lingueScelta.map((l) => <option key={l} value={l}>{NOMI_LINGUA[l.slice(0, 2)] || l}</option>)}
+                  </select>
+                </div>
               </div>
             )}
           </div>
+
+          {/* Durata: vuota = la regola del turno */}
+          {carico.durata_regola ? (
+            <div>
+              <label className="block text-xs font-medium text-neutral-600 mb-1">Durata</label>
+              <select
+                value={form.durata_min}
+                onChange={(e) => setForm({ ...form, durata_min: e.target.value })}
+                className="w-full sm:w-64 px-3 py-2 border border-neutral-300 rounded-lg text-base sm:text-sm max-sm:min-h-[44px] bg-white"
+              >
+                <option value="">Come da regola ({oreMin(carico.durata_regola)})</option>
+                {form.durata_min && !durateScelta.includes(Number(form.durata_min)) && Number(form.durata_min) !== 1440 && (
+                  <option value={form.durata_min}>{oreMin(Number(form.durata_min))}</option>
+                )}
+                {durateScelta.map((m) => <option key={m} value={m}>{oreMin(m)}</option>)}
+                <option value="1440">Tutto il turno</option>
+              </select>
+            </div>
+          ) : null}
 
           {/* Tavolo */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -674,6 +778,13 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
               />
             </div>
           </div>
+
+          {!modifica && (
+            <label className="flex items-center gap-2 text-sm text-neutral-700 max-sm:min-h-[44px]">
+              <input type="checkbox" checked={mandaConferma} onChange={(e) => setMandaConferma(e.target.checked)} />
+              Apri WhatsApp con la conferma, dopo il salvataggio
+            </label>
+          )}
 
           {/* Submit: sul telefono resta attaccato in basso */}
           <div className="flex justify-end gap-2 pt-2 border-t border-neutral-100 max-sm:sticky max-sm:bottom-0 max-sm:z-10 max-sm:-mx-4 max-sm:px-4 max-sm:py-3 max-sm:bg-white max-sm:border-neutral-200 max-sm:pb-[max(0.75rem,env(safe-area-inset-bottom))]">

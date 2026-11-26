@@ -230,7 +230,9 @@ def _timeline_turno(prenotazioni: List[Dict[str, Any]], config: Dict[str, str], 
     except ValueError:
         soglia_gruppo = 10
 
-    def _durata(p):  # i gruppi grandi non girano: tutto il turno
+    def _durata(p):  # durata propria della prenotazione (mig 249); i gruppi grandi non girano: tutto il turno
+        if p.get("durata_min"):
+            return int(p["durata_min"])
         return 24 * 60 if (p.get("pax") or 0) >= soglia_gruppo else durata_base
 
     orari = {m for m in (_minuti(x) for x in slot_cfg) if m is not None}
@@ -281,6 +283,9 @@ class PrenotazioneCreate(BaseModel):
     # 2026-11-26: prefisso scelto nel form, chi prenota se non è il titolare della scheda
     nuovo_prefisso: Optional[str] = None
     nuovo_lingua: Optional[str] = None
+    nuovo_titolo: Optional[str] = None
+    # Durata propria di questa prenotazione, in minuti (vuoto = la regola del turno)
+    durata_min: Optional[int] = Field(default=None, ge=0, le=1440)
     persona_nome: Optional[str] = None
     persona_relazione: Optional[str] = None
 
@@ -305,6 +310,7 @@ class PrenotazioneUpdate(BaseModel):
     stato: Optional[str] = None
     cliente_id: Optional[int] = None
     tenuto_fino_al: Optional[str] = None   # "" = togli la data
+    durata_min: Optional[int] = None       # 0 = torna alla regola del turno
 
 
 class StatoUpdate(BaseModel):
@@ -364,7 +370,7 @@ def get_planning(
                 p.menu_preset, p.degustazione, p.offerta_speciale, p.yums,
                 p.menu_evento, p.preventivo_id, p.motivo_cancellazione,
                 p.thefork_booking_id, p.creato_da, p.tenuto_fino_al,
-                p.persona_nome, p.thefork_invio, p.thefork_invio_nota,
+                p.persona_nome, p.thefork_invio, p.thefork_invio_nota, p.durata_min,
                 p.nome_ospite, p.cognome_ospite,
                 COALESCE(NULLIF(c.nome, ''), p.nome_ospite) AS nome,
                 COALESCE(NULLIF(c.cognome, ''), p.cognome_ospite) AS cognome,
@@ -675,14 +681,15 @@ def crea_prenotazione(
                     f"{g['nome']} {g['cognome']}".strip() + ": scegli quella scheda (puoi aggiungere chi sta prenotando)."))
             paese = tel_util.paese_di(numero)
             cur = conn.execute("""
-                INSERT INTO clienti (nome, cognome, telefono, email, lingua, origine, protetto)
-                VALUES (?, ?, ?, ?, COALESCE(?, 'it_IT'), 'diretto', 1)
+                INSERT INTO clienti (nome, cognome, telefono, email, lingua, titolo, origine, protetto)
+                VALUES (?, ?, ?, ?, COALESCE(?, 'it_IT'), ?, 'diretto', 1)
             """, (
                 req.nuovo_nome or "",
                 req.nuovo_cognome,
                 numero,
                 email_nuova,
                 req.nuovo_lingua or (paese["lingua"] if paese else None),
+                (req.nuovo_titolo or "").strip() or None,
             ))
             cliente_id = cur.lastrowid
             logger.info(f"Nuovo cliente creato da prenotazione: id={cliente_id}")
@@ -697,8 +704,8 @@ def crea_prenotazione(
                 canale, occasione, nota_ristorante, nota_cliente,
                 allergie_segnalate, tavolo_esterno, seggioloni,
                 data_prenotazione, prenotato_da, turno, fonte, creato_da,
-                token_cancellazione, tenuto_fino_al, persona_nome
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'), ?, ?, 'manuale', ?, ?, ?, ?)
+                token_cancellazione, tenuto_fino_al, persona_nome, durata_min
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'), ?, ?, 'manuale', ?, ?, ?, ?, ?)
         """, (
             cliente_id,
             req.data_pasto,
@@ -719,6 +726,7 @@ def crea_prenotazione(
             token,
             tenuto,
             persona,
+            req.durata_min or None,
         ))
         if persona and cliente_id:
             riconosci_srv.aggiungi_persona(conn, cliente_id, persona, req.persona_relazione, user.get("username"))
@@ -830,6 +838,29 @@ def search_clienti(
         """, (like, like, like, like, like, like)).fetchall()
 
         return {"clienti": [dict(r) for r in rows]}
+    finally:
+        conn.close()
+
+
+@router.get("/carico/{data}/{turno}")
+def get_carico(data: str, turno: str, user: dict = Depends(get_current_user)):
+    """
+    Per il form (2026-11-26, come gli orari di TheFork Manager): per ogni orario del turno
+    quanti coperti arrivano a quell'ora e quanti sono in sala in quel momento, più la capienza
+    e la durata di regola del turno (per proporla nel campo «Durata»).
+    """
+    verifica_ruoli(user, "admin", "sala", "sommelier", "capo_sala", cosa="il carico del turno")
+    if turno not in ("pranzo", "cena"):
+        raise HTTPException(status_code=400, detail="turno: pranzo o cena")
+    conn = get_clienti_conn()
+    try:
+        config = _get_config(conn)
+        righe = [dict(r) for r in conn.execute(
+            "SELECT id, data_pasto, ora_pasto, pax, stato, tavolo, durata_min FROM clienti_prenotazioni "
+            "WHERE data_pasto = ? AND turno = ?", (data, turno))]
+        return {"data": data, "turno": turno, "capienza": _capienza_turno(conn, data, turno, config),
+                "durata_regola": durata_tavolo(config, turno, data),
+                "orari": _timeline_turno(righe, config, turno)}
     finally:
         conn.close()
 
@@ -1289,11 +1320,12 @@ def get_motore_piano(data: str = Query(...), turno: str = Query(...), user: dict
 @router.get("/motore/verifica")
 def get_motore_verifica(data: str = Query(...), turno: str = Query(...), pax: int = Query(..., ge=1),
                         ora: str = Query(...), escludi_id: Optional[int] = Query(None),
+                        durata: Optional[int] = Query(None, ge=15, le=1440),
                         user: dict = Depends(get_current_user)):
     verifica_ruoli(user, "admin", "sala", "sommelier", "capo_sala", cosa="la disponibilità dei tavoli")
     conn = get_clienti_conn()
     try:
-        return tavoli_srv.verifica(conn, data, turno, pax, ora, escludi_id)
+        return tavoli_srv.verifica(conn, data, turno, pax, ora, escludi_id, durata)
     finally:
         conn.close()
 
@@ -2330,6 +2362,10 @@ def modifica_prenotazione(
             if value is not None:
                 updates.append(f"{field} = ?")
                 values.append(value)
+
+        if req.durata_min is not None:   # 0 = torna alla regola del turno
+            updates.append("durata_min = ?")
+            values.append(req.durata_min or None)
 
         # Ricalcola turno se cambia l'ora
         if req.ora_pasto is not None:

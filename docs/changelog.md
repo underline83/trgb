@@ -3,6 +3,20 @@
 
 ---
 
+## 2026-11-26 — Prenotazioni 2.42 / sistema 6.14: quattro cose prese dal form di TheFork Manager (mig 249) `[core]`
+
+Marco, dopo aver mandato le schermate dei due form di TheFork: «vai con le prime 4».
+
+### Aggiunto
+- **Carico sugli orari del form**: sotto ogni orario «+arrivi · coperti in sala/capienza» (`GET /prenotazioni/carico/{data}/{turno}`, stessa timeline del Planning).
+- **Durata sulla singola prenotazione**: campo «Durata» (vuoto = regola del turno, passi di 30 minuti, «Tutto il turno»). `clienti_prenotazioni.durata_min`; la leggono il motore tavoli, `/motore/verifica?durata=` e la timeline. Vince anche sulla regola dei gruppi.
+- **Titolo e lingua del cliente nuovo** (Sig./Sig.ra; lingua proposta dal prefisso, cambiabile): vanno sulla scheda e da lì a TheFork.
+- **«Apri WhatsApp con la conferma, dopo il salvataggio»**: una spunta nel form nuovo; apre il messaggio di conferma e lo segna inviato.
+
+### Da sapere
+- La durata propria resta in TRGB: l'API di TheFork non la prende.
+- Il consenso alle comunicazioni raccolto al telefono non c'è ancora: Marco deve decidere dove si scrive.
+
 ## 2026-11-26 — Produzioni 1.1: una produzione con la data vecchia non spariva dal registro, ma dall'elenco sì `[core]`
 
 Marco, alla prima produzione vera (N27CKT, Amaro dell'Oste, datata 1/11): «non so se l'ha salvata». Era salvata, ma l'elenco mostrava solo le produzioni con data negli ultimi 7 giorni.

@@ -772,6 +772,10 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   prenotazioni: {
+    // 2.42 (2026-11-26): dal form di TheFork Manager (Marco: «vai con le prime 4») — su ogni orario del form quanti arrivano e
+    //   quanti sono in sala (GET /prenotazioni/carico/{data}/{turno}); durata sulla singola prenotazione (mig 249
+    //   clienti_prenotazioni.durata_min: vince sulla regola del turno in motore tavoli e timeline); titolo e lingua del cliente
+    //   nuovo; «Apri WhatsApp con la conferma» al salvataggio. Il consenso alle comunicazioni NON c'è: da decidere con Marco.
     // 2.41 (2026-11-26): TRGB è la fonte (Marco: «non inseriremo più da TheFork») — il form riconosce la scheda da telefono o
     //   email mentre scrivi, prefisso per paese, «chi sta prenotando» (persone della scheda); thefork_invio_service manda a TheFork
     //   le prenotazioni prese a mano (coda «da mandare» se l'orario è chiuso online, modifiche e cancellazioni riportate, niente
@@ -824,7 +828,7 @@ const MODULE_VERSIONS = {
     // 2.16 (2026-10-19): Prenotazioni › Archivio (tutte le prenotazioni con filtri), spostato da
     //   Clienti; API nuova GET /prenotazioni/archivio/ (+ /riepilogo/). /clienti/prenotazioni rimanda qui.
     // 2.15 (2026-10-19): PrenotazioniForm accetta defaultCliente (bottone «Prenota» della scheda cliente).
-    version: "2.41",
+    version: "2.42",
     label: "Prenotazioni",
     status: "beta",
     color: "blue",
@@ -999,6 +1003,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 6.14 (2026-11-26): mig 249 — clienti_prenotazioni.durata_min (durata propria di una prenotazione, NULL = regola del turno).
     // 6.13 (2026-11-26): mig 248 — cucina_produzioni e cucina_produzioni_persone: registro delle produzioni e codice
     //   lotto a 6 caratteri (data, persona, numero produzione, leggibili solo da TRGB). Sotto-modulo nuovo
     //   ricette/produzioni nella matrice Moduli. Chiave dei codici fra i dati del locale (lotto_chiave.json).
@@ -1189,7 +1194,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "6.13",
+    version: "6.14",
     label: "Sistema",
     status: "stabile",
     color: "green",
