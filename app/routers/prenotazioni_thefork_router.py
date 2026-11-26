@@ -107,7 +107,7 @@ def prova_connessione():
 
 class ProvaCreazioneReq(BaseModel):
     data: date
-    email: str
+    email: str = ""
     nome: str
     cognome: str
     ora: Optional[str] = None      # HH:MM; vuoto = prima fascia prenotabile online
@@ -122,8 +122,9 @@ def prova_creazione(req: ProvaCreazioneReq):
     """Crea su TheFork una prenotazione di prova e la cancella subito (verifica del permesso)."""
     if req.data <= date.today():
         raise HTTPException(400, "scegli un giorno futuro")
-    if "@" not in req.email or not req.nome.strip() or not req.cognome.strip():
-        raise HTTPException(400, "servono email, nome e cognome")
+    # email vuota ammessa: serve a provare cosa risponde TheFork senza email (solo telefono)
+    if (req.email.strip() and "@" not in req.email) or not req.nome.strip() or not req.cognome.strip():
+        raise HTTPException(400, "servono nome e cognome (e un'email valida, se la metti)")
     return tf_prenota.prova_creazione(
         req.data.isoformat(), req.email.strip(), req.nome.strip(), req.cognome.strip(),
         ora=(req.ora or "").strip() or None, coperti=req.coperti,

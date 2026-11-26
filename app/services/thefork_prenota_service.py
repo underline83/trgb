@@ -29,12 +29,16 @@ def crea_prenotazione(data_ora: str, coperti: int, cliente: Dict[str, Any],
                       nota_cliente: Optional[str] = None) -> Dict[str, Any]:
     """
     Crea una prenotazione su TheFork. `data_ora` = «AAAA-MM-GGTHH:MM» in ora del
-    locale. `cliente` = email, firstName, lastName, locale, civility (+ phone).
+    locale (l'offset lo aggiunge questa funzione). `cliente` = email, firstName, lastName, locale, civility (+ phone).
     Solleva TheForkErroreAPI (403 = manca il permesso, 409 = fascia non prenotabile).
     """
     uuid = tf._restaurant_uuid_atteso()
     if not tf.credenziali_presenti() or not uuid:
         raise tf.TheForkNonConfigurato("credenziali B2B API non configurate")
+    # L'ora va SEMPRE con l'offset: provato il 26/11/2026, senza offset TheFork la legge
+    # come UTC (12:30 diventa 13:30), al contrario di quanto dice la sua documentazione.
+    if "+" not in data_ora[10:] and "-" not in data_ora[10:] and not data_ora.endswith("Z"):
+        data_ora = _con_fuso(data_ora[:10], data_ora[11:16])
     corpo: Dict[str, Any] = {"mealDate": data_ora, "partySize": int(coperti), "customer": cliente}
     if nota_ristorante:
         corpo["restaurantNote"] = nota_ristorante[:1000]
@@ -101,7 +105,9 @@ def prova_creazione(data: str, email: str, nome: str, cognome: str,
                 return esito
             ora = fasce[0]
             esito["ora"] = ora
-        cliente = {"email": email, "firstName": nome, "lastName": cognome, "locale": lingua, "civility": titolo}
+        cliente = {"firstName": nome, "lastName": cognome, "locale": lingua, "civility": titolo}
+        if email:
+            cliente["email"] = email
         if telefono:
             cliente["phone"] = telefono
         quando = _con_fuso(data, ora) if con_fuso else f"{data}T{ora}"

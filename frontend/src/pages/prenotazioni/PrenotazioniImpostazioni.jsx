@@ -949,7 +949,7 @@ function TheForkSection() {
             prova anche la modifica
           </label>
           <Btn variant="secondary" size="md" loading={busy === "creazione"}
-               disabled={!!busy || !stato?.credenziali_presenti || !prova.data || !prova.email}
+               disabled={!!busy || !stato?.credenziali_presenti || !prova.data || (!prova.email && !prova.telefono)}
                onClick={() => azione("creazione", "/prenotazioni/thefork/prova-creazione", prova)}>
             Crea e cancella subito
           </Btn>
