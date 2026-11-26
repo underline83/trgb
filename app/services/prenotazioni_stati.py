@@ -63,8 +63,8 @@ DEFAULT_TRANSIZIONI: Dict[str, List[str]] = {
     "WAITLIST":   ["OPTION", "RECORDED", "CANCELED"],
     "RECORDED":   ["ARRIVED", "SEATED", "OPTION", "CANCELED", "NO_SHOW", "REFUSED"],
     "ARRIVED":    ["SEATED", "CANCELED", "NO_SHOW", "RECORDED"],
-    "SEATED":     ["LEFT", "BILL", "RECORDED"],   # RECORDED = passo indietro (mig 250)
-    "BILL":       ["LEFT", "SEATED"],
+    "SEATED":     ["LEFT", "RECORDED"],           # RECORDED = passo indietro (mig 250); «Al conto» tolto (mig 251)
+    "BILL":       ["LEFT", "SEATED"],             # non ci si arriva più (mig 251): resta solo l'uscita
     "LEFT":       ["SEATED"],                     # passo indietro (mig 250)
     "CANCELED":   ["RECORDED"],   # ripristino
     "NO_SHOW":    ["RECORDED"],   # ripristino

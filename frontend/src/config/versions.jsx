@@ -878,7 +878,11 @@ const MODULE_VERSIONS = {
     // 2.16 (2026-10-19): Prenotazioni › Archivio (tutte le prenotazioni con filtri), spostato da
     //   Clienti; API nuova GET /prenotazioni/archivio/ (+ /riepilogo/). /clienti/prenotazioni rimanda qui.
     // 2.15 (2026-10-19): PrenotazioniForm accetta defaultCliente (bottone «Prenota» della scheda cliente).
-    version: "2.52",
+    // 2.53 (2026-11-26): «Al conto» tolto (Marco: non si usa, né qui né su TheFork). Se arriva da TheFork vale come
+    //   libero: si scrive «Completata» e il tavolo non è occupato.
+    //   Il giorno nel titolo (Servizio, Elenco, Mappa) si tocca e apre un mese piccolo per saltare a un altro giorno.
+    //   Servizio: tasto «tavolo +» sulla prenotazione scelta → si toccano i tavoli sulla mappa (anche più d'uno) e si assegnano.
+    version: "2.53",
     label: "Prenotazioni",
     status: "beta",
     color: "blue",
@@ -1053,6 +1057,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 6.16 (2026-11-26): mig 251 — tolto il passaggio Seduto → Al conto; le prenotazioni rimaste «Al conto» → «Completata».
     // 6.15 (2026-11-26): mig 250 — clienti_prenotazioni.riconfermata_at («Confermato»), etichetta «Prenotato» per RECORDED,
     //   passi all'indietro in prenotazioni_stati_transizioni.
     // 6.14 (2026-11-26): mig 249 — clienti_prenotazioni.durata_min (durata propria di una prenotazione, NULL = regola del turno).
@@ -1246,7 +1251,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "6.15",
+    version: "6.16",
     label: "Sistema",
     status: "stabile",
     color: "green",

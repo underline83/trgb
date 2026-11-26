@@ -199,8 +199,8 @@ Passaggi permessi (seed):
 | WAITLIST | OPTION, RECORDED, CANCELED |
 | RECORDED | ARRIVED, SEATED, OPTION, CANCELED, NO_SHOW, REFUSED |
 | ARRIVED | SEATED, CANCELED, NO_SHOW |
-| SEATED | LEFT, BILL |
-| BILL | LEFT |
+| SEATED | LEFT, RECORDED (passo indietro) — «Al conto» tolto il 2026-11-26 (mig 251): non si usa; se arriva da TheFork si scrive LEFT |
+| BILL | LEFT, SEATED (solo uscita: non ci si arriva più) |
 | PARTIALLY_ARRIVED | SEATED, LEFT |
 | CANCELED / NO_SHOW / REFUSED | RECORDED (ripristino) |
 | LEFT | — (terminale) |

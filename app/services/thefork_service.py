@@ -432,6 +432,9 @@ def mappa_prenotazione(r: Dict[str, Any], soglia: str) -> Dict[str, Any]:
         stato = status or "RECORDED"
     else:
         stato = meal_status
+    # «Al conto» non si usa, né qui né su TheFork (Marco 2026-11-26): se mai arriva, è un tavolo libero
+    if stato == "BILL":
+        stato = "LEFT"
 
     rec: Dict[str, Any] = {
         "thefork_booking_id": r.get("reservationUuid"),

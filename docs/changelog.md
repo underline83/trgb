@@ -3,6 +3,16 @@
 
 ---
 
+## 2026-11-26 — Prenotazioni 2.53 / sistema 6.16: «Al conto» tolto (mig 251) `[core]`
+
+### Aggiunto
+- Servizio: sulla prenotazione scelta c'è il tasto col tavolo e il «+». Si toccano i tavoli sulla mappa (anche più d'uno, anche in sale diverse), poi «Assegna». Senza nessun tavolo scelto diventa «Togli il tavolo».
+- Toccando il giorno nel titolo (Servizio, Elenco, Mappa) si apre un mese piccolo: si sceglie un altro giorno senza scorrere le date una a una.
+
+### Tolto
+- Lo stato «Al conto» non si sceglie più (Planning, Servizio, Mappa): non si usa, né in TRGB né su TheFork.
+- Se TheFork lo manda, la prenotazione si scrive «Completata» e il tavolo è libero. Le 12 prenotazioni vecchie rimaste «Al conto» diventano «Completata».
+
 ## 2026-11-26 — Prenotazioni 2.52: stessa riga in alto nelle tre viste `[core]`
 
 ### Cambiato

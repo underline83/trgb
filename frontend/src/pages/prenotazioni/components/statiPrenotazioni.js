@@ -31,7 +31,7 @@ export const FALLBACK = [
   F("RECORDED", "Prenotato", "📅", "indigo", "o", ["ARRIVED", "SEATED", "OPTION", "CANCELED", "NO_SHOW", "REFUSED"]),
   F("ARRIVED", "Arrivato", "🚶", "teal", "ov", ["SEATED", "CANCELED", "NO_SHOW", "RECORDED"]),
   F("PARTIALLY_ARRIVED", "Parziale", "👥", "amber", "ov", ["SEATED", "LEFT"]),
-  F("SEATED", "Seduto", "✅", "emerald", "ov", ["LEFT", "BILL", "RECORDED"]),
+  F("SEATED", "Seduto", "✅", "emerald", "ov", ["LEFT", "RECORDED"]),   // «Al conto» non si usa (mig 251)
   F("BILL", "Al conto", "🧾", "amber", "ov", ["LEFT", "SEATED"]),
   F("LEFT", "Completata", "🚪", "neutral", "ov", ["SEATED"]),
   F("CANCELED", "Cancellata", "✖", "neutral", "f", ["RECORDED"]),

@@ -1,4 +1,4 @@
-// @version: v1.10 — stato a quattro caselle in una riga (Prenotato · Confermato · Seduto · Libero): si tocca quella dove deve andare, avanti o indietro; le altre azioni sotto, piccole e uguali (2026-11-26); v1.9 — sul telefono gli orari sono un elenco a tendina (i tasti erano inutilizzabili) (2026-11-26); v1.8 — un tasto solo per lo stato che avanza (Prenotato → Confermato → Seduto → libera il tavolo), «↩» per tornare indietro, gli altri cambi in «Altro» (2026-11-26); v1.7 — riepilogo del turno nella riga sopra la sala (la testata resta su una riga) (2026-11-26); v1.6 — tutti i cambi di stato del Planning (stessi bottoni) e riconferma WhatsApp; testata comune del modulo (components/Testata.jsx) (2026-11-26); v1.5 — nell'elenco le stesse etichette del Planning (canale, stelle, segmento, bollino, no-show, allergie, doppione…), nome che apre la scheda cliente, note in riga (2026-11-26); v1.4 — niente barre di scorrimento (orari a colonne uguali, schede sale, elenco), piantina stretta sui tavoli, «tavoli liberi» solo nelle sale aperte (2026-11-26); v1.3 — nell'ingranaggio «Blocca le prenotazioni online» e «Chiudi servizio» (anche su TheFork), con conferma (2026-11-26); v1.2 — ingranaggio «Modifica servizio» (sale aperte, fasce e online, tavoli del turno) e matita per la sala (2026-11-26); v1.1 — stessa larghezza di pagina di Planning e Mappa, elenco a larghezza fissa e sala che non cambia misura; iPad in piedi: sala sopra, elenco sotto (2026-11-26); v1.0 — vista «Servizio»: elenco del turno e sala nella stessa schermata, striscia degli orari per vedere la sala a un'altra ora, due schede sul telefono (2026-11-26)
+// @version: v1.11 — tasto «tavolo +»: si assegnano i tavoli a una prenotazione toccandoli sulla mappa (2026-11-26); v1.10 — stato a quattro caselle in una riga (Prenotato · Confermato · Seduto · Libero): si tocca quella dove deve andare, avanti o indietro; le altre azioni sotto, piccole e uguali (2026-11-26); v1.9 — sul telefono gli orari sono un elenco a tendina (i tasti erano inutilizzabili) (2026-11-26); v1.8 — un tasto solo per lo stato che avanza (Prenotato → Confermato → Seduto → libera il tavolo), «↩» per tornare indietro, gli altri cambi in «Altro» (2026-11-26); v1.7 — riepilogo del turno nella riga sopra la sala (la testata resta su una riga) (2026-11-26); v1.6 — tutti i cambi di stato del Planning (stessi bottoni) e riconferma WhatsApp; testata comune del modulo (components/Testata.jsx) (2026-11-26); v1.5 — nell'elenco le stesse etichette del Planning (canale, stelle, segmento, bollino, no-show, allergie, doppione…), nome che apre la scheda cliente, note in riga (2026-11-26); v1.4 — niente barre di scorrimento (orari a colonne uguali, schede sale, elenco), piantina stretta sui tavoli, «tavoli liberi» solo nelle sale aperte (2026-11-26); v1.3 — nell'ingranaggio «Blocca le prenotazioni online» e «Chiudi servizio» (anche su TheFork), con conferma (2026-11-26); v1.2 — ingranaggio «Modifica servizio» (sale aperte, fasce e online, tavoli del turno) e matita per la sala (2026-11-26); v1.1 — stessa larghezza di pagina di Planning e Mappa, elenco a larghezza fissa e sala che non cambia misura; iPad in piedi: sala sopra, elenco sotto (2026-11-26); v1.0 — vista «Servizio»: elenco del turno e sala nella stessa schermata, striscia degli orari per vedere la sala a un'altra ora, due schede sul telefono (2026-11-26)
 // Modulo: prenotazioni
 // Idea presa da TheFork Manager (Marco 2026-11-26: «il mix tra prenotazioni e tavoli è una visual molto utile»).
 // Non sostituisce Planning né Mappa Tavoli: è una terza vista, da provare in servizio.
@@ -72,6 +72,7 @@ export default function PrenotazioniServizio() {
   const [lavoro, setLavoro] = useState(false);
   const [altroAperto, setAltroAperto] = useState(null);       // id della prenotazione con «Altro» aperto
   const [clienteAperto, setClienteAperto] = useState(null);   // scheda cliente aperta dall'elenco, come nel Planning
+  const [assegno, setAssegno] = useState(null);               // {id, nomi:[…]}: sto scegliendo sulla mappa i tavoli di quella prenotazione
   const righeRef = useRef({});
 
   const flash = (type, text) => { setToast({ type, text }); setTimeout(() => setToast(null), 3000); };
@@ -100,7 +101,7 @@ export default function PrenotazioniServizio() {
       if (soglia && giornoLocale() === data && new Date().toTimeString().slice(0, 5) < soglia) setTurno("pranzo");
     }).catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { setLoading(true); setOra(null); setSceltaId(null); carica(); }, [carica]);
+  useEffect(() => { setLoading(true); setOra(null); setSceltaId(null); setAssegno(null); carica(); }, [carica]);
   useEffect(() => { const t = setInterval(carica, 30000); return () => clearInterval(t); }, [carica]);
   useEffect(() => { navigate(`/prenotazioni/servizio/${data}/${turno}`, { replace: true }); }, [data, turno]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -224,8 +225,8 @@ export default function PrenotazioniServizio() {
   const passoDi = (p) => {
     if (p.stato === "RECORDED") return p.riconfermata_at ? 1 : 0;
     if (p.stato === "ARRIVED") return 1;
-    if (["SEATED", "BILL", "PARTIALLY_ARRIVED"].includes(p.stato)) return 2;
-    if (p.stato === "LEFT") return 3;
+    if (["SEATED", "PARTIALLY_ARRIVED"].includes(p.stato)) return 2;
+    if (["LEFT", "BILL"].includes(p.stato)) return 3;   // «Al conto» non si usa: se arriva, vale come libero
     return -1;
   };
 
@@ -345,6 +346,36 @@ export default function PrenotazioniServizio() {
   const hhmm = (m) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
   const slotAdesso = inTurno ? [...orari].reverse().find((o) => minuti(o.ora) <= adessoMin)?.ora : null;
 
+  // ── Tavoli scelti sulla mappa (Marco 2026-11-26: «un tavolo con il +, per assegnare i tavoli selezionandoli sulla mappa») ──
+  const inAssegno = assegno ? attive.find((x) => x.id === assegno.id) || null : null;
+  const apriAssegno = (p) => {
+    setSceltaId(p.id); setAltroAperto(null);
+    setAssegno({ id: p.id, nomi: nomiTavolo(p.tavolo) });
+    if (telefono) setScheda("mappa");
+  };
+  const toccaPerAssegno = (t, p, bloccato) => {
+    if (bloccato) { flash("err", `Il tavolo ${t.nome} è bloccato`); return; }
+    if (p && p.id !== assegno.id) { flash("err", `Il tavolo ${t.nome} è di ${nomeDi(p)}`); return; }
+    const nomi = nomiDelTavolo(t);
+    setAssegno((a) => (!a ? a : nomi.every((n) => a.nomi.includes(n))
+      ? { ...a, nomi: a.nomi.filter((n) => !nomi.includes(n)) }
+      : { ...a, nomi: [...a.nomi, ...nomi.filter((n) => !a.nomi.includes(n))] }));
+  };
+  const postiAssegno = assegno ? tuttiTavoli.filter((t) => nomiDelTavolo(t).every((n) => assegno.nomi.includes(n))).reduce((tot, t) => tot + (t.posti_max || 0), 0) : 0;
+  const salvaAssegno = async () => {
+    if (!assegno || !inAssegno) { setAssegno(null); return; }
+    const tavolo = assegno.nomi.join("+");
+    setLavoro(true);
+    try {
+      const r = await apiFetch(`${API_BASE}/prenotazioni/tavoli/assegna/${assegno.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tavolo }) });
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.detail || "Tavolo non assegnato"); }
+      flash("ok", tavolo ? `${nomeDi(inAssegno)}: tavolo ${assegno.nomi.join(" + ")}` : `${nomeDi(inAssegno)}: senza tavolo`);
+      setAssegno(null);
+      await carica();
+    } catch (e) { flash("err", e.message || "Errore di connessione"); }
+    finally { setLavoro(false); }
+  };
+
   // ── Pezzi ──
   const Azioni = ({ p }) => {
     const g = giro(p);
@@ -376,6 +407,14 @@ export default function PrenotazioniServizio() {
           <button type="button" className={quieto} onClick={() => riconferma(p)}>{p.reminder_inviato === 1 ? "WhatsApp (reinvia)" : "WhatsApp"}</button>
         )}
         {telefono && <button type="button" className={quieto} onClick={() => setScheda(scheda === "elenco" ? "mappa" : "elenco")}>{scheda === "elenco" ? "Sulla mappa" : "In elenco"}</button>}
+        {p.stato !== "LEFT" && (
+          <button type="button" onClick={() => (assegno?.id === p.id ? setAssegno(null) : apriAssegno(p))} aria-pressed={assegno?.id === p.id}
+            title="Assegna i tavoli toccandoli sulla mappa" aria-label="Assegna i tavoli toccandoli sulla mappa"
+            className={`px-3 min-h-[40px] rounded-lg border flex items-center gap-1 text-sm font-bold ${assegno?.id === p.id ? "border-indigo-800 bg-indigo-800 text-white" : "border-neutral-300 bg-white text-neutral-800 hover:bg-neutral-50"}`}>
+            <svg aria-hidden="true" width="22" height="18" viewBox="0 0 24 20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="8" rx="2" /><path d="M6 12v5M18 12v5" /></svg>
+            <span aria-hidden="true">+</span>
+          </button>
+        )}
         {g.fuoriGiro.length > 0 && (
           <button type="button" className={quieto} onClick={() => setAltroAperto(altroAperto === p.id ? null : p.id)} aria-expanded={altroAperto === p.id}>Altro {altroAperto === p.id ? "▴" : "▾"}</button>
         )}
@@ -491,8 +530,18 @@ export default function PrenotazioniServizio() {
     <div className="flex flex-col gap-2">
       {Striscia}
       {/* Riga sempre presente e alta uguale: toccando un orario la sala sotto non si sposta */}
-      <div className={`flex items-center justify-between gap-2 text-[13px] rounded-lg pr-1.5 min-h-[48px] border ${ora != null ? "pl-3 text-emerald-900 bg-emerald-50 border-emerald-600" : "pl-0.5 text-neutral-600 bg-transparent border-transparent"}`}>
-        {ora != null ? (
+      <div className={`flex items-center justify-between gap-2 text-[13px] rounded-lg pr-1.5 min-h-[48px] border ${inAssegno ? "pl-3 text-indigo-950 bg-indigo-50 border-indigo-700" : ora != null ? "pl-3 text-emerald-900 bg-emerald-50 border-emerald-600" : "pl-0.5 text-neutral-600 bg-transparent border-transparent"}`}>
+        {inAssegno ? (
+          <>
+            <span>Tocca i tavoli per <strong>{nomeDi(inAssegno)}</strong> ({inAssegno.pax} p): {assegno.nomi.length
+              ? <><strong>{assegno.nomi.join(" + ")}</strong> · {postiAssegno} posti{postiAssegno < (inAssegno.pax || 0) ? " (pochi)" : ""}</>
+              : "nessuno scelto"}</span>
+            <span className="flex gap-1.5 flex-shrink-0">
+              <button type="button" onClick={() => setAssegno(null)} className="px-3 min-h-[36px] rounded-lg border border-neutral-300 bg-white text-sm font-semibold text-neutral-800">Annulla</button>
+              <button type="button" disabled={lavoro} onClick={salvaAssegno} className="px-3 min-h-[36px] rounded-lg bg-indigo-800 text-white text-sm font-bold disabled:opacity-50 whitespace-nowrap">{assegno.nomi.length ? "Assegna" : "Togli il tavolo"}</button>
+            </span>
+          </>
+        ) : ora != null ? (
           <>
             <span>Stai guardando la sala <strong>alle {hhmm(ora)}</strong>: {liberi} tavoli liberi. Tocca un tavolo libero per prenotarlo a quell'ora.</span>
             <button type="button" onClick={() => setOra(null)} className="flex-shrink-0 whitespace-nowrap px-3 min-h-[36px] rounded-lg border border-neutral-300 bg-white text-sm font-semibold text-neutral-800">{inTurno ? "Torna ad adesso" : "Tutto il turno"}</button>
@@ -517,14 +566,17 @@ export default function PrenotazioniServizio() {
           {tavoli.map((t) => {
             const p = prenDelTavolo(t);
             const bloccato = !p && t.stato_tavolo === "BLOCCATO";
-            const eScelto = nomiDelTavolo(t).some((n) => tavoliScelta.has(n)) && (!p || p.id === sceltaId);
+            const eScelto = assegno
+              ? nomiDelTavolo(t).every((n) => assegno.nomi.includes(n))
+              : nomiDelTavolo(t).some((n) => tavoliScelta.has(n)) && (!p || p.id === sceltaId);
             const c = COLORI[eScelto ? "scelto" : bloccato ? "bloccato" : !p ? "libero" : venuti.includes(p.stato) ? "seduto" : "arrivo"];
             const cx = t.posizione_x + t.larghezza / 2;
             const cy = t.posizione_y + t.altezza / 2;
             return (
               <g key={t.id} style={{ cursor: bloccato ? "default" : "pointer" }}
                 onClick={() => {
-                  if (p) scegli(p, true);
+                  if (assegno) toccaPerAssegno(t, p, bloccato);
+                  else if (p) scegli(p, true);
                   else if (!bloccato) setForm({ nuova: { tavolo: nomiDelTavolo(t).join("+") } });
                 }}>
                 <FormaTavolo t={t} fill={c.fill} stroke={c.stroke} strokeWidth={eScelto ? 3 : 1.5} dash={bloccato ? "4 2" : "none"} />

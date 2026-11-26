@@ -32,7 +32,8 @@ from app.services import prenotazioni_stati as stati_srv
 
 def _attive_no() -> tuple:
     """Non tengono il tavolo: fuori, lista d'attesa (tabella stati, 2026-11-13) e gli andati."""
-    return (*stati_srv.non_occupano(), "LEFT")   # andati: il tavolo è di nuovo libero
+    # andati: il tavolo è di nuovo libero. «Al conto» non si usa (Marco 2026-11-26): se c'è, vale come andato
+    return (*stati_srv.non_occupano(), "LEFT", "BILL")
 
 
 TUTTO_TURNO = 24 * 60

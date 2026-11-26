@@ -17,7 +17,7 @@ const COLORI_STATO = {
   ARRIVED:   { fill: "#fde68a", stroke: "#f59e0b", text: "#78350f" }, // amber
   SEATED:    { fill: "#a7f3d0", stroke: "#10b981", text: "#064e3b" }, // emerald
   LEFT:      { fill: "#e5e7eb", stroke: "#6b7280", text: "#374151" }, // gray
-  BILL:      { fill: "#bfdbfe", stroke: "#3b82f6", text: "#1e3a5a" }, // blue
+  BILL:      { fill: "#e5e7eb", stroke: "#6b7280", text: "#374151" }, // «Al conto» non si usa: come andato via
   NO_SHOW:   { fill: "#fecaca", stroke: "#ef4444", text: "#7f1d1d" }, // red
   CANCELED:  { fill: "#e5e7eb", stroke: "#9ca3af", text: "#6b7280" }, // gray
   REQUESTED: { fill: "#ddd6fe", stroke: "#8b5cf6", text: "#4c1d95" }, // violet
