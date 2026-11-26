@@ -69,6 +69,10 @@ async def _dopo_modifica(request: Request):
             logging.getLogger(__name__).exception("online automatico")
 
 
+from app.services import clienti_riconosci_service as riconosci_srv   # riconoscimento cliente e persone della scheda
+from app.services import thefork_invio_service as invio_tf            # TRGB fonte: invio a TheFork
+from app.utils import telefono as tel_util
+
 router = APIRouter(prefix="/prenotazioni", tags=["Prenotazioni"],
     dependencies=[
         Depends(richiede_ruoli("admin", "sala", "sommelier", "capo_sala", "contabile", cosa="prenotazioni")),
@@ -274,6 +278,16 @@ class PrenotazioneCreate(BaseModel):
     nuovo_cognome: Optional[str] = None
     nuovo_telefono: Optional[str] = None
     nuovo_email: Optional[str] = None
+    # 2026-11-26: prefisso scelto nel form, chi prenota se non è il titolare della scheda
+    nuovo_prefisso: Optional[str] = None
+    nuovo_lingua: Optional[str] = None
+    persona_nome: Optional[str] = None
+    persona_relazione: Optional[str] = None
+
+
+class PersonaReq(BaseModel):
+    nome: str
+    relazione: Optional[str] = None
 
 
 class PrenotazioneUpdate(BaseModel):
@@ -350,6 +364,7 @@ def get_planning(
                 p.menu_preset, p.degustazione, p.offerta_speciale, p.yums,
                 p.menu_evento, p.preventivo_id, p.motivo_cancellazione,
                 p.thefork_booking_id, p.creato_da, p.tenuto_fino_al,
+                p.persona_nome, p.thefork_invio, p.thefork_invio_nota,
                 p.nome_ospite, p.cognome_ospite,
                 COALESCE(NULLIF(c.nome, ''), p.nome_ospite) AS nome,
                 COALESCE(NULLIF(c.cognome, ''), p.cognome_ospite) AS cognome,
@@ -648,20 +663,33 @@ def crea_prenotazione(
 
         # Se non c'e' cliente_id ma ci sono dati per nuovo cliente → crea
         if not cliente_id and req.nuovo_cognome:
+            # 2026-11-26: numero salvato col prefisso; se quel numero o quell'email sono già
+            # di una scheda non nasce un secondo cliente (Marco: «il sistema deve subito accorgersi»)
+            numero = tel_util.normalizza(req.nuovo_telefono, req.nuovo_prefisso) or (req.nuovo_telefono or None)
+            email_nuova = (req.nuovo_email or "").strip() or None
+            gia_noti = riconosci_srv.riconosci(conn, req.nuovo_telefono, email_nuova, req.nuovo_prefisso)["clienti"]
+            if gia_noti:
+                g = gia_noti[0]
+                raise HTTPException(status_code=409, detail=(
+                    f"Questo {'numero' if g['riconosciuto_da'] == 'telefono' else 'indirizzo email'} è già della scheda "
+                    f"{g['nome']} {g['cognome']}".strip() + ": scegli quella scheda (puoi aggiungere chi sta prenotando)."))
+            paese = tel_util.paese_di(numero)
             cur = conn.execute("""
-                INSERT INTO clienti (nome, cognome, telefono, email, origine, protetto)
-                VALUES (?, ?, ?, ?, 'diretto', 1)
+                INSERT INTO clienti (nome, cognome, telefono, email, lingua, origine, protetto)
+                VALUES (?, ?, ?, ?, COALESCE(?, 'it_IT'), 'diretto', 1)
             """, (
                 req.nuovo_nome or "",
                 req.nuovo_cognome,
-                req.nuovo_telefono,
-                req.nuovo_email,
+                numero,
+                email_nuova,
+                req.nuovo_lingua or (paese["lingua"] if paese else None),
             ))
             cliente_id = cur.lastrowid
             logger.info(f"Nuovo cliente creato da prenotazione: id={cliente_id}")
 
         turno = _calcola_turno(req.ora_pasto, soglia)
         token = secrets.token_urlsafe(16)
+        persona = " ".join((req.persona_nome or "").split()) or None
 
         cur = conn.execute("""
             INSERT INTO clienti_prenotazioni (
@@ -669,8 +697,8 @@ def crea_prenotazione(
                 canale, occasione, nota_ristorante, nota_cliente,
                 allergie_segnalate, tavolo_esterno, seggioloni,
                 data_prenotazione, prenotato_da, turno, fonte, creato_da,
-                token_cancellazione, tenuto_fino_al
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'), ?, ?, 'manuale', ?, ?, ?)
+                token_cancellazione, tenuto_fino_al, persona_nome
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'), ?, ?, 'manuale', ?, ?, ?, ?)
         """, (
             cliente_id,
             req.data_pasto,
@@ -690,15 +718,21 @@ def crea_prenotazione(
             user.get("username", "staff"),
             token,
             tenuto,
+            persona,
         ))
+        if persona and cliente_id:
+            riconosci_srv.aggiungi_persona(conn, cliente_id, persona, req.persona_relazione, user.get("username"))
         conn.commit()
         nuovo_id = cur.lastrowid
         tavoli_srv.dividi_se_meta(conn, nuovo_id, user.get("username"))
+        # TRGB è la fonte (2026-11-26): parte anche per TheFork, o resta «da mandare»
+        thefork = invio_tf.dopo_creazione(nuovo_id)
 
         return {
             "id": nuovo_id,
             "cliente_id": cliente_id,
             "message": "Prenotazione creata",
+            "thefork": thefork,
         }
     except HTTPException:
         raise
@@ -796,6 +830,79 @@ def search_clienti(
         """, (like, like, like, like, like, like)).fetchall()
 
         return {"clienti": [dict(r) for r in rows]}
+    finally:
+        conn.close()
+
+
+@router.get("/prefissi/")
+def get_prefissi(user: dict = Depends(get_current_user)):
+    """Prefissi per paese per il campo telefono: i più usati fra i clienti in cima (2026-11-26)."""
+    conn = get_clienti_conn()
+    try:
+        return tel_util.elenco_prefissi(riconosci_srv.prefissi_frequenti(conn))
+    finally:
+        conn.close()
+
+
+@router.get("/clienti/riconosci")
+def riconosci_cliente(
+    telefono: Optional[str] = Query(None),
+    email: Optional[str] = Query(None),
+    prefisso: Optional[str] = Query(None),
+    user: dict = Depends(get_current_user),
+):
+    """Le schede che hanno già quel numero o quell'email, con le persone della scheda."""
+    conn = get_clienti_conn()
+    try:
+        return riconosci_srv.riconosci(conn, telefono, email, prefisso)
+    finally:
+        conn.close()
+
+
+@router.get("/clienti/{cliente_id}/persone")
+def get_persone(cliente_id: int, user: dict = Depends(get_current_user)):
+    conn = get_clienti_conn()
+    try:
+        return {"persone": riconosci_srv.persone(conn, cliente_id)}
+    finally:
+        conn.close()
+
+
+@router.post("/clienti/{cliente_id}/persone")
+def aggiungi_persona(cliente_id: int, req: PersonaReq, user: dict = Depends(get_current_user)):
+    """Aggiunge alla scheda una persona che prenota con lo stesso numero (moglie, figlio, segreteria…)."""
+    if not req.nome.strip():
+        raise HTTPException(status_code=400, detail="Serve il nome")
+    conn = get_clienti_conn()
+    try:
+        if not conn.execute("SELECT 1 FROM clienti WHERE id = ?", (cliente_id,)).fetchone():
+            raise HTTPException(status_code=404, detail="Cliente non trovato")
+        pid = riconosci_srv.aggiungi_persona(conn, cliente_id, req.nome, req.relazione, user.get("username"))
+        conn.commit()
+        return {"id": pid, "persone": riconosci_srv.persone(conn, cliente_id)}
+    finally:
+        conn.close()
+
+
+@router.delete("/clienti/{cliente_id}/persone/{persona_id}")
+def togli_persona(cliente_id: int, persona_id: int, user: dict = Depends(get_current_user)):
+    conn = get_clienti_conn()
+    try:
+        riconosci_srv.togli_persona(conn, cliente_id, persona_id)
+        conn.commit()
+        return {"persone": riconosci_srv.persone(conn, cliente_id)}
+    finally:
+        conn.close()
+
+
+@router.post("/{pren_id}/thefork/riprova")
+def riprova_thefork(pren_id: int, user: dict = Depends(get_current_user)):
+    """Riprova subito a mandare a TheFork una prenotazione «da mandare» o rifiutata."""
+    conn = get_clienti_conn()
+    try:
+        if not invio_tf.attivo(conn):
+            raise HTTPException(status_code=409, detail="L'invio a TheFork è spento (Impostazioni › TheFork)")
+        return invio_tf.invia(conn, pren_id)
     finally:
         conn.close()
 
@@ -2252,7 +2359,8 @@ def modifica_prenotazione(
             from app.services.prenotazioni_attese_service import avvisa_posto_liberato_sicuro
             avvisa_posto_liberato_sicuro(pren_id, existing["stato"], req.stato)
 
-        return {"message": "Prenotazione aggiornata", "id": pren_id}
+        thefork = invio_tf.dopo_modifica(pren_id, dict(existing))
+        return {"message": "Prenotazione aggiornata", "id": pren_id, "thefork": thefork}
     except HTTPException:
         raise
     except Exception as e:
@@ -2317,7 +2425,8 @@ def cambio_stato(
         except Exception as e:  # noqa: BLE001
             logger.warning("email cambio stato #%s: %s", pren_id, e)
 
-        return {"message": f"Stato aggiornato: {stato_attuale} → {req.stato}", "id": pren_id}
+        thefork = invio_tf.dopo_modifica(pren_id, {"stato": stato_attuale})
+        return {"message": f"Stato aggiornato: {stato_attuale} → {req.stato}", "id": pren_id, "thefork": thefork}
     except HTTPException:
         raise
     except Exception as e:
@@ -2352,8 +2461,9 @@ def cancella_prenotazione(
         conn.commit()
         from app.services.prenotazioni_attese_service import avvisa_posto_liberato_sicuro
         avvisa_posto_liberato_sicuro(pren_id, existing["stato"], "CANCELED")
+        thefork = invio_tf.dopo_modifica(pren_id, {"stato": existing["stato"]})
 
-        return {"message": "Prenotazione cancellata", "id": pren_id}
+        return {"message": "Prenotazione cancellata", "id": pren_id, "thefork": thefork}
     finally:
         conn.close()
 

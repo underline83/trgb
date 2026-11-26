@@ -1,4 +1,4 @@
-// @version: v2.14 — prova di creazione: ora, coperti, telefono, fuso, modifica e risposta di TheFork a vista (2026-11-26); v2.13 — TheFork: «Prova a creare una prenotazione» (crea e cancella subito, verifica del permesso) (2026-11-26); v2.12 — «In opzione»: giorni proposti e ruoli degli avvisi (2026-11-13); v2.11 — posti di una prolunga; v2.10 — online automatico (modalità, soglia tavolo, giorni); v2.9 — prolunghe disponibili; v2.8 — sale aperte di default e regole di durata del tavolo (pranzo lungo nel weekend, gruppi tutto il turno); v2.7 — indirizzo dedicato prenota.<dominio>; v2.6 — sezione «Prenotazioni dal sito» (regole, testi, email, codice per il sito); v2.5 — soglia avviso recensioni TheFork; v2.4 — giorno di chiusura con la codifica del backend (0=dom…6=sab, -1=nessuno); v2.3 — soglia «cliente frequente»; sezione TheFork (webhook B2B API: stato, registro eventi, sincronizza)
+// @version: v2.15 — TheFork: «TRGB è la fonte» (interruttore dell'invio, email di servizio, titolo) (2026-11-26); v2.14 — prova di creazione: ora, coperti, telefono, fuso, modifica e risposta di TheFork a vista (2026-11-26); v2.13 — TheFork: «Prova a creare una prenotazione» (crea e cancella subito, verifica del permesso) (2026-11-26); v2.12 — «In opzione»: giorni proposti e ruoli degli avvisi (2026-11-13); v2.11 — posti di una prolunga; v2.10 — online automatico (modalità, soglia tavolo, giorni); v2.9 — prolunghe disponibili; v2.8 — sale aperte di default e regole di durata del tavolo (pranzo lungo nel weekend, gruppi tutto il turno); v2.7 — indirizzo dedicato prenota.<dominio>; v2.6 — sezione «Prenotazioni dal sito» (regole, testi, email, codice per il sito); v2.5 — soglia avviso recensioni TheFork; v2.4 — giorno di chiusura con la codifica del backend (0=dom…6=sab, -1=nessuno); v2.3 — soglia «cliente frequente»; sezione TheFork (webhook B2B API: stato, registro eventi, sincronizza)
 // Modulo: prenotazioni
 // Impostazioni Prenotazioni — sidebar sinistra + sezioni (capienza, slot, template, widget, TheFork)
 import React, { useState, useEffect } from "react";
@@ -753,6 +753,90 @@ window.addEventListener("message", function (e) {
   );
 }
 
+// ── TRGB è la fonte: le prenotazioni prese a mano partono per TheFork (2026-11-26) ──
+function InvioTheFork() {
+  const [cfg, setCfg] = useState(null);
+  const [salvo, setSalvo] = useState("");
+  const [esito, setEsito] = useState(null);
+  const CHIAVI = ["thefork_invio_attivo", "thefork_email_servizio", "thefork_titolo_predefinito"];
+
+  useEffect(() => {
+    apiFetch(`${API_BASE}/prenotazioni/config`)
+      .then((r) => r.json())
+      .then((d) => {
+        const c = {};
+        (d.config || []).forEach((x) => { if (CHIAVI.includes(x.chiave)) c[x.chiave] = x.valore; });
+        setCfg(c);
+      })
+      .catch(() => setCfg({}));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const salva = async (cambi) => {
+    const nuovo = { ...cfg, ...cambi };
+    setCfg(nuovo);
+    setSalvo("salvo");
+    setEsito(null);
+    try {
+      const r = await apiFetch(`${API_BASE}/prenotazioni/config`, {
+        method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(cambi),
+      });
+      setEsito(r.ok ? { type: "ok", text: "Salvato" } : { type: "err", text: `Errore ${r.status}` });
+    } catch { setEsito({ type: "err", text: "Errore di connessione" }); }
+    setSalvo("");
+  };
+
+  if (!cfg) return null;
+  if (cfg.thefork_invio_attivo === undefined) {
+    return (
+      <div className="bg-white rounded-xl border border-neutral-200 p-5 text-sm text-neutral-500">
+        L'invio delle prenotazioni a TheFork compare dopo il prossimo aggiornamento del database.
+      </div>
+    );
+  }
+  const acceso = cfg.thefork_invio_attivo === "1";
+  const modelloOk = !cfg.thefork_email_servizio || (cfg.thefork_email_servizio.includes("{numero}") && cfg.thefork_email_servizio.includes("@"));
+  return (
+    <div className="bg-white rounded-xl border border-neutral-200 p-5 space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h4 className="font-semibold text-neutral-700 text-sm">TRGB è la fonte: le prenotazioni prese a mano vanno su TheFork</h4>
+        <Btn variant={acceso ? "secondary" : "primary"} size="md" loading={salvo === "salvo"}
+             onClick={() => salva({ thefork_invio_attivo: acceso ? "0" : "1" })}>
+          {acceso ? "Acceso · spegni" : "Spento · accendi"}
+        </Btn>
+      </div>
+      <p className="text-[11px] text-neutral-400">
+        Acceso: una prenotazione presa col form parte subito per TheFork se l'orario è prenotabile online, altrimenti resta
+        «da mandare» e TRGB riprova da solo. Modifiche e cancellazioni fatte qui tornano su TheFork. Non partono walk-in,
+        lista d'attesa e opzioni (l'opzione parte quando la confermi). Spento: tutto come prima.
+      </p>
+      <div className="flex flex-wrap items-end gap-3">
+        <div>
+          <label className="block text-xs font-medium text-neutral-600 mb-1">Email di servizio per chi non ne ha una</label>
+          <input value={cfg.thefork_email_servizio || ""} placeholder="casella+{numero}@dominio"
+                 onChange={(e) => setCfg({ ...cfg, thefork_email_servizio: e.target.value })}
+                 onBlur={(e) => modelloOk && salva({ thefork_email_servizio: e.target.value.trim() })}
+                 className={`px-3 py-2 border rounded-lg text-sm w-72 ${modelloOk ? "border-neutral-300" : "border-red-400"}`} />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-neutral-600 mb-1">Titolo se la scheda non ne ha uno</label>
+          <select value={cfg.thefork_titolo_predefinito || "mx"} onChange={(e) => salva({ thefork_titolo_predefinito: e.target.value })}
+                  className="px-3 py-2 border border-neutral-300 rounded-lg text-sm bg-white">
+            <option value="mx">neutro (Mx)</option>
+            <option value="mr">Sig. (Mr)</option>
+            <option value="mrs">Sig.ra (Mrs)</option>
+          </select>
+        </div>
+      </div>
+      <p className="text-[11px] text-neutral-400">
+        TheFork vuole sempre un'email. Scrivi un indirizzo vostro con <code>{"{numero}"}</code> al posto del telefono del cliente:
+        ogni cliente ha così la sua, e quando torna da TheFork per TRGB quell'email non esiste. Vuoto = chi non ha un'email resta solo in TRGB.
+        {!modelloOk && <span className="text-red-600"> Manca {"{numero}"} o la @.</span>}
+      </p>
+      {esito && <div className={`text-xs ${esito.type === "ok" ? "text-emerald-700" : "text-red-600"}`}>{esito.text}</div>}
+    </div>
+  );
+}
+
 // ── Sezione TheFork (webhook B2B API) ──
 // Le credenziali e il token del webhook stanno nel .env del server, non qui:
 // la pagina mostra lo stato, il registro eventi e i comandi di recupero.
@@ -894,6 +978,8 @@ function TheForkSection() {
           </>
         )}
       </div>
+
+      <InvioTheFork />
 
       {/* Prova di creazione (2026-11-26) */}
       <div className="bg-white rounded-xl border border-neutral-200 p-5 space-y-3">

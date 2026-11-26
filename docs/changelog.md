@@ -3,6 +3,22 @@
 
 ---
 
+## 2026-11-26 — Prenotazioni 2.41: TRGB è la fonte, il form manda a TheFork `[core]`
+
+Marco: «il form di inserimento dati… da ora vorrei che diventasse la nostra fonte, non inseriremo più da TheFork».
+
+### Aggiunto
+- Il form «Nuova prenotazione» riconosce la scheda da telefono o email mentre scrivi (numeri confrontati col prefisso: 0039…, +39…, spazi e punti non contano) e non lascia nascere un secondo cliente con lo stesso numero.
+- Prefisso per paese accanto al telefono, coi più frequenti tra i clienti in cima; il paese propone la lingua.
+- «Chi sta prenotando?»: le persone della scheda (clienti 3.51, `clienti_persone`); in Planning «Rosa Lucia · scheda Ravelli».
+- Invio a TheFork delle prenotazioni prese a mano (`thefork_invio_service`): subito se l'orario è prenotabile online, altrimenti coda «da mandare» riprovata a ogni giro; modifiche e cancellazioni riportate; email di servizio per chi non ne ha una; gruppi mandati («da confermare su TheFork»). Segno sulla riga in Planning. **Nasce spento** (Impostazioni › TheFork).
+- `app/utils/telefono.py` (platform): numeri in formato internazionale ed elenco dei prefissi.
+
+### Note
+- Mig 247, sistema 6.12. Non provati dal vero: endpoint, browser, invio reale, garanzia con carta.
+
+---
+
 ## 2026-11-26 — Clienti 3.50: template di risposta ai clienti coi blocchi vivi `[core]`
 Marco 25/11: «creiamo dei template di risposta alle mail (poi in futuro anche per WhatsApp); il primo è per la richiesta sul menù / prenotazione di Natale: ringrazia, espone menù e prezzo, se ho disponibilità avvisa che è possibile prenotare dando il link diretto». 26/11: fra tre strade sceglie i testi con blocchi vivi e approva le schermate.
 

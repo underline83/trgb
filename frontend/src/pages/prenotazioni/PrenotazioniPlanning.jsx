@@ -1,4 +1,4 @@
-// @version: v1.18-telefono — su iPad dritto le etichette vanno a capo e «Stato» non esce più dalla tabella; su iPhone le righe diventano schede (ora e coperti a sinistra, nome e stato, tavolo ed etichette, nota), intestazione del turno e barra della data che vanno a capo, tasti da pollice (2026-11-24); v1.17-apri — ?apri=<id> apre la prenotazione e ci scorre sopra (link dalla Home, 2026-11-20); v1.16-chiusure — turno chiuso nel calendario chiusure: banner rosso, «Nessuna prenotazione» diventa «Turno chiuso» (2026-11-19); v1.15-stelle — stelle TRGB e pallino del segmento accanto al nome (al posto della ⭐ VIP TheFork) (2026-11-16); v1.14-stati — «In opzione» (tavolo tenuto fino al…, proroga, coperti a parte) e «Lista d'attesa» (sezione propria, non occupa); pulsanti di stato dai passaggi permessi della tabella stati (sparito «Seduto» su «Da confermare», che dava errore) (2026-11-13); v1.13-scadenza-preventivo — ⏳ prenotazione in attesa di conferma preventivo (scadenza), «Libera tavolo», motivo della cancellazione (2026-11-03); v1.12-motore — tavolo suggerito dal motore per tavoli (clic = assegna, «Assegna i suggeriti»), «non entra» in rosso, tavoli doppi; v1.11-sale — sale aperte/chiuse per turno nell'intestazione (capienza dai tavoli); v1.10-modifica — «✏️ Modifica» nella riga aperta (stesso form della nuova prenotazione); v1.9-nome — nome anche col solo cognome; v1.8-menu-evento — menù dell'evento confermato nella riga aperta; v1.7-preventivo — tasto «📋 Preventivo» nella riga aperta (crea o apre il preventivo della prenotazione, solo per chi può crearli); v1.6-fasce — fasce orarie del turno (apertura, limiti, online anche su TheFork); v1.5-affidabilita — badge no-show del cliente, riconferma WhatsApp; v1.4 scheda inline — scheda cliente aperta dentro il Planning; v1.3 timeline — bollino cliente (prima/occasionale/frequente) + timeline sala per orario; badge «doppione?»
+// @version: v1.19-thefork — segno «su TheFork / da mandare / solo TRGB» sulle prenotazioni prese in TRGB e nome di chi ha prenotato per la scheda (2026-11-26); v1.18-telefono — su iPad dritto le etichette vanno a capo e «Stato» non esce più dalla tabella; su iPhone le righe diventano schede (ora e coperti a sinistra, nome e stato, tavolo ed etichette, nota), intestazione del turno e barra della data che vanno a capo, tasti da pollice (2026-11-24); v1.17-apri — ?apri=<id> apre la prenotazione e ci scorre sopra (link dalla Home, 2026-11-20); v1.16-chiusure — turno chiuso nel calendario chiusure: banner rosso, «Nessuna prenotazione» diventa «Turno chiuso» (2026-11-19); v1.15-stelle — stelle TRGB e pallino del segmento accanto al nome (al posto della ⭐ VIP TheFork) (2026-11-16); v1.14-stati — «In opzione» (tavolo tenuto fino al…, proroga, coperti a parte) e «Lista d'attesa» (sezione propria, non occupa); pulsanti di stato dai passaggi permessi della tabella stati (sparito «Seduto» su «Da confermare», che dava errore) (2026-11-13); v1.13-scadenza-preventivo — ⏳ prenotazione in attesa di conferma preventivo (scadenza), «Libera tavolo», motivo della cancellazione (2026-11-03); v1.12-motore — tavolo suggerito dal motore per tavoli (clic = assegna, «Assegna i suggeriti»), «non entra» in rosso, tavoli doppi; v1.11-sale — sale aperte/chiuse per turno nell'intestazione (capienza dai tavoli); v1.10-modifica — «✏️ Modifica» nella riga aperta (stesso form della nuova prenotazione); v1.9-nome — nome anche col solo cognome; v1.8-menu-evento — menù dell'evento confermato nella riga aperta; v1.7-preventivo — tasto «📋 Preventivo» nella riga aperta (crea o apre il preventivo della prenotazione, solo per chi può crearli); v1.6-fasce — fasce orarie del turno (apertura, limiti, online anche su TheFork); v1.5-affidabilita — badge no-show del cliente, riconferma WhatsApp; v1.4 scheda inline — scheda cliente aperta dentro il Planning; v1.3 timeline — bollino cliente (prima/occasionale/frequente) + timeline sala per orario; badge «doppione?»
 // Modulo: prenotazioni
 // Vista planning giornaliero — modulo Prenotazioni TRGB
 import React, { useState, useEffect, useCallback } from "react";
@@ -10,6 +10,7 @@ import MiniCalendario from "./components/MiniCalendario";
 import StatoBadge from "./components/StatoBadge";
 import usePrenotazioniStati from "./components/statiPrenotazioni";
 import CanaleBadge from "./components/CanaleBadge";
+import TheForkInvioBadge from "./components/TheForkInvioBadge";
 import FasceTurno from "./components/FasceTurno";
 import Tooltip from "../../components/Tooltip";
 import ClientiScheda from "../clienti/ClientiScheda";
@@ -348,7 +349,10 @@ function RigaPrenotazione({ pren, telefono, motore, onAssegna, onStatoChange, on
     pren.nome ? `${pren.nome}${pren.nome2 ? ` & ${pren.nome2}` : ""}` : "",
     pren.cognome || "",
   ].filter(Boolean).join(" ");
-  const nome = nomeCompleto || (pren.canale === "Walk-in" ? "Walk-in" : "—");
+  // 2026-11-26: se ha prenotato un'altra persona della scheda (la moglie col numero del marito) si legge chi
+  const nome = pren.persona_nome
+    ? `${pren.persona_nome} · scheda ${pren.cognome || pren.nome || ""}`.trim()
+    : nomeCompleto || (pren.canale === "Walk-in" ? "Walk-in" : "—");
 
   const oraShort = pren.ora_pasto ? pren.ora_pasto.slice(0, 5) : "—";
 
@@ -369,6 +373,7 @@ function RigaPrenotazione({ pren, telefono, motore, onAssegna, onStatoChange, on
             <div className="flex items-start justify-between gap-2">
               <div className="flex items-center gap-1.5 min-w-0">
                 <CanaleBadge canale={pren.canale} fonte={pren.fonte} />
+                <TheForkInvioBadge pren={pren} />
                 <span className={`text-[15px] leading-tight font-medium truncate ${pren.cliente_id ? "text-indigo-800" : "text-neutral-600"}`}>{nome}</span>
               </div>
               <span className="flex-shrink-0"><StatoBadge stato={pren.stato} /></span>
@@ -417,6 +422,7 @@ function RigaPrenotazione({ pren, telefono, motore, onAssegna, onStatoChange, on
         <td className="px-3 py-2">
           <div className="flex items-center flex-wrap gap-x-1.5 gap-y-1">
             <CanaleBadge canale={pren.canale} fonte={pren.fonte} />
+                <TheForkInvioBadge pren={pren} />
             {pren.cliente_id ? (
               <button
                 type="button"

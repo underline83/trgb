@@ -604,6 +604,8 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   clienti: {
+    // 3.51 (2026-11-26): «Persone della scheda» (PersoneScheda 1.0): i parenti stretti che prenotano con lo stesso numero stanno
+    //   nella stessa scheda; clienti_riconosci_service (riconoscimento da telefono/email coi numeri normalizzati). Mig 247.
     // 3.50 (2026-11-26): template di risposta ai clienti coi blocchi vivi (Marco 25-26/11, strada B) — Impostazioni ›
     //   «Template di risposta» (ClientiRisposteTemplate 1.0): testo mail + versione corta WhatsApp, occasione (giorno, turno,
     //   «c'è posto se entra un tavolo da N»), menù dalla libreria; blocchi {nome} {data} {menu} {prezzo} {disponibilita}
@@ -748,12 +750,16 @@ const MODULE_VERSIONS = {
     //   annullo/riattiva con storico movimenti, PDF buono A5 con identita'
     //   del locale, alert M.F sulle card in scadenza. Nessun impatto su
     //   corrispettivi/chiusure: registro informativo separato dalla cassa.
-    version: "3.50",
+    version: "3.51",
     label: "Gestione Clienti",
     status: "beta",
     color: "blue",
   },
   prenotazioni: {
+    // 2.41 (2026-11-26): TRGB è la fonte (Marco: «non inseriremo più da TheFork») — il form riconosce la scheda da telefono o
+    //   email mentre scrivi, prefisso per paese, «chi sta prenotando» (persone della scheda); thefork_invio_service manda a TheFork
+    //   le prenotazioni prese a mano (coda «da mandare» se l'orario è chiuso online, modifiche e cancellazioni riportate, niente
+    //   doppioni con la sincronizzazione); segno in Planning; interruttore in Impostazioni › TheFork (nasce spento). Mig 247.
     // 2.40 (2026-11-26): sincronizzazione TheFork — il tavolo arrivato da TheFork segue TheFork (prima TRGB
     //   teneva il primo ricevuto e scartava i cambi fatti su TheFork); resta quello di TRGB solo se è stato
     //   messo a mano in TRGB. Colonna clienti_prenotazioni.tavolo_thefork al boot, nessuna migrazione numerata.
@@ -802,7 +808,7 @@ const MODULE_VERSIONS = {
     // 2.16 (2026-10-19): Prenotazioni › Archivio (tutte le prenotazioni con filtri), spostato da
     //   Clienti; API nuova GET /prenotazioni/archivio/ (+ /riepilogo/). /clienti/prenotazioni rimanda qui.
     // 2.15 (2026-10-19): PrenotazioniForm accetta defaultCliente (bottone «Prenota» della scheda cliente).
-    version: "2.40",
+    version: "2.41",
     label: "Prenotazioni",
     status: "beta",
     color: "blue",
@@ -977,6 +983,9 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 6.12 (2026-11-26): mig 247 — il form «Nuova prenotazione» è la fonte: clienti_persone (persone della scheda),
+    //   clienti_prenotazioni.persona_nome/thefork_invio*, config dell'invio a TheFork (nasce spento). Platform: app/utils/telefono.py
+    //   (numeri col prefisso internazionale, elenco prefissi per paese).
     // 6.11 (2026-11-26): mig 246 — clienti_risposte_template (template di risposta ai clienti coi blocchi vivi) +
     //   servizio platform prenotazioni_posto_service («c'è posto in quel turno?» per gli altri moduli).
     // 6.10 (2026-11-24): M.A notifiche — push sui dispositivi, fase 1 (docs/spec_notifiche_push.md): notifiche_push.py
@@ -1161,7 +1170,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "6.11",
+    version: "6.12",
     label: "Sistema",
     status: "stabile",
     color: "green",

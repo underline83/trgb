@@ -766,6 +766,7 @@ Marco, 25-26/11/2026: «creiamo dei template di risposta alle mail (poi in futur
 | C-CL-RT05 | Link di prenotazione dei template | `PUT /clienti/risposte-template/impostazioni` | admin | 🆕 |
 | C-CL-RT06 | «Rispondi con un template» da una mail: testo ritoccabile, bozza nelle Bozze della casella | `ClientiPosta.jsx:RispostaDaTemplate/TemplateRisposta` | chi ha Clienti › Posta | 🆕 |
 | C-CL-RT07 | Q legge i template e li compila | connettore `risposte_template`, `risposta_da_template` | admin | 🆕 |
+| C-CL-PS01 | Persone della scheda (Marco 2026-11-26: «i parenti stretti nella stessa scheda»): elenco di chi prenota con lo stesso numero, aggiungi e togli; uno storico solo, sulla prenotazione c'è scritto chi ha chiamato | `PersoneScheda.jsx` in `ClientiScheda.jsx`, `clienti_riconosci_service.py`, tabella `clienti_persone` (mig 247); endpoint sotto `/prenotazioni/clienti/{id}/persone` | sala, capo_sala, admin | 🆕 2026-11-26 |
 
 ## 19.2 Punti aperti
 

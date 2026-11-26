@@ -10,6 +10,7 @@ import { Btn } from "../../components/ui";
 import PrenotazioniForm from "../prenotazioni/PrenotazioniForm";
 import { openWhatsApp } from "../../utils/whatsapp";
 import { DiffTheForkCliente } from "./DiffTheFork";
+import PersoneScheda from "./PersoneScheda";
 import { Stelle, SegmentoPill, Attenzione, SchedaStelle } from "./ProfiloCliente";
 
 const LINGUE = { it_IT: "Italiano", en_GB: "Inglese", en_US: "Inglese", de_DE: "Tedesco", fr_FR: "Francese", es_ES: "Spagnolo", nl_NL: "Olandese", pt_PT: "Portoghese" };
@@ -534,6 +535,7 @@ export default function ClientiScheda({ clienteId: propId, onClose, embedded = f
               )}
               <SchedaStelle clienteId={cliente.id} profilo={cliente.profilo} rankTheFork={cliente.rank}
                 onCambiato={fetchCliente} onMessaggio={showToast} />
+              <PersoneScheda clienteId={cliente.id} titolare={`${cliente.nome || ""} ${cliente.cognome || ""}`.trim()} />
               {/* ── DA SAPERE IN SALA ── */}
               <div className="space-y-2.5">
                 <div className="text-xs font-bold tracking-wider uppercase text-neutral-500">Da sapere in sala</div>

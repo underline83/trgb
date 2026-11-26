@@ -1,9 +1,11 @@
-// @version: v1.7-telefono — su iPhone a tutto schermo con titolo e «Salva» sempre a vista, campi a 16 px (Safari non ingrandisce la pagina), orari e ± da pollice (2026-11-24); v1.6-stati — si nasce Confermata, In opzione (con «tenuto fino al») o in Lista d'attesa; in modifica la data dell'opzione (2026-11-13); v1.5-motore — «entra / non entra» col tavolo suggerito dal motore per tavoli, «Usa» lo scrive (anche le unioni) (2026-10-29); v1.4 — stesso form per modificare una prenotazione (prop «prenotazione», PUT) (2026-10-28); v1.3 — defaultCliente: aperto dalla scheda cliente con il cliente già scelto (2026-10-19); v1.2-fasce — slot chiusi/pieni segnati e avviso sulla fascia; v1.1-tavolo-turno — apribile dalla mappa con tavolo e turno già scelti; tavoli bloccati non selezionabili
+// @version: v1.8-fonte — il form è la fonte: prefisso per paese, scheda riconosciuta da telefono o email mentre scrivi, persone della scheda («chi sta prenotando»), esito verso TheFork (2026-11-26); v1.7-telefono — su iPhone a tutto schermo con titolo e «Salva» sempre a vista, campi a 16 px (Safari non ingrandisce la pagina), orari e ± da pollice (2026-11-24); v1.6-stati — si nasce Confermata, In opzione (con «tenuto fino al») o in Lista d'attesa; in modifica la data dell'opzione (2026-11-13); v1.5-motore — «entra / non entra» col tavolo suggerito dal motore per tavoli, «Usa» lo scrive (anche le unioni) (2026-10-29); v1.4 — stesso form per modificare una prenotazione (prop «prenotazione», PUT) (2026-10-28); v1.3 — defaultCliente: aperto dalla scheda cliente con il cliente già scelto (2026-10-19); v1.2-fasce — slot chiusi/pieni segnati e avviso sulla fascia; v1.1-tavolo-turno — apribile dalla mappa con tavolo e turno già scelti; tavoli bloccati non selezionabili
 // Form modale per nuova prenotazione — modulo Prenotazioni TRGB
 import React, { useState, useEffect, useRef } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
 
 const CANALI = ["Telefono", "WhatsApp", "Walk-in", "Email", "Altro"];
+// Chi è la persona che prenota per la scheda (facoltativo)
+const RELAZIONI = ["", "moglie", "marito", "compagno/a", "figlio/a", "genitore", "segreteria", "altro"];
 const OCCASIONI = ["", "Compleanno", "Anniversario", "Laurea", "Cresima", "Battesimo", "Cena aziendale", "Altro"];
 
 export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTurno, defaultCliente, prenotazione, onClose, onSuccess }) {
@@ -30,6 +32,9 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
     nuovo_cognome: "",
     nuovo_telefono: "",
     nuovo_email: "",
+    nuovo_prefisso: "",
+    persona_nome: "",
+    persona_relazione: "",
     // 2026-11-13: stato di partenza e, per «In opzione», fino a quando si tiene il tavolo
     stato: "RECORDED",
     tenuto_fino_al: P.tenuto_fino_al || "",
@@ -45,6 +50,11 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
   const [showNuovo, setShowNuovo] = useState(false);
   const [tavoli, setTavoli] = useState([]);
   const [submitting, setSubmitting] = useState(false);
+  // 2026-11-26: prefissi per paese, schede riconosciute dal numero o dall'email, persone della scheda
+  const [prefissi, setPrefissi] = useState({ locale: "+39", frequenti: [], altri: [] });
+  const [riconosciuti, setRiconosciuti] = useState([]);
+  const [persone, setPersone] = useState([]);
+  const [nuovaPersona, setNuovaPersona] = useState(false);
   const searchRef = useRef(null);
   const searchTimeout = useRef(null);
 
@@ -89,6 +99,50 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
         .catch(() => setSearchResults([]));
     }, 300);
   }, [searchQ]);
+
+  useEffect(() => {
+    apiFetch(`${API_BASE}/prenotazioni/prefissi/`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d) setPrefissi(d); })
+      .catch(() => {});
+  }, []);
+
+  // Riconoscimento: il numero (o l'email) che sto scrivendo è già di una scheda?
+  const cifreCerca = searchQ.replace(/\D/g, "");
+  const telDaCercare = showNuovo ? form.nuovo_telefono : (cifreCerca.length >= 6 ? searchQ : "");
+  const emailDaCercare = showNuovo ? form.nuovo_email : (searchQ.includes("@") ? searchQ.trim() : "");
+  useEffect(() => {
+    if (selectedCliente || modifica) { setRiconosciuti([]); return; }
+    const haTel = (telDaCercare || "").replace(/\D/g, "").length >= 6;
+    const haMail = /.+@.+\..+/.test(emailDaCercare || "");
+    if (!haTel && !haMail) { setRiconosciuti([]); return; }
+    const q = new URLSearchParams();
+    if (haTel) q.set("telefono", telDaCercare);
+    if (haMail) q.set("email", emailDaCercare);
+    if (form.nuovo_prefisso) q.set("prefisso", form.nuovo_prefisso);
+    const t = setTimeout(() => {
+      apiFetch(`${API_BASE}/prenotazioni/clienti/riconosci?${q}`)
+        .then((r) => (r.ok ? r.json() : { clienti: [] }))
+        .then((d) => setRiconosciuti(d.clienti || []))
+        .catch(() => setRiconosciuti([]));
+    }, 350);
+    return () => clearTimeout(t);
+  }, [telDaCercare, emailDaCercare, form.nuovo_prefisso, selectedCliente, modifica]);
+
+  // Persone della scheda scelta (chi può prenotare con quel numero)
+  useEffect(() => {
+    if (!selectedCliente?.id || modifica) { setPersone([]); return; }
+    if (selectedCliente.persone) { setPersone(selectedCliente.persone); return; }
+    apiFetch(`${API_BASE}/prenotazioni/clienti/${selectedCliente.id}/persone`)
+      .then((r) => (r.ok ? r.json() : { persone: [] }))
+      .then((d) => setPersone(d.persone || []))
+      .catch(() => setPersone([]));
+  }, [selectedCliente?.id, modifica]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const scegliPersona = (nome, relazione = "") => {
+    setNuovaPersona(false);
+    setForm((f) => ({ ...f, persona_nome: nome, persona_relazione: relazione }));
+  };
 
   const turnoCorrente = form.ora_pasto < soglia ? "pranzo" : "cena";
 
@@ -140,11 +194,15 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
     setSearchQ(`${c.nome} ${c.cognome}`);
     setSearchResults([]);
     setShowNuovo(false);
+    setRiconosciuti([]);
+    setNuovaPersona(false);
   };
 
   const resetCliente = () => {
     setSelectedCliente(null);
-    setForm({ ...form, cliente_id: null, nuovo_nome: "", nuovo_cognome: "", nuovo_telefono: "", nuovo_email: "" });
+    setForm({ ...form, cliente_id: null, nuovo_nome: "", nuovo_cognome: "", nuovo_telefono: "", nuovo_email: "", persona_nome: "", persona_relazione: "" });
+    setPersone([]);
+    setNuovaPersona(false);
     setSearchQ("");
     setShowNuovo(false);
   };
@@ -176,7 +234,12 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
             body: JSON.stringify({ ...form, tenuto_fino_al: form.stato === "OPTION" ? (form.tenuto_fino_al || null) : null }),
           });
       if (r.ok) {
-        onSuccess();
+        const d = await r.json().catch(() => ({}));
+        const tfk = d.thefork || {};
+        if (tfk.stato === "da_mandare") alert("Prenotazione salvata. Su TheFork non è ancora partita (orario non prenotabile online): TRGB riprova da solo.");
+        else if (tfk.stato === "no") alert(`Prenotazione salvata, ma resta solo in TRGB: ${tfk.nota || "non può andare su TheFork"}.`);
+        else if (tfk.stato === "errore") alert(`Prenotazione salvata in TRGB, ma TheFork l'ha rifiutata: ${tfk.nota || ""}`);
+        onSuccess(d);
       } else {
         const err = await r.json();
         alert(err.detail || (modifica ? "Errore nella modifica" : "Errore nella creazione"));
@@ -396,6 +459,62 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
               </div>
             )}
 
+            {/* 2026-11-26 — il numero o l'email che sto scrivendo sono già di una scheda */}
+            {!selectedCliente && !modifica && riconosciuti.length > 0 && (
+              <div className="mt-2 p-3 bg-indigo-50 border border-indigo-200 rounded-lg space-y-2">
+                {riconosciuti.map((c) => (
+                  <div key={c.id} className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="text-sm text-indigo-900">
+                      <strong>Questo {c.riconosciuto_da === "email" ? "indirizzo" : "numero"} è della scheda {c.nome} {c.cognome}</strong>
+                      <span className="ml-2 text-xs text-indigo-700">{c.visite_totali} visite{c.ultima_visita ? ` · ultima ${c.ultima_visita.split("-").reverse().join("/")}` : ""}</span>
+                    </div>
+                    <button type="button" onClick={() => selezionaCliente(c)}
+                      className="min-h-[44px] px-3 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700">
+                      Usa questa scheda
+                    </button>
+                  </div>
+                ))}
+                <div className="text-xs text-indigo-700">Se chiama un'altra persona (moglie, figlio, segreteria) scegli la scheda e poi indica chi sta prenotando.</div>
+              </div>
+            )}
+
+            {/* Chi sta prenotando: il titolare o una persona della scheda */}
+            {selectedCliente && !modifica && (
+              <div className="mt-2 p-3 bg-neutral-50 border border-neutral-200 rounded-lg space-y-2">
+                <div className="text-xs font-medium text-neutral-600">Chi sta prenotando?</div>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" onClick={() => scegliPersona("")}
+                    className={`min-h-[44px] px-3 rounded-lg text-sm border ${!form.persona_nome && !nuovaPersona ? "border-indigo-600 bg-white font-semibold text-indigo-900" : "border-neutral-300 bg-white text-neutral-700"}`}>
+                    {selectedCliente.nome} {selectedCliente.cognome}
+                  </button>
+                  {persone.map((p) => (
+                    <button key={p.id} type="button" onClick={() => scegliPersona(p.nome, p.relazione || "")}
+                      className={`min-h-[44px] px-3 rounded-lg text-sm border ${form.persona_nome === p.nome && !nuovaPersona ? "border-indigo-600 bg-white font-semibold text-indigo-900" : "border-neutral-300 bg-white text-neutral-700"}`}>
+                      {p.nome}{p.relazione ? <span className="ml-1 font-normal text-neutral-500">· {p.relazione}</span> : null}
+                    </button>
+                  ))}
+                  <button type="button" onClick={() => { setNuovaPersona(true); setForm((f) => ({ ...f, persona_nome: "", persona_relazione: "" })); }}
+                    className={`min-h-[44px] px-3 rounded-lg text-sm border border-dashed ${nuovaPersona ? "border-indigo-600 text-indigo-900 bg-white" : "border-indigo-400 text-indigo-700"}`}>
+                    + Aggiungi persona
+                  </button>
+                </div>
+                {nuovaPersona && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <input type="text" placeholder="Nome di chi prenota" value={form.persona_nome}
+                      onChange={(e) => setForm({ ...form, persona_nome: e.target.value })}
+                      className="min-w-0 px-2 py-1.5 border border-neutral-300 rounded text-base sm:text-sm max-sm:min-h-[44px]" />
+                    <select value={form.persona_relazione} onChange={(e) => setForm({ ...form, persona_relazione: e.target.value })}
+                      className="min-w-0 px-2 py-1.5 border border-neutral-300 rounded text-base sm:text-sm max-sm:min-h-[44px] bg-white">
+                      {RELAZIONI.map((o) => <option key={o} value={o}>{o || "— chi è (facoltativo) —"}</option>)}
+                    </select>
+                  </div>
+                )}
+                {form.persona_nome && (
+                  <div className="text-xs text-neutral-500">La prenotazione resta sulla scheda {selectedCliente.cognome || selectedCliente.nome}: in Planning si legge «{form.persona_nome} · scheda {selectedCliente.cognome || selectedCliente.nome}».</div>
+                )}
+              </div>
+            )}
+
             {/* Avviso allergie */}
             {selectedCliente?.allergie && (
               <div className="mt-1 px-3 py-1.5 bg-amber-50 border border-amber-200 rounded text-xs text-amber-800">
@@ -430,13 +549,33 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-2">
-                  <input
-                    type="tel"
-                    placeholder="Telefono"
-                    value={form.nuovo_telefono}
-                    onChange={(e) => setForm({ ...form, nuovo_telefono: e.target.value })}
-                    className="min-w-0 px-2 py-1.5 border border-neutral-300 rounded text-base sm:text-sm max-sm:min-h-[44px]"
-                  />
+                  <div className="flex gap-1 min-w-0">
+                    <select
+                      aria-label="Prefisso del paese"
+                      value={form.nuovo_prefisso || prefissi.locale}
+                      onChange={(e) => setForm({ ...form, nuovo_prefisso: e.target.value })}
+                      className="w-[5.5rem] flex-shrink-0 px-1 py-1.5 border border-neutral-300 rounded text-base sm:text-sm max-sm:min-h-[44px] bg-white"
+                    >
+                      {prefissi.frequenti.length === 0 && <option value={prefissi.locale}>{prefissi.locale}</option>}
+                      {prefissi.frequenti.length > 0 && (
+                        <optgroup label="I più frequenti">
+                          {prefissi.frequenti.map((p) => <option key={p.prefisso} value={p.prefisso}>{p.paese} {p.prefisso}</option>)}
+                        </optgroup>
+                      )}
+                      {prefissi.altri.length > 0 && (
+                        <optgroup label="Tutti gli altri">
+                          {prefissi.altri.map((p) => <option key={p.prefisso} value={p.prefisso}>{p.paese} {p.prefisso}</option>)}
+                        </optgroup>
+                      )}
+                    </select>
+                    <input
+                      type="tel"
+                      placeholder="Telefono"
+                      value={form.nuovo_telefono}
+                      onChange={(e) => setForm({ ...form, nuovo_telefono: e.target.value })}
+                      className="flex-1 min-w-0 px-2 py-1.5 border border-neutral-300 rounded text-base sm:text-sm max-sm:min-h-[44px]"
+                    />
+                  </div>
                   <input
                     type="email"
                     placeholder="Email"

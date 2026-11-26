@@ -305,6 +305,24 @@ def _nome_offerta(nome: Any) -> Optional[str]:
     return nome or None
 
 
+def _email_vera(email: Any) -> Optional[str]:
+    """L'email di servizio che TRGB manda a TheFork per chi non ne ha una, tornando indietro, non esiste."""
+    try:
+        from app.services import thefork_invio_service as invio
+        return invio.email_vera(email)
+    except Exception:  # noqa: BLE001
+        return email or None
+
+
+def _tieni_trgb(conn, rec: Dict[str, Any]) -> None:
+    """Prenotazione mandata da TRGB (2026-11-26): cliente, canale e nomi restano quelli di TRGB."""
+    try:
+        from app.services import thefork_invio_service as invio
+        invio.tieni_trgb(conn, rec)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("tieni_trgb: %s", e)
+
+
 def mappa_cliente(c: Dict[str, Any]) -> Dict[str, Any]:
     """Cliente API → record `clienti` (colonne e formati dell'import XLSX)."""
     nascita = None
@@ -320,7 +338,7 @@ def mappa_cliente(c: Dict[str, Any]) -> Dict[str, Any]:
         "titolo": _titolo(c.get("civility")),
         "nome": (c.get("firstName") or "").strip(),
         "cognome": (c.get("lastName") or "").strip(),
-        "email": c.get("email") or None,
+        "email": _email_vera(c.get("email")),   # l'email di servizio di TRGB non è un dato del cliente
         "telefono": pulisci_telefono(c.get("phone")),
         "telefono2": pulisci_telefono(c.get("secondaryPhone")),
         "data_nascita": nascita,
@@ -568,6 +586,7 @@ def _sincronizza_prenotazione(conn, uuid: str, solo_se_cambia: bool = False) -> 
     }:
         rec.pop("tavolo_thefork")   # DB non ancora aggiornato: si lavora come prima
     tenuti_trgb = _priorita_trgb(conn, rec)   # descrittivo: vince TRGB (2026-11-13)
+    _tieni_trgb(conn, rec)
 
     if solo_se_cambia:
         # Recupero periodico: se in TRGB è già tutto uguale non si tocca niente
@@ -602,6 +621,7 @@ def _sincronizza_prenotazione(conn, uuid: str, solo_se_cambia: bool = False) -> 
         else:
             cliente_id = trova_cliente_id(conn, cust_uuid)
     rec["cliente_id"] = cliente_id
+    _tieni_trgb(conn, rec)
 
     gia = conn.execute(
         "SELECT 1 FROM clienti_prenotazioni WHERE thefork_booking_id = ?", (rec["thefork_booking_id"],)
@@ -919,6 +939,13 @@ def avvia_recupero_periodico() -> None:
                 if credenziali_presenti():
                     r = recupero_automatico()
                     logger.info("TheFork recupero automatico: %s", r)
+                    try:  # prenotazioni prese in TRGB e ancora da mandare (orario chiuso online)
+                        from app.services import thefork_invio_service as invio
+                        ri = invio.giro_coda()
+                        if ri.get("provate"):
+                            logger.info("TheFork coda da mandare: %s", ri)
+                    except Exception as e:  # noqa: BLE001
+                        logger.warning("TheFork coda da mandare: %s", e)
                     try:
                         from app.services import thefork_recensioni_service as recensioni
                         rr = recensioni.giro_periodico()  # al massimo una volta l'ora
