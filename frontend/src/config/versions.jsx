@@ -900,7 +900,8 @@ const MODULE_VERSIONS = {
     //   Archivio: ordinamento per data e ora del pasto o per inserimento, nei due versi.
     //   Lo stato cambiato in sala (tavolo liberato, passo indietro) non viene più rimesso da TheFork (mig 254).
     //   «Tavolo +» su un altro tavolo quando ne ha già uno: chiede «Sposta» o «Unisci»; i tavoli scelti si tolgono uno a uno.
-    version: "2.58",
+    // 2.59 (2026-11-27): il bollino sui tavoli con più prenotazioni non conta più chi è già andato via.
+    version: "2.59",
     label: "Prenotazioni",
     status: "beta",
     color: "blue",

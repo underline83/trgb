@@ -3,6 +3,11 @@
 
 ---
 
+## 2026-11-27 — Prenotazioni 2.59: bollino dei tavoli `[core]`
+
+### Corretto
+- Servizio: il bollino col numero sul tavolo contava anche le prenotazioni già andate via (il 5 segnava «3» con una sola persona seduta). Ora conta solo chi deve ancora arrivare o è al tavolo; con una sola il bollino non c'è.
+
 ## 2026-11-27 — Prenotazioni 2.58 / sistema 6.19: stato della sala al riparo da TheFork, sovrapponi o inverti (mig 254) `[core]`
 
 ### Cambiato
