@@ -581,6 +581,25 @@ def verifica(conn, data: str, turno: str, pax: int, ora: str, escludi_id: Option
     return Verificatore(conn, data, turno, escludi_id).verifica(pax, ora, durata_min)
 
 
+def togli_unione_superata(conn, pren_id: int) -> bool:
+    """
+    Il tavolo di una prenotazione è stato cambiato in TRGB (Modifica, Mappa, «tavolo +», connettore):
+    se c'era un'unione nata da quella prenotazione quando è arrivata da TheFork («thefork:<id>») e i
+    tavoli non sono più quelli, l'unione si toglie. Senza, i tavoli restavano disegnati uniti anche
+    dopo aver rimesso la prenotazione su un tavolo solo (Marco 2026-11-27, «1+5» di Carro). Non solleva mai.
+    """
+    try:
+        p = conn.execute("SELECT tavolo FROM clienti_prenotazioni WHERE id = ?", (pren_id,)).fetchone()
+        if not p:
+            return False
+        adesso = "+".join(nomi_tavolo(p["tavolo"]))
+        cur = conn.execute("DELETE FROM tavoli_unioni WHERE creato_da = ? AND nome != ?", (f"thefork:{pren_id}", adesso))
+        conn.commit()
+        return bool(cur.rowcount)
+    except Exception:  # noqa: BLE001 — tabella non ancora creata o simili: non deve fermare il salvataggio
+        return False
+
+
 def unione_da_prenotazione(conn, pren_id: int, origine: str = "thefork", solo_se_manca: bool = False) -> Optional[str]:
     """
     Una prenotazione arrivata con più tavoli (es. da TheFork «7+9+4+8+10»): li unisce per

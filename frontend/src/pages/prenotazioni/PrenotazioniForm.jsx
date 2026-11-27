@@ -694,7 +694,7 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
                 </div>
                 {!form.nuovo_telefono.trim() && !form.nuovo_email.trim() && (
                   <div className="px-2 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-xs">
-                    ⚠️ Senza telefono né email la prenotazione resta solo in TRGB: va su TheFork appena li aggiungi alla scheda.
+                    Senza telefono né email: il tavolo si blocca lo stesso, anche su TheFork, ma non potrai mandargli la conferma né richiamarlo.
                   </div>
                 )}
                 {/* Titolo e lingua: servono a TheFork e ai messaggi; la lingua, se vuota, viene dal prefisso */}

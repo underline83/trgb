@@ -2384,6 +2384,7 @@ async def assegna_tavolo(
         )
         conn.commit()
         tavoli_srv.dividi_se_meta(conn, pren_id, user.get("username"))
+        tavoli_srv.togli_unione_superata(conn, pren_id)   # unione arrivata da TheFork e non più valida
         return {"message": f"Tavolo assegnato: '{tavolo}'" if tavolo else "Tavolo rimosso", "id": pren_id}
     finally:
         conn.close()
@@ -2475,6 +2476,7 @@ def modifica_prenotazione(
         )
         conn.commit()
         tavoli_srv.dividi_se_meta(conn, pren_id, user.get("username"))
+        tavoli_srv.togli_unione_superata(conn, pren_id)   # unione arrivata da TheFork e non più valida
         if req.stato is not None and req.stato != existing["stato"]:
             from app.services.prenotazioni_attese_service import avvisa_posto_liberato_sicuro
             avvisa_posto_liberato_sicuro(pren_id, existing["stato"], req.stato)

@@ -109,9 +109,11 @@ def _cliente_per_thefork(conn, c) -> Dict[str, Any]:
         modello = _cfg(conn, "thefork_email_servizio")
         if not modello or "{numero}" not in modello:
             raise ValueError("il cliente non ha un'email e l'email di servizio non è impostata")
-        if not numero:
-            raise ValueError("il cliente non ha né email né telefono")
-        email, servizio = modello.replace("{numero}", tel.cifre(numero)), True
+        # Senza telefono né email (Marco 2026-11-27: «uno che passa alle 19, non ci dice il numero e torna dopo:
+        # ho bisogno di bloccare il tavolo, quindi di passarlo anche a TheFork»): parte lo stesso, con l'email
+        # di servizio fatta col codice della scheda («00» + id: non può essere un numero di telefono vero).
+        codice = tel.cifre(numero) if numero else f"00{int(c['id']):08d}"
+        email, servizio = modello.replace("{numero}", codice), True
     nome, cognome = (c["nome"] or "").strip(), (c["cognome"] or "").strip()
     if not cognome and not nome:
         raise ValueError("il cliente non ha un nome")

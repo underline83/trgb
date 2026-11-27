@@ -1,4 +1,4 @@
-// @version: v1.16 — numero sul tavolo quando ha più prenotazioni nel turno; ogni tocco passa alla successiva (2026-11-27); v1.15 — senza un orario toccato la mappa mostra tutto il turno, non più «adesso» (2026-11-27); v1.14 — colori secondo la regola del modulo (blu = azione, indaco scuro = scelto) e caselle dello stato da components/GiroStato (2026-11-26); v1.13 — riconferma WhatsApp: ✓ solo se il messaggio è partito davvero, «?» se WhatsApp è stato solo aperto (2026-11-26); v1.12 — azioni della prenotazione su una riga sola, tasti quadrati col disegno (matita, tavolo +, persona, WhatsApp, ⋯) (2026-11-26); v1.11 — tasto «tavolo +»: si assegnano i tavoli a una prenotazione toccandoli sulla mappa (2026-11-26); v1.10 — stato a quattro caselle in una riga (Prenotato · Confermato · Seduto · Libero): si tocca quella dove deve andare, avanti o indietro; le altre azioni sotto, piccole e uguali (2026-11-26); v1.9 — sul telefono gli orari sono un elenco a tendina (i tasti erano inutilizzabili) (2026-11-26); v1.8 — un tasto solo per lo stato che avanza (Prenotato → Confermato → Seduto → libera il tavolo), «↩» per tornare indietro, gli altri cambi in «Altro» (2026-11-26); v1.7 — riepilogo del turno nella riga sopra la sala (la testata resta su una riga) (2026-11-26); v1.6 — tutti i cambi di stato del Planning (stessi bottoni) e riconferma WhatsApp; testata comune del modulo (components/Testata.jsx) (2026-11-26); v1.5 — nell'elenco le stesse etichette del Planning (canale, stelle, segmento, bollino, no-show, allergie, doppione…), nome che apre la scheda cliente, note in riga (2026-11-26); v1.4 — niente barre di scorrimento (orari a colonne uguali, schede sale, elenco), piantina stretta sui tavoli, «tavoli liberi» solo nelle sale aperte (2026-11-26); v1.3 — nell'ingranaggio «Blocca le prenotazioni online» e «Chiudi servizio» (anche su TheFork), con conferma (2026-11-26); v1.2 — ingranaggio «Modifica servizio» (sale aperte, fasce e online, tavoli del turno) e matita per la sala (2026-11-26); v1.1 — stessa larghezza di pagina di Planning e Mappa, elenco a larghezza fissa e sala che non cambia misura; iPad in piedi: sala sopra, elenco sotto (2026-11-26); v1.0 — vista «Servizio»: elenco del turno e sala nella stessa schermata, striscia degli orari per vedere la sala a un'altra ora, due schede sul telefono (2026-11-26)
+// @version: v1.17 — «tavolo +» su un tavolo occupato: chiede se sovrapporre o invertire (2026-11-27); v1.16 — numero sul tavolo quando ha più prenotazioni nel turno; ogni tocco passa alla successiva (2026-11-27); v1.15 — senza un orario toccato la mappa mostra tutto il turno, non più «adesso» (2026-11-27); v1.14 — colori secondo la regola del modulo (blu = azione, indaco scuro = scelto) e caselle dello stato da components/GiroStato (2026-11-26); v1.13 — riconferma WhatsApp: ✓ solo se il messaggio è partito davvero, «?» se WhatsApp è stato solo aperto (2026-11-26); v1.12 — azioni della prenotazione su una riga sola, tasti quadrati col disegno (matita, tavolo +, persona, WhatsApp, ⋯) (2026-11-26); v1.11 — tasto «tavolo +»: si assegnano i tavoli a una prenotazione toccandoli sulla mappa (2026-11-26); v1.10 — stato a quattro caselle in una riga (Prenotato · Confermato · Seduto · Libero): si tocca quella dove deve andare, avanti o indietro; le altre azioni sotto, piccole e uguali (2026-11-26); v1.9 — sul telefono gli orari sono un elenco a tendina (i tasti erano inutilizzabili) (2026-11-26); v1.8 — un tasto solo per lo stato che avanza (Prenotato → Confermato → Seduto → libera il tavolo), «↩» per tornare indietro, gli altri cambi in «Altro» (2026-11-26); v1.7 — riepilogo del turno nella riga sopra la sala (la testata resta su una riga) (2026-11-26); v1.6 — tutti i cambi di stato del Planning (stessi bottoni) e riconferma WhatsApp; testata comune del modulo (components/Testata.jsx) (2026-11-26); v1.5 — nell'elenco le stesse etichette del Planning (canale, stelle, segmento, bollino, no-show, allergie, doppione…), nome che apre la scheda cliente, note in riga (2026-11-26); v1.4 — niente barre di scorrimento (orari a colonne uguali, schede sale, elenco), piantina stretta sui tavoli, «tavoli liberi» solo nelle sale aperte (2026-11-26); v1.3 — nell'ingranaggio «Blocca le prenotazioni online» e «Chiudi servizio» (anche su TheFork), con conferma (2026-11-26); v1.2 — ingranaggio «Modifica servizio» (sale aperte, fasce e online, tavoli del turno) e matita per la sala (2026-11-26); v1.1 — stessa larghezza di pagina di Planning e Mappa, elenco a larghezza fissa e sala che non cambia misura; iPad in piedi: sala sopra, elenco sotto (2026-11-26); v1.0 — vista «Servizio»: elenco del turno e sala nella stessa schermata, striscia degli orari per vedere la sala a un'altra ora, due schede sul telefono (2026-11-26)
 // Modulo: prenotazioni
 // Idea presa da TheFork Manager (Marco 2026-11-26: «il mix tra prenotazioni e tavoli è una visual molto utile»).
 // Non sostituisce Planning né Mappa Tavoli: è una terza vista, da provare in servizio.
@@ -65,6 +65,7 @@ export default function PrenotazioniServizio() {
   const [lavoro, setLavoro] = useState(false);
   const [altroAperto, setAltroAperto] = useState(null);       // id della prenotazione con «Altro» aperto
   const [clienteAperto, setClienteAperto] = useState(null);   // scheda cliente aperta dall'elenco, come nel Planning
+  const [conflitto, setConflitto] = useState(null);           // {nomi, nome, altra}: ho toccato per «tavolo +» un tavolo che è di un'altra prenotazione
   const [assegno, setAssegno] = useState(null);               // {id, nomi:[…]}: sto scegliendo sulla mappa i tavoli di quella prenotazione
   const righeRef = useRef({});
 
@@ -321,11 +322,34 @@ export default function PrenotazioniServizio() {
   };
   const toccaPerAssegno = (t, p, bloccato) => {
     if (bloccato) { flash("err", `Il tavolo ${t.nome} è bloccato`); return; }
-    if (p && p.id !== assegno.id) { flash("err", `Il tavolo ${t.nome} è di ${nomeDi(p)}`); return; }
     const nomi = nomiDelTavolo(t);
+    // Tavolo di un altro (Marco 2026-11-27): si chiede se sovrapporre o invertire. Se era già stato sovrapposto, il tocco lo toglie.
+    if (p && p.id !== assegno.id && !nomi.every((n) => assegno.nomi.includes(n))) { setConflitto({ nomi, nome: t.nome, altra: p }); return; }
     setAssegno((a) => (!a ? a : nomi.every((n) => a.nomi.includes(n))
       ? { ...a, nomi: a.nomi.filter((n) => !nomi.includes(n)) }
       : { ...a, nomi: [...a.nomi, ...nomi.filter((n) => !a.nomi.includes(n))] }));
+  };
+  const sovrapponi = () => {
+    const nomi = conflitto.nomi;
+    setAssegno((a) => (!a ? a : { ...a, nomi: [...a.nomi, ...nomi.filter((n) => !a.nomi.includes(n))] }));
+    setConflitto(null);
+  };
+  // Inverti: chi sto sistemando prende i tavoli dell'altro, l'altro prende i suoi di prima (o resta senza). Si salva subito.
+  const inverti = async () => {
+    if (!conflitto || !inAssegno) { setConflitto(null); return; }
+    const mio = nomiTavolo(inAssegno.tavolo).join("+"), suo = nomiTavolo(conflitto.altra.tavolo).join("+");
+    const metti = async (id, tavolo) => {
+      const r = await apiFetch(`${API_BASE}/prenotazioni/tavoli/assegna/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tavolo }) });
+      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.detail || "Tavolo non assegnato"); }
+    };
+    setLavoro(true);
+    try {
+      await metti(inAssegno.id, suo);
+      await metti(conflitto.altra.id, mio);
+      flash("ok", `${nomeDi(inAssegno)} al ${suo.replace(/\+/g, " + ")} · ${nomeDi(conflitto.altra)} ${mio ? `al ${mio.replace(/\+/g, " + ")}` : "senza tavolo"}`);
+      setConflitto(null); setAssegno(null);
+    } catch (e) { flash("err", e.message || "Errore di connessione"); }
+    finally { setLavoro(false); carica(); }
   };
   const postiAssegno = assegno ? tuttiTavoli.filter((t) => nomiDelTavolo(t).every((n) => assegno.nomi.includes(n))).reduce((tot, t) => tot + (t.posti_max || 0), 0) : 0;
   const salvaAssegno = async () => {
@@ -642,6 +666,25 @@ export default function PrenotazioniServizio() {
           <div className="bg-white w-full sm:max-w-5xl sm:rounded-2xl shadow-xl p-2 sm:p-4" onClick={(e) => e.stopPropagation()}>
             <button type="button" onClick={() => { setClienteAperto(null); carica(); }} className="mb-2 text-sm text-indigo-700 font-medium min-h-[44px]">← Torna al servizio</button>
             <ClientiScheda clienteId={clienteAperto} embedded onClose={() => { setClienteAperto(null); carica(); }} />
+          </div>
+        </div>
+      )}
+      {conflitto && inAssegno && (
+        <div className="fixed inset-0 z-[70] bg-black/40 flex items-center justify-center p-3" onClick={() => setConflitto(null)}>
+          <div role="dialog" aria-label="Tavolo occupato" className="bg-white w-full max-w-md rounded-2xl shadow-xl p-4 flex flex-col gap-3" onClick={(e) => e.stopPropagation()}>
+            <div>
+              <div className="text-lg font-bold text-neutral-900" style={{ fontFamily: "'Playfair Display', Georgia, serif" }}>Il tavolo {conflitto.nome} è di {nomeDi(conflitto.altra)}</div>
+              <div className="text-sm text-neutral-600">{String(conflitto.altra.ora_pasto).slice(0, 5)} · {conflitto.altra.pax} persone{conflitto.altra.tavolo ? ` · tavolo ${nomiTavolo(conflitto.altra.tavolo).join(" + ")}` : ""}. Cosa faccio con {nomeDi(inAssegno)} ({String(inAssegno.ora_pasto).slice(0, 5)}, {inAssegno.pax} p)?</div>
+            </div>
+            <button type="button" disabled={lavoro} onClick={sovrapponi} className="text-left px-3 py-2.5 min-h-[56px] rounded-lg border border-neutral-300 bg-white hover:bg-neutral-50 disabled:opacity-50">
+              <span className="block text-[15px] font-bold text-neutral-900">Sovrapponi</span>
+              <span className="block text-sm text-neutral-600">Tutti e due sul {conflitto.nome} (per esempio uno dopo l'altro). Poi premi «Assegna».</span>
+            </button>
+            <button type="button" disabled={lavoro} onClick={inverti} className="text-left px-3 py-2.5 min-h-[56px] rounded-lg border border-neutral-300 bg-white hover:bg-neutral-50 disabled:opacity-50">
+              <span className="block text-[15px] font-bold text-neutral-900">Inverti</span>
+              <span className="block text-sm text-neutral-600">{nomeDi(inAssegno)} va al {nomiTavolo(conflitto.altra.tavolo).join(" + ")}; {nomeDi(conflitto.altra)} {nomiTavolo(inAssegno.tavolo).length ? `va al ${nomiTavolo(inAssegno.tavolo).join(" + ")}` : "resta senza tavolo"}. Si salva subito.</span>
+            </button>
+            <button type="button" onClick={() => setConflitto(null)} className="self-end px-4 min-h-[44px] rounded-lg text-sm font-semibold text-neutral-700 hover:bg-neutral-100">Annulla</button>
           </div>
         </div>
       )}

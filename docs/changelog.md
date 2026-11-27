@@ -3,6 +3,17 @@
 
 ---
 
+## 2026-11-27 — Prenotazioni 2.58: senza numero su TheFork, sovrapponi o inverti `[core]`
+
+### Cambiato
+- Una prenotazione presa senza telefono né email (uno che passa e torna più tardi) ora va lo stesso su TheFork, così il tavolo è bloccato anche lì. A TheFork va l'email di servizio col codice della scheda al posto del numero. Prima restava solo in TRGB finché non si aggiungeva un recapito. I walk-in continuano a non partire.
+
+### Corretto
+- Una prenotazione arrivata da TheFork su più tavoli (es. «1+5») e poi rimessa in TRGB su un tavolo solo lasciava i tavoli disegnati uniti. Ora, cambiando il tavolo (Modifica, Mappa, «tavolo +»), l'unione nata da quella prenotazione si toglie da sola.
+
+### Aggiunto
+- Servizio, «tavolo +»: toccando un tavolo che è già di un'altra prenotazione si apre la scelta. «Sovrapponi» mette tutte e due sullo stesso tavolo (poi «Assegna»); «Inverti» scambia i tavoli delle due prenotazioni e salva subito (se chi si sta sistemando non aveva un tavolo, l'altra resta senza).
+
 ## 2026-11-27 — Prenotazioni 2.57: la mappa di Servizio mostra tutto il turno `[core]`
 
 ### Cambiato

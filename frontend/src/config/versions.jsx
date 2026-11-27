@@ -895,7 +895,9 @@ const MODULE_VERSIONS = {
     // 2.57 (2026-11-27): Servizio, senza un orario toccato la mappa mostra tutto il turno (tutti i tavoli assegnati),
     //   non più la sala «adesso»: prima del servizio sembrava vuota. Toccando un orario si vede la sala a quell'ora.
     //   Un tavolo con più prenotazioni nel turno ha un bollino nero col numero; ogni tocco passa alla successiva.
-    version: "2.57",
+    // 2.58 (2026-11-27): prenotazione senza telefono né email mandata comunque a TheFork (email di servizio col codice
+    //   della scheda). «Tavolo +» su un tavolo occupato: chiede se sovrapporre o invertire le due prenotazioni.
+    version: "2.58",
     label: "Prenotazioni",
     status: "beta",
     color: "blue",
