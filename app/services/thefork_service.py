@@ -451,6 +451,10 @@ def mappa_prenotazione(r: Dict[str, Any], soglia: str) -> Dict[str, Any]:
         "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }
 
+    # `stato_thefork` = l'ultimo stato detto da TheFork: serve a capire se lo stato in TRGB è
+    # ancora il suo o è stato cambiato a mano in sala (v. _priorita_trgb, mig 254).
+    rec["stato_thefork"] = rec.get("stato")
+
     # Tavoli: solo se TheFork ne ha assegnati, per non cancellare quelli dati in TRGB.
     # `tavolo_thefork` = l'ultimo tavolo detto da TheFork: serve a capire se quello in
     # TRGB è ancora il suo o è stato cambiato a mano (v. _priorita_trgb).
@@ -583,6 +587,17 @@ def _priorita_trgb(conn, rec: Dict[str, Any]) -> List[str]:
         if gia["stato"] in stati_trgb:
             rec.pop("stato")
             tenuti.append("stato")
+    # Lo stato cambiato in sala resta (Marco 2026-11-27: liberava i tavoli in TRGB e «sono ricomparsi»
+    # perché su TheFork Manager quei clienti risultavano ancora seduti). Stessa regola del tavolo:
+    # se TheFork ripete lo stato che aveva già detto (`stato_thefork`), non è una notizia e vale quello
+    # di TRGB; se dice uno stato NUOVO (cancellata, no-show, andato via…) passa. Per le righe arrivate
+    # prima della regola (`stato_thefork` vuoto): un tavolo già liberato in TRGB non torna «seduto».
+    if "stato" in rec and gia["stato"] != rec["stato"]:
+        detto = gia["stato_thefork"] if "stato_thefork" in gia.keys() else None
+        if (detto and detto == rec["stato"]) or (
+                not detto and gia["stato"] == "LEFT" and rec["stato"] in ("ARRIVED", "PARTIALLY_ARRIVED", "SEATED")):
+            rec.pop("stato")
+            tenuti.append("stato")
     return tenuti
 
 
@@ -598,10 +613,10 @@ def _sincronizza_prenotazione(conn, uuid: str, solo_se_cambia: bool = False) -> 
     rec = mappa_prenotazione(r, _soglia_turno(conn))
     if not rec.get("data_pasto"):
         raise ValueError("prenotazione senza mealDate")
-    if "tavolo_thefork" in rec and "tavolo_thefork" not in {
-        c[1] for c in conn.execute("PRAGMA table_info(clienti_prenotazioni)")
-    }:
-        rec.pop("tavolo_thefork")   # DB non ancora aggiornato: si lavora come prima
+    colonne = {c[1] for c in conn.execute("PRAGMA table_info(clienti_prenotazioni)")}
+    for k in ("tavolo_thefork", "stato_thefork"):
+        if k in rec and k not in colonne:
+            rec.pop(k)   # DB non ancora aggiornato: si lavora come prima
     tenuti_trgb = _priorita_trgb(conn, rec)   # descrittivo: vince TRGB (2026-11-13)
     _tieni_trgb(conn, rec)
 

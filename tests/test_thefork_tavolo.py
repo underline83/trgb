@@ -49,6 +49,68 @@ def _a_mano(c, tavolo, uuid="u1"):
     c.execute("UPDATE clienti_prenotazioni SET tavolo = ? WHERE thefork_booking_id = ?", (tavolo, uuid))
 
 
+def _db_stato():
+    c = sqlite3.connect(":memory:")
+    c.row_factory = sqlite3.Row
+    c.execute("CREATE TABLE clienti_prenotazioni (id INTEGER PRIMARY KEY, thefork_booking_id TEXT UNIQUE, "
+              "stato TEXT, tavolo TEXT, nota_ristorante TEXT, tavolo_thefork TEXT, stato_thefork TEXT)")
+    return c
+
+
+def _dice(c, stato, uuid="u1", con_marca=True):
+    """TheFork dice uno stato: mappa → priorità → upsert."""
+    rec = {"thefork_booking_id": uuid, "stato": stato}
+    if con_marca:
+        rec["stato_thefork"] = stato
+    tenuti = tf._priorita_trgb(c, rec)
+    upsert_prenotazione(c, rec)
+    return tenuti
+
+
+def _stato(c, uuid="u1"):
+    return c.execute("SELECT stato FROM clienti_prenotazioni WHERE thefork_booking_id = ?", (uuid,)).fetchone()[0]
+
+
+class Stato(unittest.TestCase):
+    """27/11: Marco libera i tavoli in TRGB e TheFork (dove risultano ancora seduti) li rimetteva «Seduto»."""
+
+    def test_liberato_in_sala_resta_libero(self):
+        c = _db_stato()
+        _dice(c, "SEATED")
+        c.execute("UPDATE clienti_prenotazioni SET stato = 'LEFT'")
+        self.assertEqual(_dice(c, "SEATED"), ["stato"])       # TheFork ripete «seduto»: non è una notizia
+        self.assertEqual(_stato(c), "LEFT")
+
+    def test_passo_indietro_in_sala_resta(self):
+        c = _db_stato()
+        _dice(c, "SEATED")
+        c.execute("UPDATE clienti_prenotazioni SET stato = 'RECORDED'")
+        _dice(c, "SEATED")
+        self.assertEqual(_stato(c), "RECORDED")
+
+    def test_stato_nuovo_da_thefork_passa(self):
+        c = _db_stato()
+        _dice(c, "SEATED")
+        c.execute("UPDATE clienti_prenotazioni SET stato = 'LEFT'")
+        self.assertEqual(_dice(c, "CANCELED"), [])
+        self.assertEqual(_stato(c), "CANCELED")
+
+    def test_thefork_avanza_e_trgb_segue(self):
+        c = _db_stato()
+        _dice(c, "RECORDED")
+        _dice(c, "SEATED")
+        self.assertEqual(_stato(c), "SEATED")
+        _dice(c, "LEFT")
+        self.assertEqual(_stato(c), "LEFT")
+
+    def test_riga_di_prima_della_regola_liberata_non_torna_seduta(self):
+        c = _db_stato()
+        _dice(c, "SEATED", con_marca=False)                    # arrivata prima: stato_thefork vuoto
+        c.execute("UPDATE clienti_prenotazioni SET stato = 'LEFT'")
+        _dice(c, "SEATED")
+        self.assertEqual(_stato(c), "LEFT")
+
+
 class Tavolo(unittest.TestCase):
     def test_nato_da_thefork_segue_thefork(self):
         c = _db()

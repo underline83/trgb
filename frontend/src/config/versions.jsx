@@ -897,6 +897,9 @@ const MODULE_VERSIONS = {
     //   Un tavolo con più prenotazioni nel turno ha un bollino nero col numero; ogni tocco passa alla successiva.
     // 2.58 (2026-11-27): prenotazione senza telefono né email mandata comunque a TheFork (email di servizio col codice
     //   della scheda). «Tavolo +» su un tavolo occupato: chiede se sovrapporre o invertire le due prenotazioni.
+    //   Archivio: ordinamento per data e ora del pasto o per inserimento, nei due versi.
+    //   Lo stato cambiato in sala (tavolo liberato, passo indietro) non viene più rimesso da TheFork (mig 254).
+    //   «Tavolo +» su un altro tavolo quando ne ha già uno: chiede «Sposta» o «Unisci»; i tavoli scelti si tolgono uno a uno.
     version: "2.58",
     label: "Prenotazioni",
     status: "beta",
@@ -1072,6 +1075,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 6.19 (2026-11-27): mig 254 — clienti_prenotazioni.stato_thefork (ultimo stato detto da TheFork).
     // 6.18 (2026-11-27): mig 253 — template_wa_reminder: «per domani» → «per {quando}».
     // 6.17 (2026-11-26): mig 252 — clienti_prenotazioni.reminder_at (ora del tocco su «Riconferma su WhatsApp»).
     // 6.16 (2026-11-26): mig 251 — tolto il passaggio Seduto → Al conto; le prenotazioni rimaste «Al conto» → «Completata».
@@ -1268,7 +1272,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "6.18",
+    version: "6.19",
     label: "Sistema",
     status: "stabile",
     color: "green",

@@ -345,6 +345,7 @@ def init_clienti_db() -> None:
         # Ultimo tavolo detto da TheFork (2026-11-26): se `tavolo` è uguale, il tavolo
         # segue TheFork; se è diverso è stato messo a mano in TRGB e resta quello.
         ("tavolo_thefork", "TEXT"),
+        ("stato_thefork", "TEXT"),               # ultimo stato detto da TheFork (mig 254)
     ]
     existing_pren = [r[1] for r in cur.execute("PRAGMA table_info(clienti_prenotazioni)").fetchall()]
     for col_name, col_type in pren_cols:

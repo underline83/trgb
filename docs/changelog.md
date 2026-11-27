@@ -3,15 +3,18 @@
 
 ---
 
-## 2026-11-27 — Prenotazioni 2.58: senza numero su TheFork, sovrapponi o inverti `[core]`
+## 2026-11-27 — Prenotazioni 2.58 / sistema 6.19: stato della sala al riparo da TheFork, sovrapponi o inverti (mig 254) `[core]`
 
 ### Cambiato
 - Una prenotazione presa senza telefono né email (uno che passa e torna più tardi) ora va lo stesso su TheFork, così il tavolo è bloccato anche lì. A TheFork va l'email di servizio col codice della scheda al posto del numero. Prima restava solo in TRGB finché non si aggiungeva un recapito. I walk-in continuano a non partire.
 
 ### Corretto
+- Un tavolo liberato in TRGB tornava «Seduto» da solo: su TheFork Manager quel cliente risultava ancora seduto e alla sincronizzazione successiva TRGB lo rimetteva. Ora lo stato cambiato in sala resta (tavolo liberato, passo indietro): TheFork lo cambia solo se dice uno stato nuovo (cancellata, no-show, andato via…), non se ripete quello di prima.
+- «Tavolo +» su una prenotazione che aveva già un tavolo: toccandone un altro lo aggiungeva senza dirlo (Balestra dal 3 al «3+7»). Ora chiede «Sposta al 7» o «Unisci: 3 + 7». I tavoli scelti sono pastiglie con la ✕: si tolgono uno alla volta, anche quando sulla mappa sono disegnati uniti.
 - Una prenotazione arrivata da TheFork su più tavoli (es. «1+5») e poi rimessa in TRGB su un tavolo solo lasciava i tavoli disegnati uniti. Ora, cambiando il tavolo (Modifica, Mappa, «tavolo +»), l'unione nata da quella prenotazione si toglie da sola.
 
 ### Aggiunto
+- Archivio: si ordina toccando l'intestazione «Data e ora» o «Inserita» (un tocco dalla più recente, un altro dalla più vecchia); la stessa scelta è nei filtri («Ordina per»), che è il modo di farlo sul telefono.
 - Servizio, «tavolo +»: toccando un tavolo che è già di un'altra prenotazione si apre la scelta. «Sovrapponi» mette tutte e due sullo stesso tavolo (poi «Assegna»); «Inverti» scambia i tavoli delle due prenotazioni e salva subito (se chi si sta sistemando non aveva un tavolo, l'altra resta senza).
 
 ## 2026-11-27 — Prenotazioni 2.57: la mappa di Servizio mostra tutto il turno `[core]`

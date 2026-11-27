@@ -2806,9 +2806,19 @@ def archivio_prenotazioni(
     canale: Optional[str] = None,
     data_da: Optional[str] = None,
     data_a: Optional[str] = None,
+    ordine: str = Query("pasto_desc", description="pasto_desc | pasto_asc | inserita_desc | inserita_asc"),
     limit: int = Query(50, ge=1, le=1000),
     offset: int = Query(0, ge=0),
 ):
+    # Ordinamento scelto dall'elenco (Marco 2026-11-27): per giorno e ora del pasto, o per quando è stata inserita
+    ordina = {
+        "pasto_desc": "p.data_pasto DESC, p.ora_pasto DESC, p.id DESC",
+        "pasto_asc": "p.data_pasto ASC, p.ora_pasto ASC, p.id ASC",
+        "inserita_desc": "p.data_prenotazione DESC, p.id DESC",
+        "inserita_asc": "p.data_prenotazione IS NULL, p.data_prenotazione ASC, p.id ASC",
+    }.get(ordine)
+    if not ordina:
+        raise HTTPException(status_code=400, detail="ordine: pasto_desc, pasto_asc, inserita_desc o inserita_asc")
     conn = get_clienti_conn()
     try:
         where, params = [], []
@@ -2834,7 +2844,7 @@ def archivio_prenotazioni(
             FROM clienti_prenotazioni p
             LEFT JOIN clienti c ON c.id = p.cliente_id
             WHERE {where_sql}
-            ORDER BY p.data_pasto DESC, p.ora_pasto DESC
+            ORDER BY {ordina}
             LIMIT ? OFFSET ?""", params + [limit, offset]).fetchall()
         return {"prenotazioni": [dict(r) for r in rows], "totale": totale, "limit": limit, "offset": offset}
     finally:

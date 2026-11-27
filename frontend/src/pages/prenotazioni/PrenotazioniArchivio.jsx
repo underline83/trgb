@@ -1,4 +1,4 @@
-// @version: v2.2 — su iPhone ricerca e filtri in cima (prima sotto i 1024 px non c'erano) ed elenco a schede al posto della tabella (2026-11-24); v2.1 — filtro stati dalla tabella stati (In opzione, Lista d'attesa) (2026-11-13) · v2.0 — spostato da Clienti a Prenotazioni › Archivio (redesign 2026-10-19), API /prenotazioni/archivio/ · v1.1-mattoni
+// @version: v2.3 — ordinamento per data e ora del pasto o per data di inserimento, dal più recente o dal più vecchio (2026-11-27); v2.2 — su iPhone ricerca e filtri in cima (prima sotto i 1024 px non c'erano) ed elenco a schede al posto della tabella (2026-11-24); v2.1 — filtro stati dalla tabella stati (In opzione, Lista d'attesa) (2026-11-13) · v2.0 — spostato da Clienti a Prenotazioni › Archivio (redesign 2026-10-19), API /prenotazioni/archivio/ · v1.1-mattoni
 // Archivio prenotazioni: tutte, con filtri, ricerca, paginazione
 import React, { useState, useEffect, useCallback } from "react";
 import usePrenotazioniStati from "./components/statiPrenotazioni";
@@ -68,6 +68,7 @@ export default function PrenotazioniArchivio() {
   const [canale, setCanale] = useState("");
   const [dataDa, setDataDa] = useState("");
   const [dataA, setDataA] = useState("");
+  const [ordine, setOrdine] = useState("pasto_desc");        // pasto_desc | pasto_asc | inserita_desc | inserita_asc
   const [filtriAperti, setFiltriAperti] = useState(false);   // telefono/iPad dritto: filtri a scomparsa
   const filtriAttivi = [stato, canale, dataDa, dataA].filter(Boolean).length;
 
@@ -80,6 +81,7 @@ export default function PrenotazioniArchivio() {
       if (canale) params.set("canale", canale);
       if (dataDa) params.set("data_da", dataDa);
       if (dataA) params.set("data_a", dataA);
+      params.set("ordine", ordine);
       params.set("limit", PAGE_SIZE);
       params.set("offset", offset);
 
@@ -92,7 +94,16 @@ export default function PrenotazioniArchivio() {
     } finally {
       setLoading(false);
     }
-  }, [q, stato, canale, dataDa, dataA, offset]);
+  }, [q, stato, canale, dataDa, dataA, ordine, offset]);
+  // Intestazione che ordina: primo tocco dal più recente, secondo al contrario
+  const ordinaPer = (campo) => { setOrdine(ordine === `${campo}_desc` ? `${campo}_asc` : `${campo}_desc`); setOffset(0); };
+  const Ordinabile = ({ campo, children, colSpan }) => (
+    <th colSpan={colSpan} className="px-3 py-2 text-left text-xs font-medium text-neutral-500" aria-sort={ordine.startsWith(campo) ? (ordine.endsWith("asc") ? "ascending" : "descending") : "none"}>
+      <button type="button" onClick={() => ordinaPer(campo)} title="Ordina" className={`inline-flex items-center gap-1 hover:text-neutral-900 ${ordine.startsWith(campo) ? "text-indigo-900 font-bold" : ""}`}>
+        {children}<span aria-hidden="true">{ordine.startsWith(campo) ? (ordine.endsWith("asc") ? "▲" : "▼") : "↕"}</span>
+      </button>
+    </th>
+  );
 
   useEffect(() => { fetchPrenotazioni(); }, [fetchPrenotazioni]);
 
@@ -184,6 +195,16 @@ export default function PrenotazioniArchivio() {
                 </div>
 
                 <div>
+                  <label className="text-xs text-neutral-600 font-medium">Ordina per</label>
+                  <select value={ordine} onChange={(e) => { setOrdine(e.target.value); setOffset(0); }}
+                    className="w-full mt-1 border border-neutral-300 rounded-lg px-3 py-1.5 max-lg:min-h-[44px] text-base lg:text-sm">
+                    <option value="pasto_desc">Data e ora — dalla più recente</option>
+                    <option value="pasto_asc">Data e ora — dalla più vecchia</option>
+                    <option value="inserita_desc">Inserimento — le ultime inserite</option>
+                    <option value="inserita_asc">Inserimento — le prime inserite</option>
+                  </select>
+                </div>
+                <div>
                   <label className="text-xs text-neutral-600 font-medium">Da data</label>
                   <input type="date" value={dataDa} onChange={(e) => setDataDa(e.target.value)}
                     className="w-full mt-1 border border-neutral-300 rounded-lg px-3 py-1.5 max-lg:min-h-[44px] text-base lg:text-sm" />
@@ -258,15 +279,14 @@ export default function PrenotazioniArchivio() {
                     <table className="w-full text-sm">
                       <thead className="bg-neutral-50 border-b border-neutral-200">
                         <tr>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-neutral-500">Data</th>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-neutral-500">Ora</th>
+                          <Ordinabile campo="pasto" colSpan={2}>Data e ora</Ordinabile>
                           <th className="px-3 py-2 text-left text-xs font-medium text-neutral-500">Cliente</th>
                           <th className="px-3 py-2 text-center text-xs font-medium text-neutral-500">Pax</th>
                           <th className="px-3 py-2 text-left text-xs font-medium text-neutral-500">Stato</th>
                           <th className="px-3 py-2 text-left text-xs font-medium text-neutral-500">Canale</th>
                           <th className="px-3 py-2 text-left text-xs font-medium text-neutral-500">Tavolo</th>
                           <th className="px-3 py-2 text-left text-xs font-medium text-neutral-500">Note</th>
-                          <th className="px-3 py-2 text-left text-xs font-medium text-neutral-500">Inserita</th>
+                          <Ordinabile campo="inserita">Inserita</Ordinabile>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-neutral-100">
