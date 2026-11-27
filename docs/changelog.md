@@ -3,6 +3,19 @@
 
 ---
 
+## 2026-11-27 — Prenotazioni 2.56 / sistema 6.18: colori del modulo, turni del personale nel Mese, riconferma «stasera» (mig 253) `[core]`
+
+### Cambiato
+- Colori di Prenotazioni, ogni colore un mestiere solo: blu del marchio per il bottone che scrive (Nuova, Salva, Assegna, Conferma), indaco scuro per «scelto / dove sono» (viste, pranzo/cena, giorno, orario, tavolo, interruttori), bianco col bordo per tutti gli altri bottoni, rosso per ciò che toglie o chiude (Cancella, No-show, Rifiuta). I colori degli stati restano solo sugli stati.
+- Elenco: al posto dei bottoni di stato a sei colori, le stesse quattro caselle di Servizio (Prenotato · Confermato · Seduto · Libero); sotto restano solo i cambi che le caselle non fanno.
+- Form: lo stato «Confermata» ora si chiama «Prenotato» anche lì.
+
+### Corretto
+- Riconferma su WhatsApp: il testo diceva sempre «domani», anche mandata il giorno stesso. Ora il giorno lo scrive TRGB con il segnaposto `{quando}`: «stasera», «oggi a pranzo», «domani sera», «domani a pranzo», oppure «sabato 5 dicembre». La migrazione cambia «per domani» in «per {quando}» nel testo salvato; il segnaposto è tra quelli elencati in Impostazioni.
+
+### Aggiunto
+- Mese: su ogni giorno le due figurine aprono «Chi è di turno»: personale di pranzo e di cena per reparto, con orario e «da confermare». Solo capo sala, chef e admin (`GET /turni/giorno`, modulo dipendenti, sola lettura).
+
 ## 2026-11-26 — Prenotazioni 2.55 / sistema 6.17: riconferma WhatsApp verificata (mig 252) `[core]`
 
 ### Cambiato

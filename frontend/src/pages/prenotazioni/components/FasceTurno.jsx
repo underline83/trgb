@@ -12,7 +12,7 @@ function Interruttore({ acceso, onClick, disabled, title }) {
       title={title}
       disabled={disabled}
       onClick={onClick}
-      className={`relative w-10 h-6 rounded-full transition flex-shrink-0 ${acceso ? "bg-emerald-500" : "bg-neutral-300"} ${disabled ? "opacity-50" : ""}`}
+      className={`relative w-10 h-6 rounded-full transition flex-shrink-0 ${acceso ? "bg-indigo-900" : "bg-neutral-300"} ${disabled ? "opacity-50" : ""}`}
     >
       <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${acceso ? "left-[18px]" : "left-0.5"}`} />
     </button>

@@ -886,7 +886,13 @@ const MODULE_VERSIONS = {
     //   (matita = modifica, tavolo + = assegna i tavoli, persona = scheda cliente, fumetto = WhatsApp, ⋯ = altro).
     // 2.55 (2026-11-26): riconferma WhatsApp verificata: la spunta verde solo se l'archivio WhatsApp vede uscire un
     //   messaggio verso quel numero dopo il tocco; altrimenti «?» ambra (aperta, non mandata). Servizio, Elenco, etichette.
-    version: "2.55",
+    // 2.56 (2026-11-26): colori del modulo, ogni colore un mestiere: blu del marchio = il bottone che scrive, indaco scuro
+    //   = scelto / dove sono, bianco col bordo = gli altri bottoni, rosso = ciò che toglie, colori degli stati solo per gli
+    //   stati. Le quattro caselle dello stato anche in Elenco (components/GiroStato). Mese: 👥 chi è di turno quel giorno
+    //   (capo sala, chef, admin), da GET /turni/giorno.
+    //   Riconferma WhatsApp: segnaposto {quando} («stasera», «oggi a pranzo», «domani sera», «sabato 5 dicembre») al posto
+    //   di «domani» scritto fisso (mig 253).
+    version: "2.56",
     label: "Prenotazioni",
     status: "beta",
     color: "blue",
@@ -1061,6 +1067,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 6.18 (2026-11-27): mig 253 — template_wa_reminder: «per domani» → «per {quando}».
     // 6.17 (2026-11-26): mig 252 — clienti_prenotazioni.reminder_at (ora del tocco su «Riconferma su WhatsApp»).
     // 6.16 (2026-11-26): mig 251 — tolto il passaggio Seduto → Al conto; le prenotazioni rimaste «Al conto» → «Completata».
     // 6.15 (2026-11-26): mig 250 — clienti_prenotazioni.riconfermata_at («Confermato»), etichetta «Prenotato» per RECORDED,
@@ -1256,7 +1263,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "6.17",
+    version: "6.18",
     label: "Sistema",
     status: "stabile",
     color: "green",

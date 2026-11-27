@@ -82,7 +82,7 @@ export default function MiniCalendario({ selectedDate, onSelectDate }) {
               onClick={() => onSelectDate(cell.iso)}
               title={titolo}
               className={`relative w-full h-11 text-sm sm:w-8 sm:h-8 sm:text-xs flex items-center justify-center rounded-lg transition
-                ${isSelected ? "bg-indigo-600 text-white font-bold" : ""}
+                ${isSelected ? "bg-indigo-900 text-white font-bold" : ""}
                 ${isOggi && !isSelected ? "ring-2 ring-indigo-300" : ""}
                 ${!isSelected ? (giornoChiuso ? "bg-neutral-100 text-neutral-400 line-through" : "hover:bg-neutral-100 text-neutral-700") : ""}
               `}

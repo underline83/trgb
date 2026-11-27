@@ -558,6 +558,23 @@ def get_chiusure_settimana(
 
 
 # ============================================================
+# GET /turni/giorno  — chi lavora in un giorno, tutti i reparti (2026-11-26)
+# ============================================================
+# Per il Mese di Prenotazioni. Ruoli decisi da Marco: capo sala, chef, admin.
+@router.get("/giorno")
+def get_turni_giorno(
+    data: str = Query(..., description="YYYY-MM-DD"),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    verifica_ruoli(current_user, "admin", "capo_sala", "chef", cosa="i turni del giorno")
+    try:
+        date.fromisoformat(data)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Data non valida: {data}")
+    return JSONResponse(content=turni_service.turni_del_giorno(data))
+
+
+# ============================================================
 # GET /turni/mese  — Fase 5: vista mensile a griglia (sola lettura)
 # ============================================================
 @router.get("/mese")

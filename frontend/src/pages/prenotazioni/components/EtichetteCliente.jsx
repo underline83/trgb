@@ -56,7 +56,7 @@ export default function EtichetteCliente({ pren }) {
         </Tooltip>
       )}
       {pren.stato === "REQUESTED" && (
-        <span className="px-1.5 py-0.5 bg-blue-500 text-white text-[10px] font-bold rounded-full">NUOVA</span>
+        <span className="px-1.5 py-0.5 bg-neutral-800 text-white text-[10px] font-bold rounded-full">NUOVA</span>
       )}
       {pren.possibili_doppioni && pren.possibili_doppioni.length > 0 && (
         <Tooltip label={pren.possibili_doppioni.map((d) => `Uguale a ${d.ora} ${d.nome} (${d.pax} pax${d.thefork ? ", TheFork" : ", a mano"}): ${d.motivi.join(", ")}`).join(" · ")}>

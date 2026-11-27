@@ -413,7 +413,7 @@ function CapienzaSection({ config, update }) {
               return (
                 <button key={g} type="button"
                   onClick={() => update("giorni_pranzo_lungo", JSON.stringify(on ? giorni.filter((x) => x !== i) : [...giorni, i].sort()))}
-                  className={`px-2.5 py-1 rounded-lg text-xs border ${on ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-neutral-600 border-neutral-300"}`}>
+                  className={`px-2.5 py-1 rounded-lg text-xs border ${on ? "bg-indigo-900 text-white border-indigo-900" : "bg-white text-neutral-600 border-neutral-300"}`}>
                   {g}
                 </button>
               );
@@ -626,7 +626,7 @@ function TemplateSection({ config, update }) {
       <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
         <h4 className="font-semibold text-amber-800 mb-2 text-sm">Variabili disponibili</h4>
         <div className="flex flex-wrap gap-2">
-          {["{nome}", "{cognome}", "{pax}", "{data}", "{ora}"].map((v) => (
+          {["{nome}", "{cognome}", "{pax}", "{data}", "{ora}", "{quando}"].map((v) => (
             <code key={v} className="px-2 py-0.5 bg-white border border-amber-200 rounded-lg text-xs font-mono text-amber-800">{v}</code>
           ))}
         </div>
@@ -651,7 +651,8 @@ function TemplateSection({ config, update }) {
               .replace("{cognome}", "Rossi")
               .replace("{pax}", "4")
               .replace("{data}", "2026-04-10")
-              .replace("{ora}", "20:30")}
+              .replace("{ora}", "20:30")
+              .replace("{quando}", "stasera")}
           </div>
         )}
       </div>
@@ -675,7 +676,8 @@ function TemplateSection({ config, update }) {
               .replace("{cognome}", "Rossi")
               .replace("{pax}", "4")
               .replace("{data}", "2026-04-10")
-              .replace("{ora}", "20:30")}
+              .replace("{ora}", "20:30")
+              .replace("{quando}", "stasera")}
           </div>
         )}
       </div>

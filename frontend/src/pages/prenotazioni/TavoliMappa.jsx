@@ -319,7 +319,7 @@ export default function TavoliMappa() {
             {!assegnando && !unendo && (
               <button onClick={() => setSpostando(!spostando)}
                 title="Trascina i tavoli per questo turno (la piantina dell'Editor non cambia)"
-                className={`px-3 min-h-[44px] rounded-lg text-sm font-medium border ${spostando ? "bg-indigo-600 text-white border-indigo-600" : "border-indigo-300 text-indigo-700 bg-white hover:bg-indigo-50"}`}>
+                className={`px-3 min-h-[44px] rounded-lg text-sm font-medium border ${spostando ? "bg-indigo-900 text-white border-indigo-900" : "border-neutral-300 text-neutral-800 bg-white hover:bg-neutral-50"}`}>
                 ✋ {spostando ? "Fine spostamenti" : "Sposta"}</button>
             )}
             {!assegnando && !unendo && (
@@ -339,7 +339,7 @@ export default function TavoliMappa() {
                     className="w-10 px-1 py-0.5 border rounded-lg" />
                 </label>
                 <button disabled={unendo.ids.length < 2 && !(unendo.ids.length === 1 && unendo.prolunghe > 0)} onClick={confermaUnione}
-                  className="px-2 py-0.5 rounded-lg bg-indigo-600 text-white disabled:opacity-40">{assegnando ? "Unisci e assegna" : "Unisci"}</button>
+                  className="px-2 py-0.5 rounded-lg bg-brand-blue text-white disabled:opacity-40">{assegnando ? "Unisci e assegna" : "Unisci"}</button>
                 <button onClick={() => setUnendo(null)} className="text-indigo-500 hover:text-indigo-800">Annulla</button>
               </div>
             )}
@@ -569,22 +569,22 @@ export default function TavoliMappa() {
                   {selectedPren.stato === "RECORDED" && (
                     <>
                       <button onClick={() => cambiaStato(selectedPren.id, "SEATED")}
-                        className="px-2 py-1 text-[10px] max-sm:px-3 max-sm:py-2.5 max-sm:text-xs bg-emerald-600 text-white rounded-lg font-medium">Seduto</button>
+                        className="px-2 py-1 text-[10px] max-sm:px-3 max-sm:py-2.5 max-sm:text-xs bg-white text-neutral-800 border border-neutral-300 rounded-lg font-medium">Seduto</button>
                       <button onClick={() => cambiaStato(selectedPren.id, "NO_SHOW")}
-                        className="px-2 py-1 text-[10px] max-sm:px-3 max-sm:py-2.5 max-sm:text-xs bg-red-600 text-white rounded-lg font-medium">No-show</button>
+                        className="px-2 py-1 text-[10px] max-sm:px-3 max-sm:py-2.5 max-sm:text-xs bg-white text-red-700 border border-red-300 rounded-lg font-medium">No-show</button>
                     </>
                   )}
                   {selectedPren.stato === "OPTION" && (
                     <button onClick={() => cambiaStato(selectedPren.id, "RECORDED")}
-                      className="px-2 py-1 text-[10px] max-sm:px-3 max-sm:py-2.5 max-sm:text-xs bg-indigo-600 text-white rounded-lg font-medium">✓ Conferma</button>
+                      className="px-2 py-1 text-[10px] max-sm:px-3 max-sm:py-2.5 max-sm:text-xs bg-brand-blue text-white rounded-lg font-medium">✓ Conferma</button>
                   )}
                   {selectedPren.stato === "ARRIVED" && (
                     <button onClick={() => cambiaStato(selectedPren.id, "SEATED")}
-                      className="px-2 py-1 text-[10px] max-sm:px-3 max-sm:py-2.5 max-sm:text-xs bg-emerald-600 text-white rounded-lg font-medium">Seduto</button>
+                      className="px-2 py-1 text-[10px] max-sm:px-3 max-sm:py-2.5 max-sm:text-xs bg-white text-neutral-800 border border-neutral-300 rounded-lg font-medium">Seduto</button>
                   )}
                   {(selectedPren.stato === "SEATED" || selectedPren.stato === "BILL") && (
                     <button onClick={() => cambiaStato(selectedPren.id, "LEFT")}
-                      className="px-2 py-1 text-[10px] max-sm:px-3 max-sm:py-2.5 max-sm:text-xs bg-neutral-600 text-white rounded-lg font-medium">Andato via</button>
+                      className="px-2 py-1 text-[10px] max-sm:px-3 max-sm:py-2.5 max-sm:text-xs bg-white text-neutral-800 border border-neutral-300 rounded-lg font-medium">Andato via</button>
                   )}
                   {selectedTavolo && selectedPren.stato !== "LEFT" && (
                     <button onClick={() => liberaTavolo(selectedPren.id)}
@@ -641,8 +641,8 @@ export default function TavoliMappa() {
                         onClick={() => setAssegnando(assegnando === p.id ? null : p.id)}
                         className={`px-2 py-1 text-[10px] max-sm:px-3 max-sm:py-2.5 max-sm:text-xs rounded-lg font-medium transition ${
                           assegnando === p.id
-                            ? "bg-amber-500 text-white"
-                            : "bg-indigo-100 text-indigo-700 hover:bg-indigo-200"
+                            ? "bg-indigo-900 text-white"
+                            : "bg-white text-neutral-800 border border-neutral-300 hover:bg-neutral-50"
                         }`}
                       >
                         {assegnando === p.id ? "Annulla" : "Assegna"}

@@ -75,27 +75,35 @@ export default function usePrenotazioniStati() {
   };
 }
 
-// Bottoni dei cambi di stato: stesse etichette e colori in Planning e in Servizio (2026-11-26, prima in PrenotazioniPlanning.jsx)
+// Bottoni dei cambi di stato: stesse etichette e colori in Elenco, Servizio e Mappa.
+// Regola colori del modulo (Marco 2026-11-26, «uniformare i colori»): ogni colore un mestiere solo.
+//   blu del marchio = il bottone che scrive (uno per schermata) · indaco scuro = «dove sono / cosa ho scelto» ·
+//   bianco col bordo = tutti gli altri bottoni · rosso = ciò che toglie o chiude · i colori degli stati solo per gli stati.
+// `cls` porta sfondo, bordo e colore del testo: chi lo usa non aggiunge text-white.
+export const BTN_PRIMARIO = "bg-brand-blue text-white hover:bg-blue-700 border border-brand-blue";
+export const BTN_QUIETO = "bg-white text-neutral-800 hover:bg-neutral-50 border border-neutral-300";
+export const BTN_ROSSO = "bg-white text-red-700 hover:bg-red-50 border border-red-300";
+export const SCELTO = "bg-indigo-900 text-white border-indigo-900";
 export const AZIONI_STATO = {
-  SEATED:   { label: "✅ Seduto", cls: "bg-emerald-600 hover:bg-emerald-700" },
-  ARRIVED:  { label: "🚶 Arrivato", cls: "bg-teal-600 hover:bg-teal-700" },
-  BILL:     { label: "🧾 Al conto", cls: "bg-amber-600 hover:bg-amber-700" },
-  LEFT:     { label: "🚪 Andato via", cls: "bg-neutral-500 hover:bg-neutral-600" },
-  OPTION:   { label: "⏳ In opzione", cls: "bg-amber-500 hover:bg-amber-600" },
-  WAITLIST: { label: "🕰️ Lista d'attesa", cls: "bg-violet-500 hover:bg-violet-600" },
-  CANCELED: { label: "✖ Cancella", cls: "bg-neutral-400 hover:bg-neutral-500" },
-  NO_SHOW:  { label: "👻 No-show", cls: "bg-red-500 hover:bg-red-600" },
-  REFUSED:  { label: "⛔ Rifiuta", cls: "bg-red-400 hover:bg-red-500" },
+  SEATED:   { label: "✅ Seduto", cls: BTN_QUIETO },
+  ARRIVED:  { label: "🚶 Arrivato", cls: BTN_QUIETO },
+  BILL:     { label: "🧾 Al conto", cls: BTN_QUIETO },
+  LEFT:     { label: "🚪 Andato via", cls: BTN_QUIETO },
+  OPTION:   { label: "⏳ In opzione", cls: BTN_QUIETO },
+  WAITLIST: { label: "🕰️ Lista d'attesa", cls: BTN_QUIETO },
+  CANCELED: { label: "✖ Cancella", cls: BTN_ROSSO },
+  NO_SHOW:  { label: "👻 No-show", cls: BTN_ROSSO },
+  REFUSED:  { label: "⛔ Rifiuta", cls: BTN_ROSSO },
 };
 export function azioneStato(da, a) {
   // Passi all'indietro (mig 250): da seduto/arrivato a prenotato, da completata o al conto a seduto
   if ((a === "RECORDED" && ["SEATED", "ARRIVED"].includes(da)) || (a === "SEATED" && ["LEFT", "BILL"].includes(da))) {
-    return { label: a === "RECORDED" ? "↩ Torna a prenotato" : "↩ Torna a seduto", cls: "bg-neutral-500 hover:bg-neutral-600", indietro: true };
+    return { label: a === "RECORDED" ? "↩ Torna a prenotato" : "↩ Torna a seduto", cls: BTN_QUIETO, indietro: true };
   }
   if (a === "RECORDED") {
     return ["CANCELED", "NO_SHOW", "REFUSED"].includes(da)
-      ? { label: "↩ Ripristina", cls: "bg-indigo-500 hover:bg-indigo-600" }
-      : { label: "✓ Conferma", cls: "bg-indigo-600 hover:bg-indigo-700" };
+      ? { label: "↩ Ripristina", cls: BTN_QUIETO }
+      : { label: "✓ Conferma", cls: BTN_PRIMARIO };
   }
-  return AZIONI_STATO[a] || { label: a, cls: "bg-neutral-500 hover:bg-neutral-600" };
+  return AZIONI_STATO[a] || { label: a, cls: BTN_QUIETO };
 }

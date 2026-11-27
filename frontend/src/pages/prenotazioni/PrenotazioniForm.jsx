@@ -367,7 +367,7 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
               <label className="block text-xs font-medium text-neutral-600 mb-1">Stato</label>
               <div className="grid grid-cols-3 gap-2">
                 {[
-                  { v: "RECORDED", l: "📅 Confermata", on: "bg-indigo-600 text-white border-indigo-600" },
+                  { v: "RECORDED", l: "📅 Prenotato", on: "bg-indigo-600 text-white border-indigo-600" },
                   { v: "OPTION", l: "⏳ In opzione", on: "bg-amber-500 text-white border-amber-500" },
                   { v: "WAITLIST", l: "🕰️ Lista d'attesa", on: "bg-violet-500 text-white border-violet-500" },
                 ].map((o) => (
@@ -432,7 +432,7 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
                       onClick={() => setForm({ ...form, ora_pasto: s })}
                       className={`w-full px-1 py-1.5 text-sm rounded-lg border transition tabular-nums max-sm:min-h-[48px] ${
                         form.ora_pasto === s
-                          ? "bg-indigo-600 text-white border-indigo-600"
+                          ? "bg-indigo-900 text-white border-indigo-900"
                           : chiusa ? "bg-neutral-100 text-neutral-400 border-neutral-200 line-through"
                           : piena ? "bg-red-50 text-red-700 border-red-200"
                           : "bg-white text-neutral-600 border-neutral-300 hover:bg-neutral-50"
@@ -577,7 +577,7 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
                       <span className="ml-2 text-xs text-indigo-700">{c.visite_totali} visite{c.ultima_visita ? ` · ultima ${c.ultima_visita.split("-").reverse().join("/")}` : ""}</span>
                     </div>
                     <button type="button" onClick={() => selezionaCliente(c)}
-                      className="min-h-[44px] px-3 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700">
+                      className="min-h-[44px] px-3 rounded-lg bg-brand-blue text-white text-sm font-medium hover:bg-blue-700">
                       Usa questa scheda
                     </button>
                   </div>
@@ -753,7 +753,7 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
                             onClick={() => toggleTavolo(t.nome)}
                             title={t.bloccato ? "Bloccato" : t.occupato && !suo ? "Occupato in questo turno" : proposto ? "Suggerito" : `${t.posti_min}-${t.posti_max} posti`}
                             className={`w-full px-1 py-1 rounded-lg border text-sm tabular-nums transition max-sm:min-h-[44px] ${
-                              scelto ? "bg-indigo-600 text-white border-indigo-600"
+                              scelto ? "bg-indigo-900 text-white border-indigo-900"
                               : fermo ? "bg-neutral-100 text-neutral-400 border-neutral-200"
                               : proposto ? "bg-emerald-50 text-emerald-800 border-emerald-400"
                               : "bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50"
@@ -875,7 +875,7 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
             <button
               type="submit"
               disabled={submitting}
-              className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium disabled:opacity-50 max-sm:flex-1 max-sm:min-h-[48px] max-sm:text-base"
+              className="px-4 py-2 text-sm bg-brand-blue text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50 max-sm:flex-1 max-sm:min-h-[48px] max-sm:text-base"
             >
               {submitting ? "Salvataggio..." : modifica ? "Salva modifiche" : "Salva Prenotazione"}
             </button>

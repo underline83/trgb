@@ -650,7 +650,7 @@ export default function TavoliEditor() {
                       <div className="flex gap-1">
                         {l.attivo !== 1 && (
                           <button onClick={() => attivaLayout(l.id)}
-                            className="text-[10px] px-1.5 py-0.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
+                            className="text-[10px] px-1.5 py-0.5 bg-brand-blue text-white rounded-lg hover:bg-blue-700">
                             Attiva
                           </button>
                         )}
@@ -792,7 +792,7 @@ function Combinazioni({ sala, tavoli: tavoliInteri, combinazioni, onCambio, flas
             <div className="text-xs font-medium text-neutral-800">{nomeDi(modifica.ids, modifica.prolunghe || 0)}</div>
             {posti(modifica, setModifica)}
             <div className="flex gap-2">
-              <button onClick={salvaModifica} className="text-xs px-2 py-1 rounded-lg bg-indigo-600 text-white">Salva</button>
+              <button onClick={salvaModifica} className="text-xs px-2 py-1 rounded-lg bg-brand-blue text-white">Salva</button>
               <button onClick={() => setModifica(null)} className="text-xs px-2 py-1 text-neutral-500">Annulla</button>
             </div>
           </div>
@@ -815,7 +815,7 @@ function Combinazioni({ sala, tavoli: tavoliInteri, combinazioni, onCambio, flas
           <div className="flex flex-wrap gap-1">
             {tavoli.map(t => (
               <button key={t.id} onClick={() => toggle(t.id)} title={t.meta ? "Metà di un tavolo dividibile" : undefined}
-                className={`text-xs px-2 py-1 rounded-lg border ${nuova.ids.has(t.id) ? "bg-indigo-600 text-white border-indigo-600" : t.meta ? "border-dashed border-neutral-300 text-neutral-500" : "border-neutral-300 text-neutral-600"}`}>
+                className={`text-xs px-2 py-1 rounded-lg border ${nuova.ids.has(t.id) ? "bg-indigo-900 text-white border-indigo-900" : t.meta ? "border-dashed border-neutral-300 text-neutral-500" : "border-neutral-300 text-neutral-600"}`}>
                 {t.nome}{t.meta ? " ½" : ""}
               </button>
             ))}
@@ -823,7 +823,7 @@ function Combinazioni({ sala, tavoli: tavoliInteri, combinazioni, onCambio, flas
           {posti(nuova, setNuova)}
           <div className="flex gap-2">
             <button disabled={!valida(nuova)} onClick={salva}
-              className="text-xs px-2 py-1 rounded-lg bg-indigo-600 text-white disabled:opacity-40">Salva {nuova.ids.size >= 1 ? nomeDi([...nuova.ids], nuova.prolunghe) : ""}</button>
+              className="text-xs px-2 py-1 rounded-lg bg-brand-blue text-white disabled:opacity-40">Salva {nuova.ids.size >= 1 ? nomeDi([...nuova.ids], nuova.prolunghe) : ""}</button>
             <button onClick={() => setNuova(null)} className="text-xs px-2 py-1 text-neutral-500">Annulla</button>
           </div>
         </div>

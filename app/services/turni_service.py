@@ -581,6 +581,49 @@ def build_foglio_settimana(
 
 
 # ============================================================
+# CHI LAVORA IN UN GIORNO — tutti i reparti (2026-11-26)
+# ============================================================
+def turni_del_giorno(data_iso: str) -> Dict[str, Any]:
+    """Chi è di turno in un giorno, a pranzo e a cena, in tutti i reparti (sola lettura).
+
+    Serve al Mese di Prenotazioni (Marco 2026-11-26: «un modo per vedere diretti i turni di quel
+    giorno»). Solo ciò che serve a sapere chi c'è: nome, reparto, orario, se è da confermare.
+    I turni annullati non compaiono. Nessun dato della scheda (telefono, paga, IBAN).
+    """
+    conn = get_dipendenti_conn()
+    try:
+        righe = conn.execute(
+            """SELECT tc.id, tc.stato,
+                      COALESCE(tc.ora_inizio, tt.ora_inizio) AS ora_inizio,
+                      COALESCE(tc.ora_fine, tt.ora_fine)     AS ora_fine,
+                      UPPER(COALESCE(tt.servizio, ''))       AS servizio,
+                      d.nome, d.cognome, d.nickname, d.colore,
+                      r.nome AS reparto, r.icona AS reparto_icona, COALESCE(r.ordine, 999) AS reparto_ordine
+               FROM turni_calendario tc
+               JOIN dipendenti d  ON d.id = tc.dipendente_id
+               JOIN turni_tipi tt ON tt.id = tc.turno_tipo_id
+               LEFT JOIN reparti r ON r.id = d.reparto_id
+               WHERE tc.data = ? AND COALESCE(tc.stato, '') != 'ANNULLATO'
+                 AND COALESCE(tt.categoria, 'LAVORO') = 'LAVORO'
+               ORDER BY reparto_ordine, ora_inizio, d.cognome, d.nome""",
+            (data_iso,),
+        ).fetchall()
+        fuori = {"pranzo": [], "cena": [], "altro": []}
+        for r in righe:
+            nome = (r["nickname"] or "").strip() or " ".join(x for x in (r["nome"], (r["cognome"] or "")[:1] + "." if r["cognome"] else "") if x)
+            voce = {
+                "id": r["id"], "nome": nome, "colore": r["colore"],
+                "reparto": r["reparto"] or "Senza reparto", "reparto_icona": r["reparto_icona"],
+                "ora_inizio": (r["ora_inizio"] or "")[:5], "ora_fine": (r["ora_fine"] or "")[:5],
+                "da_confermare": (r["stato"] or "") == "OPZIONALE",
+            }
+            fuori[{"PRANZO": "pranzo", "CENA": "cena"}.get(r["servizio"], "altro")].append(voce)
+        return {"data": data_iso, **fuori, "chiuso": {s: bool(servizio_chiuso(data_iso, s)) for s in ("pranzo", "cena")}}
+    finally:
+        conn.close()
+
+
+# ============================================================
 # VISTA MESE — griglia 6×7 (Fase 5)
 # ============================================================
 def build_vista_mese(reparto_id: int, anno: int, mese: int) -> Dict[str, Any]:

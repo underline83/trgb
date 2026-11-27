@@ -8,7 +8,8 @@ import PrenotazioniNav from "./PrenotazioniNav";
 import PrenotazioniForm from "./PrenotazioniForm";
 import MiniCalendario from "./components/MiniCalendario";
 import StatoBadge from "./components/StatoBadge";
-import usePrenotazioniStati, { azioneStato } from "./components/statiPrenotazioni";
+import usePrenotazioniStati, { azioneStato, BTN_QUIETO } from "./components/statiPrenotazioni";
+import GiroStato, { fuoriGiro } from "./components/GiroStato";
 import CanaleBadge from "./components/CanaleBadge";
 import TheForkInvioBadge from "./components/TheForkInvioBadge";
 import EtichetteCliente from "./components/EtichetteCliente";
@@ -108,7 +109,7 @@ function CellaTavolo({ pren, motore, onAssegna }) {
 const ggmm = (iso) => (iso || "").split("-").reverse().slice(0, 2).join("/");
 
 // Riga aperta: cliente, dettagli, azioni. Tre colonne da md in su, una sotto l'altra sul telefono
-function DettaglioPrenotazione({ pren, onStatoChange, onRiconferma, onUnisciDoppione, onPreventivo, onModifica, onLiberaTavolo, onTenutoFino }) {
+function DettaglioPrenotazione({ pren, onStatoChange, onGiro, onRiconferma, onUnisciDoppione, onPreventivo, onModifica, onLiberaTavolo, onTenutoFino }) {
   const { info } = usePrenotazioniStati();
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
@@ -230,7 +231,7 @@ function DettaglioPrenotazione({ pren, onStatoChange, onRiconferma, onUnisciDopp
                 ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
                 : pren.reminder_stato === "aperta"
                 ? "bg-amber-50 text-amber-800 border border-amber-300"
-                : "bg-emerald-600 text-white hover:bg-emerald-700"
+                : BTN_QUIETO
             }`}
           >
             💬 {pren.reminder_stato === "mandata" ? "Riconferma inviata — reinvia" : pren.reminder_stato === "aperta" ? "Aperta, non risulta mandata — riprova" : "Riconferma su WhatsApp"}
@@ -240,20 +241,23 @@ function DettaglioPrenotazione({ pren, onStatoChange, onRiconferma, onUnisciDopp
           <button
             onClick={(e) => { e.stopPropagation(); onPreventivo(pren); }}
             title="Crea il preventivo con cliente, data, ora e coperti di questa prenotazione (se c'è già, lo apre)"
-            className="mb-2 ml-1 px-3 py-1.5 text-xs rounded-lg min-h-[44px] sm:min-h-[36px] bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100"
+            className="mb-2 ml-1 px-3 py-1.5 text-xs rounded-lg min-h-[44px] sm:min-h-[36px] bg-white text-neutral-800 border border-neutral-300 hover:bg-neutral-50"
           >
             📋 Preventivo
           </button>
         )}
+        {/* Lo stato: le stesse quattro caselle di Servizio; sotto, solo i cambi che le caselle non fanno */}
+        <GiroStato p={pren} className="mb-2 max-w-md"
+          onFatto={(t) => onGiro && onGiro(true, `Stato aggiornato → ${t}`)} onErrore={(t) => onGiro && onGiro(false, t)} />
         <div className="flex flex-wrap gap-2">
-          {info(pren.stato).transizioni
+          {fuoriGiro(pren.stato, info(pren.stato).transizioni)
             .map((a) => {
               const az = azioneStato(pren.stato, a);
               return (
                 <button
                   key={a}
                   onClick={(e) => { e.stopPropagation(); onStatoChange(pren.id, a); }}
-                  className={`px-3 py-1 text-sm sm:text-xs text-white rounded-lg min-h-[44px] sm:min-h-[32px] ${az.cls}`}
+                  className={`px-3 py-1 text-sm sm:text-xs font-medium rounded-lg min-h-[44px] sm:min-h-[32px] ${az.cls}`}
                 >
                   {az.label}
                 </button>
@@ -271,8 +275,8 @@ function DettaglioPrenotazione({ pren, onStatoChange, onRiconferma, onUnisciDopp
   );
 }
 
-function RigaPrenotazione({ pren, telefono, motore, onAssegna, onStatoChange, onExpand, expanded, onApriCliente, onRiconferma, onUnisciDoppione, onPreventivo, onModifica, onLiberaTavolo, onTenutoFino }) {
-  const azioni = { onStatoChange, onRiconferma, onUnisciDoppione, onPreventivo, onModifica, onLiberaTavolo, onTenutoFino };
+function RigaPrenotazione({ pren, telefono, motore, onAssegna, onStatoChange, onGiro, onExpand, expanded, onApriCliente, onRiconferma, onUnisciDoppione, onPreventivo, onModifica, onLiberaTavolo, onTenutoFino }) {
+  const azioni = { onStatoChange, onGiro, onRiconferma, onUnisciDoppione, onPreventivo, onModifica, onLiberaTavolo, onTenutoFino };
   // pren.nome/cognome sono COALESCE(cliente CRM, snapshot TheFork) lato backend:
   // mostriamo comunque il nome anche quando cliente_id e' NULL (prenotazioni
   // anonimizzate o senza Customer ID import TheFork). Vedi migrazione 068.
@@ -440,7 +444,7 @@ function TimelineSala({ slot, capienza, fasce, onFasce }) {
   );
 }
 
-function TabellaPrenotazioni({ titolo, chiusura, prenotazioni, conteggio, pax, opzionePax, capienza, motore, onAssegna, onStatoChange, expandedId, onExpand, timeline, fasce, onFasce, sale, onSala, onApriCliente, onRiconferma, onUnisciDoppione, onPreventivo, onModifica, onLiberaTavolo, onTenutoFino }) {
+function TabellaPrenotazioni({ titolo, chiusura, prenotazioni, conteggio, pax, opzionePax, capienza, motore, onAssegna, onStatoChange, onGiro, expandedId, onExpand, timeline, fasce, onFasce, sale, onSala, onApriCliente, onRiconferma, onUnisciDoppione, onPreventivo, onModifica, onLiberaTavolo, onTenutoFino }) {
   // Gruppi dalla tabella stati (2026-11-13): fuori = cancellate/no-show/rifiutate;
   // lista d'attesa = né occupa né fuori → sezione a parte
   const { gruppo } = usePrenotazioniStati();
@@ -450,7 +454,7 @@ function TabellaPrenotazioni({ titolo, chiusura, prenotazioni, conteggio, pax, o
   const cancellate = prenotazioni.filter((p) => fuori.includes(p.stato));
   const inAttesa = prenotazioni.filter((p) => !fuori.includes(p.stato) && !occupa.includes(p.stato));
   const attive = prenotazioni.filter((p) => !cancellate.includes(p) && !inAttesa.includes(p));
-  const rigaProps = { onStatoChange, onExpand, onApriCliente, onRiconferma, onUnisciDoppione, onPreventivo, onLiberaTavolo, onModifica, onTenutoFino };
+  const rigaProps = { onStatoChange, onGiro, onExpand, onApriCliente, onRiconferma, onUnisciDoppione, onPreventivo, onLiberaTavolo, onModifica, onTenutoFino };
 
   const percentuale = capienza > 0 ? Math.round((pax / capienza) * 100) : 0;
   const perId = Object.fromEntries(((motore && motore.prenotazioni) || []).map((v) => [v.id, v]));
@@ -877,6 +881,7 @@ export default function PrenotazioniPlanning() {
               sale={planning.sale?.pranzo}
               onSala={(zona, aperta) => cambiaSala("pranzo", zona, aperta)}
               onStatoChange={handleStatoChange}
+              onGiro={(ok, testo) => { setToast({ type: ok ? "ok" : "err", text: testo }); loadPlanning(); }}
               expandedId={expandedId}
               onExpand={handleExpand}
               onApriCliente={apriCliente}
@@ -905,6 +910,7 @@ export default function PrenotazioniPlanning() {
               sale={planning.sale?.cena}
               onSala={(zona, aperta) => cambiaSala("cena", zona, aperta)}
               onStatoChange={handleStatoChange}
+              onGiro={(ok, testo) => { setToast({ type: ok ? "ok" : "err", text: testo }); loadPlanning(); }}
               expandedId={expandedId}
               onExpand={handleExpand}
               onApriCliente={apriCliente}

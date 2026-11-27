@@ -1,4 +1,4 @@
-// @version: v1.13 — riconferma WhatsApp: ✓ solo se il messaggio è partito davvero, «?» se WhatsApp è stato solo aperto (2026-11-26); v1.12 — azioni della prenotazione su una riga sola, tasti quadrati col disegno (matita, tavolo +, persona, WhatsApp, ⋯) (2026-11-26); v1.11 — tasto «tavolo +»: si assegnano i tavoli a una prenotazione toccandoli sulla mappa (2026-11-26); v1.10 — stato a quattro caselle in una riga (Prenotato · Confermato · Seduto · Libero): si tocca quella dove deve andare, avanti o indietro; le altre azioni sotto, piccole e uguali (2026-11-26); v1.9 — sul telefono gli orari sono un elenco a tendina (i tasti erano inutilizzabili) (2026-11-26); v1.8 — un tasto solo per lo stato che avanza (Prenotato → Confermato → Seduto → libera il tavolo), «↩» per tornare indietro, gli altri cambi in «Altro» (2026-11-26); v1.7 — riepilogo del turno nella riga sopra la sala (la testata resta su una riga) (2026-11-26); v1.6 — tutti i cambi di stato del Planning (stessi bottoni) e riconferma WhatsApp; testata comune del modulo (components/Testata.jsx) (2026-11-26); v1.5 — nell'elenco le stesse etichette del Planning (canale, stelle, segmento, bollino, no-show, allergie, doppione…), nome che apre la scheda cliente, note in riga (2026-11-26); v1.4 — niente barre di scorrimento (orari a colonne uguali, schede sale, elenco), piantina stretta sui tavoli, «tavoli liberi» solo nelle sale aperte (2026-11-26); v1.3 — nell'ingranaggio «Blocca le prenotazioni online» e «Chiudi servizio» (anche su TheFork), con conferma (2026-11-26); v1.2 — ingranaggio «Modifica servizio» (sale aperte, fasce e online, tavoli del turno) e matita per la sala (2026-11-26); v1.1 — stessa larghezza di pagina di Planning e Mappa, elenco a larghezza fissa e sala che non cambia misura; iPad in piedi: sala sopra, elenco sotto (2026-11-26); v1.0 — vista «Servizio»: elenco del turno e sala nella stessa schermata, striscia degli orari per vedere la sala a un'altra ora, due schede sul telefono (2026-11-26)
+// @version: v1.14 — colori secondo la regola del modulo (blu = azione, indaco scuro = scelto) e caselle dello stato da components/GiroStato (2026-11-26); v1.13 — riconferma WhatsApp: ✓ solo se il messaggio è partito davvero, «?» se WhatsApp è stato solo aperto (2026-11-26); v1.12 — azioni della prenotazione su una riga sola, tasti quadrati col disegno (matita, tavolo +, persona, WhatsApp, ⋯) (2026-11-26); v1.11 — tasto «tavolo +»: si assegnano i tavoli a una prenotazione toccandoli sulla mappa (2026-11-26); v1.10 — stato a quattro caselle in una riga (Prenotato · Confermato · Seduto · Libero): si tocca quella dove deve andare, avanti o indietro; le altre azioni sotto, piccole e uguali (2026-11-26); v1.9 — sul telefono gli orari sono un elenco a tendina (i tasti erano inutilizzabili) (2026-11-26); v1.8 — un tasto solo per lo stato che avanza (Prenotato → Confermato → Seduto → libera il tavolo), «↩» per tornare indietro, gli altri cambi in «Altro» (2026-11-26); v1.7 — riepilogo del turno nella riga sopra la sala (la testata resta su una riga) (2026-11-26); v1.6 — tutti i cambi di stato del Planning (stessi bottoni) e riconferma WhatsApp; testata comune del modulo (components/Testata.jsx) (2026-11-26); v1.5 — nell'elenco le stesse etichette del Planning (canale, stelle, segmento, bollino, no-show, allergie, doppione…), nome che apre la scheda cliente, note in riga (2026-11-26); v1.4 — niente barre di scorrimento (orari a colonne uguali, schede sale, elenco), piantina stretta sui tavoli, «tavoli liberi» solo nelle sale aperte (2026-11-26); v1.3 — nell'ingranaggio «Blocca le prenotazioni online» e «Chiudi servizio» (anche su TheFork), con conferma (2026-11-26); v1.2 — ingranaggio «Modifica servizio» (sale aperte, fasce e online, tavoli del turno) e matita per la sala (2026-11-26); v1.1 — stessa larghezza di pagina di Planning e Mappa, elenco a larghezza fissa e sala che non cambia misura; iPad in piedi: sala sopra, elenco sotto (2026-11-26); v1.0 — vista «Servizio»: elenco del turno e sala nella stessa schermata, striscia degli orari per vedere la sala a un'altra ora, due schede sul telefono (2026-11-26)
 // Modulo: prenotazioni
 // Idea presa da TheFork Manager (Marco 2026-11-26: «il mix tra prenotazioni e tavoli è una visual molto utile»).
 // Non sostituisce Planning né Mappa Tavoli: è una terza vista, da provare in servizio.
@@ -16,6 +16,7 @@ import EtichetteCliente from "./components/EtichetteCliente";
 import CanaleBadge from "./components/CanaleBadge";
 import ClientiScheda from "../clienti/ClientiScheda";
 import usePrenotazioniStati, { azioneStato } from "./components/statiPrenotazioni";
+import GiroStato, { passoDi, fuoriGiro, PASSI_STATI } from "./components/GiroStato";
 import TestataGiorno, { TastoTestata, TastoNuova } from "./components/Testata";
 import { CANVAS_W, CANVAS_H, FormaTavolo, FormaElemento, SchedeSale } from "./components/Piantina";
 import { Btn } from "../../components/ui";
@@ -36,14 +37,6 @@ const COLORI = {
 };
 const LEGENDA = [["libero", "libero"], ["arrivo", "prenotato, deve arrivare"], ["seduto", "al tavolo"], ["scelto", "selezionato"]];
 
-// Il giro di una prenotazione in sala, come lo dice Marco: prenota, conferma, si siede, va via
-const PASSI = [
-  { nome: "Prenotato", acceso: "bg-indigo-700" },
-  { nome: "Confermato", acceso: "bg-teal-700" },
-  { nome: "Seduto", acceso: "bg-emerald-700" },
-  { nome: "Libero", acceso: "bg-neutral-700" },
-];
-const PASSI_STATI = ["RECORDED", "ARRIVED", "SEATED", "BILL", "PARTIALLY_ARRIVED", "LEFT"];
 
 export default function PrenotazioniServizio() {
   const { data: paramData, turno: paramTurno } = useParams();
@@ -209,7 +202,7 @@ export default function PrenotazioniServizio() {
     let avanti = null, indietro = null;
     const usati = new Set();
     const passo = (a, label, cls) => { usati.add(a); return { label, cls, fai: () => cambiaStato(p, a) }; };
-    if (p.stato === "REQUESTED" && va("RECORDED")) avanti = passo("RECORDED", "✓ Accetta la richiesta", "bg-indigo-600 hover:bg-indigo-700");
+    if (p.stato === "REQUESTED" && va("RECORDED")) avanti = passo("RECORDED", "✓ Accetta la richiesta", "bg-brand-blue hover:bg-blue-700");
     else if (p.stato === "RECORDED" && !p.riconfermata_at) avanti = { label: "👍 Confermato", cls: "bg-teal-600 hover:bg-teal-700", fai: () => segnaConfermata(p, true) };
     else if (["RECORDED", "ARRIVED", "PARTIALLY_ARRIVED"].includes(p.stato) && va("SEATED")) avanti = passo("SEATED", "✅ Seduto", "bg-emerald-600 hover:bg-emerald-700");
     else if (["SEATED", "BILL"].includes(p.stato) && va("LEFT")) avanti = passo("LEFT", "🚪 Libera il tavolo", "bg-neutral-700 hover:bg-neutral-800");
@@ -217,48 +210,7 @@ export default function PrenotazioniServizio() {
     else if (["SEATED", "ARRIVED"].includes(p.stato) && va("RECORDED")) { usati.add("RECORDED"); indietro = { label: "Torna indietro: non è ancora seduto", corto: p.riconfermata_at ? "Confermato" : "Prenotato", fai: () => cambiaStato(p, "RECORDED") }; }
     else if (["LEFT", "BILL"].includes(p.stato) && va("SEATED")) { usati.add("SEATED"); indietro = { label: "Torna a seduto", corto: "Seduto", fai: () => cambiaStato(p, "SEATED") }; }
     // «fuoriGiro»: i cambi che non sono una delle quattro caselle (arrivato, al conto, opzione, cancella, no-show, rifiuta)
-    const delGiro = ["RECORDED", "SEATED", "LEFT"];
-    return { avanti, indietro, altri: perm.filter((a) => !usati.has(a)), fuoriGiro: perm.filter((a) => !delGiro.includes(a) || !PASSI_STATI.includes(p.stato)) };
-  };
-
-  // In che casella del giro si trova (−1 = fuori dal giro: richiesta, opzione, lista d'attesa…)
-  const passoDi = (p) => {
-    if (p.stato === "RECORDED") return p.riconfermata_at ? 1 : 0;
-    if (p.stato === "ARRIVED") return 1;
-    if (["SEATED", "PARTIALLY_ARRIVED"].includes(p.stato)) return 2;
-    if (["LEFT", "BILL"].includes(p.stato)) return 3;   // «Al conto» non si usa: se arriva, vale come libero
-    return -1;
-  };
-
-  // Porta la prenotazione alla casella toccata, anche saltando o tornando indietro di più passi:
-  // fa in fila i cambi che servono (es. da «Libero» a «Prenotato»: prima seduto, poi prenotato).
-  const vaiAlPasso = async (p, k) => {
-    const cambia = async (stato) => {
-      const r = await apiFetch(`${API_BASE}/prenotazioni/${p.id}/stato`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ stato }) });
-      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.detail || "Non riuscito"); }
-    };
-    const segno = async (valore) => {
-      const r = await apiFetch(`${API_BASE}/prenotazioni/${p.id}/riconfermata`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ valore }) });
-      if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.detail || "Non riuscito"); }
-    };
-    setLavoro(true);
-    try {
-      let st = p.stato;
-      if (k <= 1) {                                   // Prenotato o Confermato: lo stato è «prenotata»
-        if (st === "LEFT") { await cambia("SEATED"); st = "SEATED"; }
-        if (st === "BILL") { await cambia("SEATED"); st = "SEATED"; }
-        if (st !== "RECORDED") await cambia("RECORDED");
-        await segno(k === 1);
-      } else if (k === 2) {                           // Seduto
-        if (st !== "SEATED") await cambia("SEATED");
-      } else {                                        // Libero
-        if (!["SEATED", "BILL"].includes(st)) await cambia("SEATED");
-        await cambia("LEFT");
-      }
-      flash("ok", `${nomeDi(p)}: ${PASSI[k].nome}`);
-    } catch (e) { flash("err", e.message || "Errore di connessione"); }
-    setLavoro(false);
-    carica();
+    return { avanti, indietro, altri: perm.filter((a) => !usati.has(a)), fuoriGiro: fuoriGiro(p.stato, perm) };
   };
 
   // Riconferma su WhatsApp, come nel Planning: la finestra si apre subito, poi arriva il link
@@ -388,16 +340,7 @@ export default function PrenotazioniServizio() {
       {/* Il giro in una riga sola: quattro caselle, quella accesa è dove si trova la prenotazione.
           Si tocca la casella dove deve andare: avanti o indietro, senza altri tasti. */}
       {a >= 0 ? (
-        <div className="grid grid-cols-4 rounded-lg border border-neutral-300 overflow-hidden bg-white" role="group" aria-label="Stato della prenotazione">
-          {PASSI.map((s, k) => (
-            <button key={s.nome} type="button" disabled={lavoro || k === a} onClick={() => vaiAlPasso(p, k)} aria-pressed={k === a}
-              title={k === a ? `Adesso: ${s.nome}` : k < a ? `Torna a «${s.nome}»` : `Passa a «${s.nome}»`}
-              className={`min-h-[44px] px-1 text-[13px] leading-tight border-l first:border-l-0 border-neutral-300 transition ${
-                k === a ? `${s.acceso} text-white font-bold` : k < a ? "bg-neutral-100 text-neutral-500" : "bg-white text-neutral-800 hover:bg-neutral-50"}`}>
-              {k < a ? "✓ " : ""}{s.nome}
-            </button>
-          ))}
-        </div>
+        <GiroStato p={p} onFatto={(t) => { flash("ok", `${nomeDi(p)}: ${t}`); carica(); }} onErrore={(t) => { flash("err", t); carica(); }} />
       ) : g.avanti ? (
         <button type="button" onClick={g.avanti.fai} className={`px-4 min-h-[44px] text-sm font-bold text-white rounded-lg ${g.avanti.cls}`}>{g.avanti.label}</button>
       ) : null}
@@ -411,7 +354,7 @@ export default function PrenotazioniServizio() {
         {p.stato !== "LEFT" && (
           <button type="button" onClick={() => (assegno?.id === p.id ? setAssegno(null) : apriAssegno(p))} aria-pressed={assegno?.id === p.id}
             title="Assegna i tavoli toccandoli sulla mappa" aria-label="Assegna i tavoli toccandoli sulla mappa"
-            className={`${icona} ${assegno?.id === p.id ? "!border-indigo-800 !bg-indigo-800 !text-white" : ""}`}>
+            className={`${icona} ${assegno?.id === p.id ? "!border-indigo-900 !bg-indigo-900 !text-white" : ""}`}>
             <svg aria-hidden="true" {...SVG}><rect x="2" y="7" width="15" height="6" rx="1.5" /><path d="M5 13v5M14 13v5" /><path d="M20 3v6M17 6h6" /></svg>
           </button>
         )}
@@ -539,7 +482,7 @@ export default function PrenotazioniServizio() {
         return (
           <button key={o.ora} type="button" onClick={() => setOra(sel ? null : m)} aria-pressed={sel}
             className={`min-w-0 rounded-lg border px-0.5 py-1.5 flex flex-col items-center gap-0.5 tabular-nums transition overflow-hidden ${
-              sel ? "bg-indigo-700 text-white border-indigo-700" : "bg-white text-neutral-900 border-neutral-300 hover:bg-neutral-50"}`}>
+              sel ? "bg-indigo-900 text-white border-indigo-900" : "bg-white text-neutral-900 border-neutral-300 hover:bg-neutral-50"}`}>
             <span className={`text-[10px] font-bold leading-none ${sel ? "text-white" : "text-indigo-700"}`}>{eAdesso ? "adesso" : " "}</span>
             <span className="text-[11px] sm:text-[13px] font-bold leading-tight">{o.ora}</span>
             <span className={`text-[10px] sm:text-[11px] leading-tight ${sel ? "text-indigo-100" : "text-neutral-600"}`}>{o.coperti}{carico.capienza ? <span className="hidden sm:inline">/{carico.capienza}</span> : ""}</span>
@@ -562,7 +505,7 @@ export default function PrenotazioniServizio() {
               : "nessuno scelto"}</span>
             <span className="flex gap-1.5 flex-shrink-0">
               <button type="button" onClick={() => setAssegno(null)} className="px-3 min-h-[36px] rounded-lg border border-neutral-300 bg-white text-sm font-semibold text-neutral-800">Annulla</button>
-              <button type="button" disabled={lavoro} onClick={salvaAssegno} className="px-3 min-h-[36px] rounded-lg bg-indigo-800 text-white text-sm font-bold disabled:opacity-50 whitespace-nowrap">{assegno.nomi.length ? "Assegna" : "Togli il tavolo"}</button>
+              <button type="button" disabled={lavoro} onClick={salvaAssegno} className="px-3 min-h-[36px] rounded-lg bg-brand-blue hover:bg-blue-700 text-white text-sm font-bold disabled:opacity-50 whitespace-nowrap">{assegno.nomi.length ? "Assegna" : "Togli il tavolo"}</button>
             </span>
           </>
         ) : ora != null ? (
@@ -694,7 +637,7 @@ export default function PrenotazioniServizio() {
                         <div className="text-xs text-neutral-600">{s.tavoli} tavoli · fino a {s.posti_max} posti{s.eccezione ? " · cambiata per questo servizio" : ""}</div>
                       </div>
                       <button type="button" role="switch" aria-checked={!!s.aperta} aria-label={`Sala ${s.zona}`} onClick={() => cambiaSala(s.zona, !s.aperta)}
-                        className={`relative w-14 h-8 rounded-full transition flex-shrink-0 ${s.aperta ? "bg-indigo-800" : "bg-neutral-300"}`}>
+                        className={`relative w-14 h-8 rounded-full transition flex-shrink-0 ${s.aperta ? "bg-indigo-900" : "bg-neutral-300"}`}>
                         <span className={`absolute top-1 w-6 h-6 rounded-full bg-white transition-all ${s.aperta ? "left-7" : "left-1"}`} />
                       </button>
                     </div>

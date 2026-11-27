@@ -82,7 +82,7 @@ export default function RecensioneCard({ r, puoRispondere, onAggiornata, onApriC
             {!compatta && (r.cliente_id && onApriCliente ? (
               <button onClick={() => onApriCliente(r.cliente_id)} className="font-semibold text-indigo-700 hover:underline">{nome}</button>
             ) : <span className="font-semibold text-neutral-800">{nome}</span>)}
-            {!r.letta && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-600 text-white">nuova</span>}
+            {!r.letta && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-neutral-800 text-white">nuova</span>}
             <span className="text-xs text-neutral-500">
               pasto del {dataIt(r.data_pasto)}{r.ora_pasto ? ` alle ${r.ora_pasto.slice(0, 5)}` : ""}
               {r.pax ? ` · ${r.pax} pax` : ""}{r.tavolo ? ` · tavolo ${r.tavolo}` : ""}
@@ -125,7 +125,7 @@ export default function RecensioneCard({ r, puoRispondere, onAggiornata, onApriC
               {errore && <div className="text-xs text-red-700">{errore}</div>}
               <div className="flex items-center gap-2">
                 <button disabled={invio || !testo.trim()} onClick={invia}
-                  className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-sm disabled:opacity-50">
+                  className="px-3 py-1.5 rounded-lg bg-brand-blue text-white text-sm disabled:opacity-50">
                   {invio ? "Invio…" : "Pubblica su TheFork"}
                 </button>
                 <button onClick={() => setAperta(false)} className="px-3 py-1.5 rounded-lg text-sm text-neutral-600">Annulla</button>

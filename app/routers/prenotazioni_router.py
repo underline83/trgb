@@ -2718,6 +2718,28 @@ def segna_messaggio_inviato(
         conn.close()
 
 
+_GIORNI_IT = ("lunedì", "martedì", "mercoledì", "giovedì", "venerdì", "sabato", "domenica")
+_MESI_IT = ("gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto",
+            "settembre", "ottobre", "novembre", "dicembre")
+
+
+def _quando_a_parole(data_pasto: Optional[str], turno: Optional[str], oggi: Optional[date] = None) -> str:
+    """Il giorno della prenotazione detto com'è rispetto a oggi, per i messaggi ({quando}):
+    «stasera» / «oggi a pranzo», «domani sera» / «domani a pranzo», altrimenti «sabato 5 dicembre».
+    Marco 2026-11-27: la riconferma mandata il giorno stesso diceva «domani» invece di «stasera»."""
+    try:
+        d = datetime.strptime(data_pasto or "", "%Y-%m-%d").date()
+    except ValueError:
+        return data_pasto or ""
+    oggi = oggi or date.today()
+    pranzo = (turno or "") == "pranzo"
+    if d == oggi:
+        return "oggi a pranzo" if pranzo else "stasera"
+    if d == oggi + timedelta(days=1):
+        return "domani a pranzo" if pranzo else "domani sera"
+    return f"{_GIORNI_IT[d.weekday()]} {d.day} {_MESI_IT[d.month - 1]}"
+
+
 @router.get("/{pren_id}/wa-link")
 def get_wa_link(
     pren_id: int,
@@ -2749,12 +2771,15 @@ def get_wa_link(
             data_txt = datetime.strptime(row["data_pasto"], "%Y-%m-%d").strftime("%d/%m/%Y")
         except (TypeError, ValueError):
             data_txt = row["data_pasto"]
+        soglia = config.get("soglia_pranzo_cena", "15:00")
+        quando = _quando_a_parole(row["data_pasto"], row["turno"] or _calcola_turno(row["ora_pasto"], soglia))
         messaggio = fill_template(template,
             nome=row["nome"] or "",
             cognome=row["cognome"] or "",
             pax=row["pax"],
             data=data_txt,
             ora=(row["ora_pasto"] or "")[:5],
+            quando=quando,
         )
 
         link = build_wa_link(telefono, messaggio)

@@ -103,7 +103,7 @@ export default function PrenotazioniRecensioni() {
         <div className="flex items-center gap-2 flex-wrap">
           {FILTRI.map((f) => (
             <button key={f.k} onClick={() => { setFiltro(f.k); setPagina(1); }}
-              className={`px-3 py-1 max-sm:py-2 rounded-full text-sm border ${filtro === f.k ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-neutral-600 border-neutral-300"}`}>
+              className={`px-3 py-1 max-sm:py-2 rounded-full text-sm border ${filtro === f.k ? "bg-indigo-900 text-white border-indigo-900" : "bg-white text-neutral-600 border-neutral-300"}`}>
               {f.l}
               {f.k === "da_rispondere" && rie?.da_rispondere > 0 && ` (${rie.da_rispondere})`}
               {f.k === "non_lette" && rie?.non_lette > 0 && ` (${rie.non_lette})`}
@@ -149,7 +149,7 @@ export default function PrenotazioniRecensioni() {
               <input type="date" value={scarica.al} onChange={(e) => setScarica({ ...scarica, al: e.target.value })}
                 className="px-2 py-1 border rounded-lg" />
               <button disabled={scaricando || !scarica.dal} onClick={scaricaPeriodo}
-                className="px-3 py-1 rounded-lg bg-indigo-600 text-white disabled:opacity-50">{scaricando ? "Scarico…" : "Scarica"}</button>
+                className="px-3 py-1 rounded-lg bg-brand-blue text-white disabled:opacity-50">{scaricando ? "Scarico…" : "Scarica"}</button>
               {esito && <span className="text-neutral-600">{esito}</span>}
             </div>
             <p className="text-[11px] text-neutral-400 mt-2">
