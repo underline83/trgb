@@ -1,4 +1,4 @@
-// @version: v1.2 — PrenotaIncorporata: il widget dentro altre pagine pubbliche (gift card /regalo), con nota precompilata (2026-10-25); v1.1 — indirizzo dedicato prenota.<dominio>: API sullo stesso indirizzo (/api/public/prenota); v1.0 — prenotazioni dal sito (2026-10-20, mig 205)
+// @version: v1.3 — mesi senza limite di anticipo (2026-11-27); v1.2 — PrenotaIncorporata: il widget dentro altre pagine pubbliche (gift card /regalo), con nota precompilata (2026-10-25); v1.1 — indirizzo dedicato prenota.<dominio>: API sullo stesso indirizzo (/api/public/prenota); v1.0 — prenotazioni dal sito (2026-10-20, mig 205)
 // Pagina pubblica /prenota (anche dentro il sito in iframe) e /prenota/annulla/:token.
 // Senza login: usa fetch diretto. Se nel browser c'è il token di un admin lo manda,
 // così l'anteprima funziona anche quando il widget non è ancora attivo.
@@ -181,8 +181,11 @@ function Prenotazione({ notaIniziale = "" }) {
     chiama("/info").then((r) => r.json()).then(setInfo).catch(() => setInfo({ attivo: false }));
   }, []);
 
+  // Dal 27/11/2026 nessun anticipo massimo (giorni_max = null): i mesi si sfogliano liberi,
+  // i giorni chiusi li dice il calendario del locale.
   const maxMese = useMemo(() => {
-    const x = new Date(Date.now() + (info?.giorni_max || 60) * 86400000);
+    if (!info?.giorni_max) return "9999-12";
+    const x = new Date(Date.now() + info.giorni_max * 86400000);
     return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}`;
   }, [info]);
 

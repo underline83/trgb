@@ -721,107 +721,28 @@ def crea_prenotazione(
     req: PrenotazioneCreate,
     user: dict = Depends(get_current_user),
 ):
-    """Inserisce una nuova prenotazione manuale."""
-    if req.stato not in STATI_INIZIALI:
-        raise HTTPException(status_code=400, detail=f"Una prenotazione nuova nasce {', '.join(STATI_INIZIALI)}, non {req.stato}")
-    tenuto = _data_ok(req.tenuto_fino_al)
-    conn = get_clienti_conn()
+    """Inserisce una nuova prenotazione dal form (e da walk-in e connettore, che passano di qui).
+    I passi sono quelli del percorso unico, gli stessi del sito (2026-11-27):
+    app/services/prenotazioni_inserimento_service.py."""
+    from app.services import prenotazioni_inserimento_service as ins
+    dati = req.model_dump() if hasattr(req, "model_dump") else req.dict()
+    dati["tenuto_fino_al"] = _data_ok(req.tenuto_fino_al)
     try:
-        config = _get_config(conn)
-        soglia = config.get("soglia_pranzo_cena", "15:00")
-        if req.stato in stati_srv.gruppo("incerta") and not tenuto:
-            from app.services.prenotazioni_attese_service import tenuto_fino_proposto
-            tenuto = tenuto_fino_proposto(conn, req.data_pasto)
-        if req.stato not in stati_srv.gruppo("incerta"):
-            tenuto = None
-
-        # Turno chiuso: si blocca prima di creare anche il cliente nuovo
-        _blocca_se_chiuso(config, req.data_pasto, _calcola_turno(req.ora_pasto, soglia))
-
-        cliente_id = req.cliente_id
-
-        # Se non c'e' cliente_id ma ci sono dati per nuovo cliente → crea
-        if not cliente_id and req.nuovo_cognome:
-            # 2026-11-26: numero salvato col prefisso; se quel numero o quell'email sono già
-            # di una scheda non nasce un secondo cliente (Marco: «il sistema deve subito accorgersi»)
-            numero = tel_util.normalizza(req.nuovo_telefono, req.nuovo_prefisso) or (req.nuovo_telefono or None)
-            email_nuova = (req.nuovo_email or "").strip() or None
-            gia_noti = riconosci_srv.riconosci(conn, req.nuovo_telefono, email_nuova, req.nuovo_prefisso)["clienti"]
-            if gia_noti:
-                g = gia_noti[0]
-                raise HTTPException(status_code=409, detail=(
-                    f"Questo {'numero' if g['riconosciuto_da'] == 'telefono' else 'indirizzo email'} è già della scheda "
-                    f"{g['nome']} {g['cognome']}".strip() + ": scegli quella scheda (puoi aggiungere chi sta prenotando)."))
-            paese = tel_util.paese_di(numero)
-            cur = conn.execute("""
-                INSERT INTO clienti (nome, cognome, telefono, email, lingua, titolo, origine, protetto)
-                VALUES (?, ?, ?, ?, COALESCE(?, 'it_IT'), ?, 'diretto', 1)
-            """, (
-                req.nuovo_nome or "",
-                req.nuovo_cognome,
-                numero,
-                email_nuova,
-                req.nuovo_lingua or (paese["lingua"] if paese else None),
-                (req.nuovo_titolo or "").strip() or None,
-            ))
-            cliente_id = cur.lastrowid
-            logger.info(f"Nuovo cliente creato da prenotazione: id={cliente_id}")
-
-        turno = _calcola_turno(req.ora_pasto, soglia)
-        token = secrets.token_urlsafe(16)
-        persona = " ".join((req.persona_nome or "").split()) or None
-
-        cur = conn.execute("""
-            INSERT INTO clienti_prenotazioni (
-                cliente_id, data_pasto, ora_pasto, stato, pax, tavolo,
-                canale, occasione, nota_ristorante, nota_cliente,
-                allergie_segnalate, tavolo_esterno, seggioloni,
-                data_prenotazione, prenotato_da, turno, fonte, creato_da,
-                token_cancellazione, tenuto_fino_al, persona_nome, durata_min
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now','localtime'), ?, ?, 'manuale', ?, ?, ?, ?, ?)
-        """, (
-            cliente_id,
-            req.data_pasto,
-            req.ora_pasto,
-            req.stato,
-            req.pax,
-            req.tavolo,
-            req.canale,
-            req.occasione,
-            req.nota_ristorante,
-            req.nota_cliente,
-            req.allergie_segnalate,
-            req.tavolo_esterno,
-            req.seggioloni,
-            user.get("username", "staff"),
-            turno,
-            user.get("username", "staff"),
-            token,
-            tenuto,
-            persona,
-            req.durata_min or None,
-        ))
-        if persona and cliente_id:
-            riconosci_srv.aggiungi_persona(conn, cliente_id, persona, req.persona_relazione, user.get("username"))
-        conn.commit()
-        nuovo_id = cur.lastrowid
-        tavoli_srv.dividi_se_meta(conn, nuovo_id, user.get("username"))
-        # TRGB è la fonte (2026-11-26): parte anche per TheFork, o resta «da mandare»
-        thefork = invio_tf.dopo_creazione(nuovo_id)
-
-        return {
-            "id": nuovo_id,
-            "cliente_id": cliente_id,
-            "message": "Prenotazione creata",
-            "thefork": thefork,
-        }
+        r = ins.inserisci(dati, ins.OPERATORE, autore=user.get("username", "staff"))
+    except ins.Rifiutata as e:
+        raise HTTPException(status_code=e.http, detail=e.messaggio)
     except HTTPException:
         raise
     except Exception as e:
         logger.exception("Errore creazione prenotazione")
         raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        conn.close()
+    return {
+        "id": r["id"],
+        "cliente_id": r["cliente_id"],
+        "message": "Prenotazione creata",
+        "thefork": r["thefork"],
+        "avvisi": r["avvisi"],
+    }
 
 
 # ============================================================

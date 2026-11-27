@@ -1,4 +1,4 @@
-# @version: v1.0 — prenotazioni dal sito, endpoint pubblici (2026-10-20, mig 205)
+# @version: v1.1 — titolo e lista d'attesa nella prenotazione, niente anticipo massimo (2026-11-27); v1.0 endpoint pubblici (2026-10-20, mig 205)
 # -*- coding: utf-8 -*-
 """
 Prenotazioni dal sito — endpoint PUBBLICI (senza login) — Modulo: prenotazioni — [core]
@@ -96,7 +96,8 @@ def info(request: Request):
     return {
         "attivo": True, "anteprima": a["anteprima"], "locale": sito._nome_locale(),
         "max_automatica": rg["max_automatica"], "max_richiesta": rg["max_richiesta"],
-        "giorni_max": rg["giorni_max"], "telefono": rg["telefono"], "nota": rg["nota"],
+        # niente anticipo massimo dal 27/11/2026: conta che il servizio sia aperto
+        "giorni_max": None, "telefono": rg["telefono"], "nota": rg["nota"],
         "messaggio_pieno": rg["messaggio_pieno"],
     }
 
@@ -133,6 +134,8 @@ class PrenotaReq(BaseModel):
     allergie: Optional[str] = None
     occasione: Optional[str] = None
     lingua: str = "it"
+    titolo: Optional[str] = None        # Sig. / Sig.ra… (facoltativo, va anche a TheFork)
+    lista_attesa: bool = False          # orario non libero: il cliente chiede la lista d'attesa
     privacy: bool = False
     sito_web: Optional[str] = None      # esca: un umano non la vede né la compila
     aperto_ms: Optional[int] = None     # millisecondi passati sul modulo

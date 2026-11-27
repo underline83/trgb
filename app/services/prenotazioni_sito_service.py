@@ -1,29 +1,26 @@
-# @version: v1.0 — prenotazioni dal sito (widget pubblico) (2026-10-20, mig 205)
+# @version: v2.0 — porta del percorso unico (inserimento_service), lista d'attesa, niente anticipo (2026-11-27); v1.0 widget pubblico (2026-10-20, mig 205)
 # -*- coding: utf-8 -*-
 """
 Prenotazioni dal sito — Modulo: prenotazioni — [core]
 
 Il pezzo che sostituisce il Booking Module di TheFork. Pagina pubblica /prenota
-(anche in iframe nel sito). Regole:
+(anche in iframe nel sito).
 
-- Giorni prenotabili: da oggi a `giorni_anticipo_max`, almeno
-  `giorni_anticipo_min_ore` ore prima del pasto. Chiusure dal calendario del
-  gestionale (closures_config: giorno fisso, giorni chiusi, turni chiusi) e
-  dal giorno di chiusura delle prenotazioni.
-- Orari: le fasce del turno (prenotazioni_fasce_service). Una fascia si vende
-  se è aperta, aperta online, e con questa prenotazione non supera il massimo
-  coperti, il massimo online (TheFork + sito) e la capienza del turno.
-- Fino a `widget_max_automatica` persone la prenotazione è confermata
-  (RECORDED); fino a `widget_max_richiesta` è una richiesta (REQUESTED) da
-  accettare nel Planning, e si guarda solo che la fascia sia aperta; oltre, si
-  chiede di telefonare.
-- Cliente: stesso telefono (o email) di un cliente esistente → quello;
-  altrimenti nuovo cliente (origine 'sito'). Non si sovrascrive niente, si
-  completano solo telefono/email/lingua mancanti.
+Dal 27/11/2026 (Prenotazioni 2.60) il sito è una porta del percorso unico
+(prenotazioni_inserimento_service): stessi passi e stessi controlli del form.
+Cambia solo chi può dire sì: il cliente vede solo gli orari dove entra; per gli
+altri orari del turno può mettersi in lista d'attesa. Fino a
+`widget_max_automatica` persone è confermata, fino a `widget_max_richiesta` è
+una richiesta da accettare nel Planning, oltre si chiede di telefonare. Niente
+anticipo minimo né massimo: conta che il servizio sia aperto.
+
+Qui restano le cose solo del sito:
 - Email (M.D email_service) in italiano o inglese: conferma, richiesta
-  ricevuta, richiesta accettata/rifiutata, promemoria il giorno prima,
-  annullamento. Registrate in prenotazioni_email_log.
-- Avvisi M.A a sala e admin per ogni prenotazione, richiesta o annullamento.
+  ricevuta, lista d'attesa, richiesta accettata/rifiutata, promemoria il giorno
+  prima, annullamento. Registrate in prenotazioni_email_log.
+- Avvisi M.A a sala e admin per ogni prenotazione, richiesta, lista d'attesa o
+  annullamento.
+- Annullamento dal link nell'email (anche su TheFork, se la prenotazione era partita).
 """
 
 from __future__ import annotations
@@ -31,7 +28,6 @@ from __future__ import annotations
 import json
 import logging
 import re
-import secrets
 import threading
 import time
 from datetime import date, datetime, timedelta
@@ -39,22 +35,13 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from app.models.clienti_db import get_clienti_conn
 from app.services import prenotazioni_fasce_service as fasce_srv
-from app.services.clienti_thefork_service import pulisci_telefono
 from app.services.notifiche_service import crea_notifica
 from app.services import prenotazioni_stati as stati_srv
 
 log = logging.getLogger("trgb.prenotazioni.sito")
 
-_lock = threading.Lock()
-
-
-class NonDisponibile(Exception):
-    """La richiesta non si può accettare: il messaggio va al cliente."""
-
-    def __init__(self, codice: str, messaggio: str):
-        super().__init__(messaggio)
-        self.codice = codice
-        self.messaggio = messaggio
+# Quella del percorso unico: il router pubblico la intercetta come sito.NonDisponibile.
+from app.services.prenotazioni_inserimento_service import NonDisponibile  # noqa: E402,F401
 
 
 # ── Config ───────────────────────────────────────────────────
@@ -75,8 +62,6 @@ def regole(cfg: Dict[str, str]) -> Dict[str, Any]:
         "attivo": str(cfg.get("widget_attivo", "0")) == "1",
         "max_automatica": _int(cfg, "widget_max_automatica", 6),
         "max_richiesta": _int(cfg, "widget_max_richiesta", 35),
-        "giorni_max": _int(cfg, "giorni_anticipo_max", 60),
-        "ore_min": _int(cfg, "giorni_anticipo_min_ore", 2),
         "telefono": (cfg.get("widget_telefono") or "").strip(),
         "nota": (cfg.get("widget_nota") or "").strip(),
         "messaggio_pieno": (cfg.get("widget_messaggio_pieno") or "").strip(),
@@ -122,94 +107,23 @@ def turni_chiusi(cfg: Dict[str, str], d: date, chiusure: Optional[Dict[str, Any]
     return set(turni_chiusi_motivi(cfg, d, chiusure))
 
 
-# ── Disponibilità ────────────────────────────────────────────
-
-def _coperti_turno(conn, data: str, turno: str) -> int:
-    r = conn.execute(f"""
-        SELECT COALESCE(SUM(pax), 0) FROM clienti_prenotazioni
-        WHERE data_pasto = ? AND turno = ? AND stato NOT IN ({','.join('?' * len(stati_srv.non_occupano()))})
-    """, (data, turno, *stati_srv.non_occupano())).fetchone()
-    return int(r[0] or 0)
-
+# ── Disponibilità: dal percorso unico (2026-11-27) ───────────
+# Gli orari e il calendario del sito sono quelli di prenotazioni_inserimento_service, con le
+# regole del cliente: solo gli orari dove si entra sono liberi; gli altri del turno (pieni,
+# chiusi per l'online o su TheFork) si possono chiedere in lista d'attesa («attesa»).
+# Niente anticipo minimo né massimo: conta che il servizio sia aperto (Marco 27/11).
 
 def orari(conn, data: str, pax: int, adesso: Optional[datetime] = None,
-          cfg: Optional[Dict[str, str]] = None, chiusure: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    """
-    Orari prenotabili dal sito per quel giorno e quel numero di persone.
-    Ritorna {"data", "richiesta": bool, "turni": [{"turno", "orari": [{"ora","libero"}]}], "motivo"}.
-    """
-    cfg = cfg or config(conn)
-    rg = regole(cfg)
-    adesso = adesso or datetime.now()
-    out: Dict[str, Any] = {"data": data, "pax": pax, "richiesta": pax > rg["max_automatica"], "turni": [], "motivo": None}
-    try:
-        d = date.fromisoformat(data)
-    except ValueError:
-        out["motivo"] = "data"
-        return out
-    if pax < 1:
-        out["motivo"] = "persone"
-        return out
-    if pax > rg["max_richiesta"]:
-        out["motivo"] = "gruppo"
-        return out
-    if d < adesso.date() or d > adesso.date() + timedelta(days=rg["giorni_max"]):
-        out["motivo"] = "fuori_periodo"
-        return out
-    chiusi = turni_chiusi(cfg, d, chiusure)
-    if chiusi >= {"pranzo", "cena"}:
-        out["motivo"] = "chiuso"
-        return out
-    limite = adesso + timedelta(hours=rg["ore_min"])
-    for turno in ("pranzo", "cena"):
-        if turno in chiusi:
-            continue
-        fasce = fasce_srv.fasce_giorno(conn, data, turno, cfg)["fasce"]
-        if not fasce:
-            continue
-        from app.services import prenotazioni_sale_service as sale_srv
-        capienza = sale_srv.capienza(conn, data, turno)  # tavoli delle sale aperte (mig 214)
-        if capienza is None:
-            capienza = _int(cfg, f"capienza_{turno}", 0)
-        elif capienza == 0:
-            continue  # tutte le sale chiuse in quel turno
-        occupati = _coperti_turno(conn, data, turno)
-        # Motore per tavoli: un orario si vende solo se c'è davvero un tavolo libero
-        from app.services import prenotazioni_tavoli_service as tavoli_srv
-        motore = None
-        if not out["richiesta"]:
-            try:
-                motore = tavoli_srv.Verificatore(conn, data, turno)
-                if not motore.ha_tavoli:
-                    motore = None
-            except Exception:
-                motore = None
-        lista = []
-        for f in fasce:
-            quando = datetime.combine(d, datetime.strptime(f["ora"], "%H:%M").time())
-            if quando < limite or not f["aperta"] or not f["online_aperta"]:
-                continue
-            if out["richiesta"]:
-                libero = True  # i gruppi li decide la sala
-            else:
-                libero = (
-                    (f["max_coperti"] is None or f["coperti"] + pax <= f["max_coperti"])
-                    and (f["max_online"] is None or f["online"] + pax <= f["max_online"])
-                    # senza tavoli in mappa conta la capienza in coperti; coi tavoli decide il motore
-                    and (motore is not None or capienza <= 0 or occupati + pax <= capienza)
-                )
-                if libero and motore is not None:
-                    libero = motore.verifica(pax, f["ora"])["entra"]
-            lista.append({"ora": f["ora"], "libero": libero})
-        if lista:
-            out["turni"].append({"turno": turno, "orari": lista})
-    if not any(o["libero"] for t in out["turni"] for o in t["orari"]):
-        out["motivo"] = "pieno"
-    return out
+          cfg: Optional[Dict[str, str]] = None, chiusure: Optional[Dict[str, Any]] = None,
+          con_thefork: bool = True) -> Dict[str, Any]:
+    """Orari prenotabili dal sito per quel giorno e quel numero di persone."""
+    from app.services import prenotazioni_inserimento_service as ins
+    return ins.orari(conn, data, pax, ins.CLIENTE, adesso=adesso, cfg=cfg, chiusure=chiusure, con_thefork=con_thefork)
 
 
 def calendario(conn, mese: str, pax: int) -> Dict[str, Any]:
-    """Per ogni giorno del mese: 'libero' | 'pieno' | 'chiuso' | 'fuori'."""
+    """Per ogni giorno del mese: 'libero' | 'pieno' | 'chiuso' | 'fuori'.
+    Senza chiedere a TheFork giorno per giorno: lo si guarda quando si apre il giorno."""
     cfg = config(conn)
     chiusure = _chiusure()
     try:
@@ -220,7 +134,7 @@ def calendario(conn, mese: str, pax: int) -> Dict[str, Any]:
     giorni: Dict[str, str] = {}
     d = primo
     while d.month == primo.month:
-        o = orari(conn, d.isoformat(), pax, adesso, cfg, chiusure)
+        o = orari(conn, d.isoformat(), pax, adesso, cfg, chiusure, con_thefork=False)
         if o["motivo"] in ("fuori_periodo", "data", "persone", "gruppo"):
             giorni[d.isoformat()] = "fuori"
         elif o["motivo"] == "chiuso":
@@ -233,50 +147,10 @@ def calendario(conn, mese: str, pax: int) -> Dict[str, Any]:
     return {"mese": mese, "pax": pax, "giorni": giorni}
 
 
-# ── Cliente ──────────────────────────────────────────────────
+# ── Prenotazione ─────────────────────────────────────────────
 
 _EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
-
-def _trova_o_crea_cliente(conn, nome: str, cognome: str, telefono: Optional[str],
-                          email: Optional[str], lingua: str) -> Tuple[int, bool]:
-    riga = None
-    if telefono:
-        cifre = re.sub(r"\D", "", telefono)[-9:]
-        for r in conn.execute(
-            "SELECT id, telefono, email, lingua FROM clienti WHERE attivo = 1 AND telefono IS NOT NULL AND telefono LIKE ?",
-            (f"%{cifre}",),
-        ):
-            if re.sub(r"\D", "", r["telefono"] or "").endswith(re.sub(r"\D", "", telefono)[-10:]):
-                riga = r
-                break
-    if not riga and email:
-        riga = conn.execute(
-            "SELECT id, telefono, email, lingua FROM clienti WHERE attivo = 1 AND LOWER(email) = ? ORDER BY id LIMIT 1",
-            (email.lower(),),
-        ).fetchone()
-    if riga:
-        upd = {}
-        if telefono and not riga["telefono"]:
-            upd["telefono"] = telefono
-        if email and not riga["email"]:
-            upd["email"] = email
-        if lingua and not riga["lingua"]:
-            upd["lingua"] = lingua
-        if upd:
-            conn.execute(
-                f"UPDATE clienti SET {', '.join(f'{k} = ?' for k in upd)}, updated_at = datetime('now','localtime') WHERE id = ?",
-                [*upd.values(), riga["id"]],
-            )
-        return riga["id"], False
-    cur = conn.execute("""
-        INSERT INTO clienti (nome, cognome, telefono, email, lingua, origine, protetto)
-        VALUES (?, ?, ?, ?, ?, 'sito', 1)
-    """, (nome, cognome, telefono, email, lingua))
-    return cur.lastrowid, True
-
-
-# ── Prenotazione ─────────────────────────────────────────────
 
 def _pulisci(v: Any, n: int) -> Optional[str]:
     s = re.sub(r"\s+", " ", str(v or "")).strip()
@@ -285,17 +159,19 @@ def _pulisci(v: Any, n: int) -> Optional[str]:
 
 def crea(dati: Dict[str, Any]) -> Dict[str, Any]:
     """
-    dati: data, ora, pax, nome, cognome, telefono, email, note, allergie,
-    occasione, lingua. Solleva NonDisponibile / ValueError (campo, messaggio).
+    dati: data, ora, pax, nome, cognome, telefono, email, note, allergie, occasione,
+    lingua, titolo, lista_attesa. Solleva NonDisponibile / ValueError (campo).
+    I passi sono quelli del form: prenotazioni_inserimento_service.inserisci.
     """
-    lingua = "en" if str(dati.get("lingua") or "it").lower().startswith("en") else "it"
+    from app.services import prenotazioni_inserimento_service as ins
+    from app.utils import telefono as tel
     nome = _pulisci(dati.get("nome"), 60)
     cognome = _pulisci(dati.get("cognome"), 60)
     email = (_pulisci(dati.get("email"), 120) or "").lower() or None
-    telefono = pulisci_telefono(dati.get("telefono"))
+    numero = tel.normalizza(dati.get("telefono"))
     if not nome or not cognome:
         raise ValueError("nome")
-    if not telefono:
+    if not numero or len(tel.cifre(numero)) < 8:
         raise ValueError("telefono")
     if not email or not _EMAIL.match(email):
         raise ValueError("email")
@@ -303,69 +179,33 @@ def crea(dati: Dict[str, Any]) -> Dict[str, Any]:
         pax = int(dati.get("pax"))
     except (TypeError, ValueError):
         raise ValueError("pax")
-    data = str(dati.get("data") or "")
-    ora = str(dati.get("ora") or "")[:5]
-
-    with _lock:  # due clienti sull'ultimo posto: uno solo passa
-        conn = get_clienti_conn()
-        try:
-            cfg = config(conn)
-            rg = regole(cfg)
-            disp = orari(conn, data, pax, cfg=cfg)
-            if disp["motivo"] == "gruppo":
-                raise NonDisponibile("gruppo", "gruppo")
-            scelta = next((o for t in disp["turni"] for o in t["orari"] if o["ora"] == ora), None)
-            turno = next((t["turno"] for t in disp["turni"] for o in t["orari"] if o["ora"] == ora), None)
-            if not scelta or not scelta["libero"]:
-                raise NonDisponibile("occupato", "occupato")
-
-            cliente_id, nuovo = _trova_o_crea_cliente(conn, nome, cognome, telefono, email, lingua)
-            stato = "REQUESTED" if pax > rg["max_automatica"] else "RECORDED"
-            token = secrets.token_urlsafe(16)
-            occasione = _pulisci(dati.get("occasione"), 40)
-            cur = conn.execute("""
-                INSERT INTO clienti_prenotazioni (
-                    cliente_id, data_pasto, ora_pasto, stato, pax, canale, occasione,
-                    nota_cliente, allergie_segnalate, data_prenotazione, prenotato_da,
-                    turno, fonte, creato_da, token_cancellazione, nome_ospite, cognome_ospite
-                ) VALUES (?, ?, ?, ?, ?, 'Sito', ?, ?, ?, datetime('now','localtime'), 'sito', ?, 'sito', 'sito', ?, ?, ?)
-            """, (cliente_id, data, f"{ora}:00", stato, pax, occasione,
-                  _pulisci(dati.get("note"), 500), _pulisci(dati.get("allergie"), 300),
-                  turno, token, nome, cognome))
-            pid = cur.lastrowid
-            conn.commit()
-            try:  # posto venduto dal sito: il motore ricontrolla l'online (TheFork)
-                from app.services import prenotazioni_online_auto_service as online_auto
-                online_auto.ricalcola_presto()
-            except Exception:  # noqa: BLE001
-                pass
-
-            try:
-                from app.services.prenotazioni_doppioni_service import doppioni_di
-                doppi = doppioni_di(conn, pid)
-            except Exception:
-                doppi = []
-        finally:
-            conn.close()
-
-    _avvisa_staff(pid, stato, data, ora, pax, nome, cognome, doppi)
-    _invia_in_background(pid, "richiesta" if stato == "REQUESTED" else "conferma")
-    return {"id": pid, "stato": stato, "token": token, "data": data, "ora": ora, "pax": pax,
-            "cliente_nuovo": nuovo}
+    titolo = (str(dati.get("titolo") or "").strip().lower().replace(".", "").replace(" ", "_")) or None
+    r = ins.inserisci({
+        "data_pasto": str(dati.get("data") or ""), "ora_pasto": str(dati.get("ora") or "")[:5], "pax": pax,
+        "nome": nome, "cognome": cognome, "telefono": numero, "email": email,
+        "lingua": dati.get("lingua") or "it", "titolo": titolo,
+        "nota_cliente": dati.get("note"), "allergie_segnalate": dati.get("allergie"),
+        "occasione": dati.get("occasione"), "lista_attesa": bool(dati.get("lista_attesa")),
+    }, ins.CLIENTE)
+    return {"id": r["id"], "stato": r["stato"], "token": r["token"], "data": r["data"], "ora": r["ora"],
+            "pax": r["pax"], "cliente_nuovo": r["cliente_nuovo"]}
 
 
-def _avvisa_staff(pid, stato, data, ora, pax, nome, cognome, doppi) -> None:
+def _avvisa_staff(pid, stato, data, ora, pax, nome, cognome, doppi, nota=None) -> None:
     try:
         richiesta = stato == "REQUESTED"
+        attesa = stato == "WAITLIST"
         gg = data.split("-")
         crea_notifica(
             tipo="prenotazioni",
             titolo=(f"Richiesta dal sito da accettare: {nome} {cognome}, {pax} pax" if richiesta
+                    else f"Lista d'attesa dal sito: {nome} {cognome}, {pax} pax" if attesa
                     else f"Prenotazione dal sito: {nome} {cognome}, {pax} pax"),
             messaggio=(f"{gg[2]}/{gg[1]} alle {ora}"
-                       + (f" — possibile doppione di {doppi[0]['nome']} ({doppi[0]['ora']})" if doppi else "")),
+                       + (f" — possibile doppione di {doppi[0]['nome']} ({doppi[0]['ora']})" if doppi else "")
+                       + (f" — {nota}" if nota else "")),
             link=f"/prenotazioni/planning/{data}",
-            icona="🙋" if richiesta else "🌐",
+            icona="🙋" if richiesta else "🕰️" if attesa else "🌐",
             urgenza="alta" if richiesta else "normale",
             modulo="prenotazioni",
             entity_id=pid,
@@ -411,7 +251,7 @@ def annulla(token: str) -> Dict[str, Any]:
         if not r:
             raise LookupError("prenotazione non trovata")
         quando = datetime.fromisoformat(f"{r['data_pasto']}T{(r['ora_pasto'] or '00:00')[:5]}")
-        if r["stato"] not in ("RECORDED", "REQUESTED") or quando <= datetime.now():
+        if r["stato"] not in ("RECORDED", "REQUESTED", "WAITLIST") or quando <= datetime.now():
             raise NonDisponibile("non_annullabile", "non annullabile")
         conn.execute("""
             UPDATE clienti_prenotazioni SET stato = 'CANCELED',
@@ -426,6 +266,11 @@ def annulla(token: str) -> Dict[str, Any]:
         conn.close()
     from app.services.prenotazioni_attese_service import avvisa_posto_liberato_sicuro
     avvisa_posto_liberato_sicuro(pid, stato_prima, "CANCELED")  # lista d'attesa (2026-11-13)
+    try:  # se era partita per TheFork, la si cancella anche lì (2026-11-27)
+        from app.services import thefork_invio_service as invio_tf
+        invio_tf.dopo_modifica(pid, {"stato": stato_prima})
+    except Exception as e:  # noqa: BLE001
+        log.warning("annullamento #%s verso TheFork: %s", pid, e)
     try:
         gg = data.split("-")
         crea_notifica(tipo="prenotazioni", titolo=f"Annullata dal cliente: {nome or ''}, {pax} pax",
@@ -463,6 +308,7 @@ TESTI = {
         "conferma": ("La tua prenotazione è confermata", "Ciao {nome},\n\nti aspettiamo {quando} alle {ora}, {pax}.\n"),
         "richiesta": ("Abbiamo ricevuto la tua richiesta", "Ciao {nome},\n\nabbiamo ricevuto la richiesta per {quando} alle {ora}, {pax}.\nPer i gruppi confermiamo noi: ti scriviamo appena possibile.\n"),
         "accettata": ("La tua prenotazione è confermata", "Ciao {nome},\n\nabbiamo confermato la tua prenotazione: {quando} alle {ora}, {pax}.\n"),
+        "attesa": ("Sei in lista d'attesa", "Ciao {nome},\n\nti abbiamo messo in lista d'attesa per {quando} alle {ora}, {pax}.\nSe si libera un posto ti contattiamo noi.\n"),
         "rifiutata": ("Non riusciamo ad accoglierti", "Ciao {nome},\n\nci dispiace, per {quando} alle {ora} non abbiamo posto per {pax}.{tel_frase}\n"),
         "promemoria": ("Ci vediamo domani", "Ciao {nome},\n\nti ricordiamo la prenotazione di domani, {quando}, alle {ora}, {pax}.\n"),
         "annullata": ("Prenotazione annullata", "Ciao {nome},\n\nla prenotazione di {quando} alle {ora} è annullata. Speriamo di vederti presto.\n"),
@@ -476,6 +322,7 @@ TESTI = {
         "conferma": ("Your booking is confirmed", "Hi {nome},\n\nwe look forward to seeing you on {quando} at {ora}, {pax}.\n"),
         "richiesta": ("We have received your request", "Hi {nome},\n\nwe have received your request for {quando} at {ora}, {pax}.\nGroup bookings are confirmed by us: we will get back to you soon.\n"),
         "accettata": ("Your booking is confirmed", "Hi {nome},\n\nwe have confirmed your booking: {quando} at {ora}, {pax}.\n"),
+        "attesa": ("You are on the waiting list", "Hi {nome},\n\nwe have put you on the waiting list for {quando} at {ora}, {pax}.\nIf a table becomes free we will get in touch.\n"),
         "rifiutata": ("We cannot accommodate you", "Hi {nome},\n\nwe are sorry, on {quando} at {ora} we have no room for {pax}.{tel_frase}\n"),
         "promemoria": ("See you tomorrow", "Hi {nome},\n\na reminder of your booking tomorrow, {quando}, at {ora}, {pax}.\n"),
         "annullata": ("Booking cancelled", "Hi {nome},\n\nyour booking on {quando} at {ora} has been cancelled. We hope to see you soon.\n"),
@@ -500,7 +347,7 @@ def componi(tipo: str, p: Dict[str, Any], rg: Dict[str, Any]) -> Tuple[str, str]
         tel_frase=T["tel_frase"].format(tel=tel) if tel else "",
     )
     righe = [corpo]
-    if tipo in ("conferma", "richiesta", "accettata", "promemoria") and rg.get("url_pubblico") and p.get("token_cancellazione"):
+    if tipo in ("conferma", "richiesta", "attesa", "accettata", "promemoria") and rg.get("url_pubblico") and p.get("token_cancellazione"):
         righe.append(T["annulla"].format(link=f"{rg['url_pubblico']}/prenota/annulla/{p['token_cancellazione']}"))
     if tel and tipo != "rifiutata":
         righe.append(T["telefono"].format(tel=tel))
@@ -560,8 +407,8 @@ def _invia_in_background(pid: int, tipo: str) -> None:
 
 
 def dopo_cambio_stato(pid: int, prima: str, dopo: str) -> None:
-    """Hook dal Planning: una richiesta dal sito accettata o rifiutata → email al cliente."""
-    if prima != "REQUESTED" or dopo not in ("RECORDED", "REFUSED"):
+    """Hook dal Planning: una richiesta o una lista d'attesa dal sito accettata o rifiutata → email al cliente."""
+    if prima not in ("REQUESTED", "WAITLIST") or dopo not in ("RECORDED", "REFUSED"):
         return
     conn = get_clienti_conn()
     try:

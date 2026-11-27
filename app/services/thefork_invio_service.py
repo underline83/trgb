@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 """
 TRGB è la fonte: le prenotazioni prese a mano partono per TheFork (2026-11-26).
+Dal 27/11 anche quelle dal sito (stesso percorso del form): la richiesta di un gruppo e la lista
+d'attesa restano «sospese» come l'opzione e partono quando le confermate.
 
 Decisioni di Marco del 26/11 (Q #415, #416, #417, #418):
 - il form di TRGB è la fonte, non si inserisce più da TheFork Manager;
@@ -46,6 +48,14 @@ SENZA_NOME = "-"                         # segnaposto mandato a TheFork per il n
 _MANCA = "Manca sulla scheda — "         # inizio della nota quando la scheda del cliente non basta
 _RIPROVA = ("NO_AVAILABILITY",)          # l'orario non è prenotabile online: si aspetta
 _cache_modello: Dict[str, Any] = {"quando": 0.0, "regex": None}
+# Le prenotazioni nate in TRGB, da qualunque porta del percorso unico (2026-11-27: anche il sito).
+FONTI_TRGB = ("manuale", "sito")
+# Tengono il tavolo in TRGB ma verso TheFork aspettano: partono quando diventano confermate.
+SOSPESE = ("OPTION", "WAITLIST", "REQUESTED")
+
+
+def _di_trgb(p) -> bool:
+    return (p["fonte"] or "manuale") in FONTI_TRGB
 
 
 def _cfg(conn, chiave: str, default: str = "") -> str:
@@ -145,8 +155,8 @@ def _va_mandata(p) -> Optional[str]:
     """None se la prenotazione deve andare su TheFork, altrimenti il perché no."""
     if p["thefork_booking_id"]:
         return "già su TheFork"
-    if (p["fonte"] or "manuale") != "manuale":
-        return "non è nata dal form"
+    if not _di_trgb(p):
+        return "non è nata in TRGB"
     if (p["canale"] or "") == "Walk-in":
         return "walk-in"
     if p["stato"] != "RECORDED":
@@ -165,9 +175,10 @@ def invia(conn, pid: int) -> Dict[str, Any]:
         return {"stato": None, "nota": "prenotazione non trovata"}
     perche_no = _va_mandata(p)
     if perche_no:
-        # Walk-in: fuori senza segno. Opzione e lista d'attesa: «sospesa», parte quando diventa confermata.
-        # (Il segno serve anche a non mandare, alla prima modifica, le prenotazioni a mano di prima del 26/11.)
-        if p["stato"] in ("OPTION", "WAITLIST") and not p["thefork_booking_id"] and (p["fonte"] or "manuale") == "manuale":
+        # Walk-in: fuori senza segno. Opzione, lista d'attesa e richiesta dal sito: «sospesa», parte quando
+        # diventa confermata. (Il segno serve anche a non mandare, alla prima modifica, le prenotazioni a mano
+        # di prima del 26/11.)
+        if p["stato"] in SOSPESE and not p["thefork_booking_id"] and _di_trgb(p):
             if p["thefork_invio"] != "sospesa":
                 _segna(conn, pid, "sospesa", "Parte per TheFork quando viene confermata")
             return {"stato": "sospesa", "nota": perche_no}
@@ -273,11 +284,8 @@ def dopo_modifica(pid: int, prima: Dict[str, Any]) -> Dict[str, Any]:
                 _segna(conn, pid, "inviata", f"ATTENZIONE: modifica NON arrivata a TheFork ({_codice(e) or str(e)[:120]})")
                 return {"stato": "inviata", "errore": str(e)[:200]}
             return {"stato": "inviata"}
-        if inv == "da_mandare" and p["stato"] == "CANCELED":
-            _segna(conn, pid, "no", "Cancellata prima di partire")
-            return {"stato": "no"}
-        if inv == "sospesa" and p["stato"] == "CANCELED":
-            _segna(conn, pid, "no", "Cancellata prima di partire")
+        if inv in ("da_mandare", "sospesa") and p["stato"] in ("CANCELED", "REFUSED", "NO_SHOW"):
+            _segna(conn, pid, "no", "Rifiutata prima di partire" if p["stato"] == "REFUSED" else "Cancellata prima di partire")
             return {"stato": "no"}
         if not p["thefork_booking_id"] and p["stato"] == "RECORDED" and inv in ("da_mandare", "sospesa"):
             return invia(conn, pid)   # confermata un'opzione, o cambiato orario a una in coda

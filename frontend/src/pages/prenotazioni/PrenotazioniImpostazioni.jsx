@@ -1,4 +1,4 @@
-// @version: v2.16 — voce «Editor Tavoli» nella colonna delle sezioni (2026-11-26); v2.15 — TheFork: «TRGB è la fonte» (interruttore dell'invio, email di servizio, titolo) (2026-11-26); v2.14 — prova di creazione: ora, coperti, telefono, fuso, modifica e risposta di TheFork a vista (2026-11-26); v2.13 — TheFork: «Prova a creare una prenotazione» (crea e cancella subito, verifica del permesso) (2026-11-26); v2.12 — «In opzione»: giorni proposti e ruoli degli avvisi (2026-11-13); v2.11 — posti di una prolunga; v2.10 — online automatico (modalità, soglia tavolo, giorni); v2.9 — prolunghe disponibili; v2.8 — sale aperte di default e regole di durata del tavolo (pranzo lungo nel weekend, gruppi tutto il turno); v2.7 — indirizzo dedicato prenota.<dominio>; v2.6 — sezione «Prenotazioni dal sito» (regole, testi, email, codice per il sito); v2.5 — soglia avviso recensioni TheFork; v2.4 — giorno di chiusura con la codifica del backend (0=dom…6=sab, -1=nessuno); v2.3 — soglia «cliente frequente»; sezione TheFork (webhook B2B API: stato, registro eventi, sincronizza)
+// @version: v2.17 — «Dal sito»: tolti i limiti di anticipo, il sito segue le regole del form (2026-11-27); v2.16 — voce «Editor Tavoli» nella colonna delle sezioni (2026-11-26); v2.15 — TheFork: «TRGB è la fonte» (interruttore dell'invio, email di servizio, titolo) (2026-11-26); v2.14 — prova di creazione: ora, coperti, telefono, fuso, modifica e risposta di TheFork a vista (2026-11-26); v2.13 — TheFork: «Prova a creare una prenotazione» (crea e cancella subito, verifica del permesso) (2026-11-26); v2.12 — «In opzione»: giorni proposti e ruoli degli avvisi (2026-11-13); v2.11 — posti di una prolunga; v2.10 — online automatico (modalità, soglia tavolo, giorni); v2.9 — prolunghe disponibili; v2.8 — sale aperte di default e regole di durata del tavolo (pranzo lungo nel weekend, gruppi tutto il turno); v2.7 — indirizzo dedicato prenota.<dominio>; v2.6 — sezione «Prenotazioni dal sito» (regole, testi, email, codice per il sito); v2.5 — soglia avviso recensioni TheFork; v2.4 — giorno di chiusura con la codifica del backend (0=dom…6=sab, -1=nessuno); v2.3 — soglia «cliente frequente»; sezione TheFork (webhook B2B API: stato, registro eventi, sincronizza)
 // Modulo: prenotazioni
 // Impostazioni Prenotazioni — sidebar sinistra + sezioni (capienza, slot, template, widget, TheFork)
 import React, { useState, useEffect } from "react";
@@ -729,12 +729,12 @@ window.addEventListener("message", function (e) {
         <div className="grid grid-cols-2 gap-4">
           {campo("widget_max_automatica", "Confermate subito fino a (persone)", { type: "number", min: 1 })}
           {campo("widget_max_richiesta", "Richiesta da accettare fino a (persone)", { type: "number", min: 1 })}
-          {campo("giorni_anticipo_max", "Prenotabili fino a (giorni avanti)", { type: "number", min: 1 })}
-          {campo("giorni_anticipo_min_ore", "Almeno (ore prima)", { type: "number", min: 0 })}
         </div>
         <p className="text-[11px] text-neutral-400 mt-2">
           Oltre il primo numero la prenotazione arriva nel Planning come «NUOVA» da confermare o rifiutare (il cliente riceve l'email).
-          Oltre il secondo la pagina chiede di telefonare. Gli orari sono le fasce di «Slot Orari»; chiusure e limiti per fascia valgono anche qui.
+          Oltre il secondo la pagina chiede di telefonare. Il sito fa gli stessi controlli del form (chiusure, fasce, tavoli, TheFork):
+          il cliente vede solo gli orari dove si entra, e per gli altri può mettersi in lista d'attesa. Nessun limite di anticipo:
+          si prenota se il servizio è aperto e c'è posto.
         </p>
       </div>
 
