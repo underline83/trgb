@@ -6,7 +6,7 @@
 ## 2026-11-27 — Prenotazioni 2.59: bollino dei tavoli, spostamento dei tavoli abbinati `[core]`
 
 ### Aggiunto
-- Servizio: avviso ambra, che non blocca niente, quando TheFork non lascia prenotare online orari che in TRGB risultano aperti (prenotazioni fermate da TheFork Manager, oppure al completo), o al contrario lascia prenotare orari che in TRGB sono chiusi. TRGB lo chiede a TheFork alla scelta di giorno e turno e poi ogni 5 minuti; l'avviso si chiude con la ✕.
+- Servizio: avviso ambra, che non blocca niente, quando TheFork non lascia prenotare online orari che in TRGB risultano aperti (prenotazioni fermate da TheFork Manager, oppure al completo), o al contrario lascia prenotare orari che in TRGB sono chiusi. TRGB lo chiede a TheFork alla scelta di giorno e turno e poi ogni 5 minuti; l'avviso si chiude con la ✕. Contano solo gli orari che TheFork offre di norma in quel giorno della settimana (letti dalle due settimane dopo): quelli che TheFork online non ha mai, come 19:00 e 22:15, non fanno scattare l'avviso. Nell'avviso c'è la domanda «Vuoi bloccare le stesse fasce anche su TRGB?»: «Sì» chiude l'online di quelle fasce in TRGB (a TheFork non viene mandato niente, lì sono già ferme), «No» chiude l'avviso. Vale anche al contrario: se su TheFork le fasce tornano prenotabili e in TRGB l'online è ancora chiuso, l'avviso chiede «Vuoi riaprire le stesse fasce anche su TRGB?».
 - Servizio, «tavolo +»: spostando una prenotazione da un tavolo che ha un'altra prenotazione abbinata (doppio turno, non ancora andata via) chiede se spostarle tutte e due o solo quella. Chi è già andato via non viene mai spostato: nello storico resta il tavolo dove ha mangiato, così la consumazione si lega a quello giusto.
 
 ### Corretto

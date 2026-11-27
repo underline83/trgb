@@ -171,11 +171,14 @@ def _descrivi(modifiche: Dict[str, Any]) -> str:
 
 
 def imposta_fasce(conn, data: str, turno: str, ore: List[str], modifiche: Dict[str, Any],
-                  utente: Optional[str], modo: str = "manuale", motivo: Optional[str] = None) -> Dict[str, Any]:
+                  utente: Optional[str], modo: str = "manuale", motivo: Optional[str] = None,
+                  solo_trgb: bool = False) -> Dict[str, Any]:
     """
     Applica `modifiche` (sottoinsieme di CAMPI; per i limiti None = torna al
     default) alle fasce `ore` del giorno. Se cambia la vendita online la scrive su
     TheFork (se configurato). Ritorna le fasce aggiornate e gli esiti TheFork.
+    `solo_trgb`: TRGB si allinea a quello che su TheFork è già così (fasce fermate da
+    TheFork Manager): si cambia solo qui, a TheFork non si manda niente.
     """
     # «online_auto»: la fascia torna a deciderla il motore per tavoli
     torna_auto = bool(modifiche.pop("online_auto", False)) if isinstance(modifiche, dict) else False
@@ -229,7 +232,9 @@ def imposta_fasce(conn, data: str, turno: str, ore: List[str], modifiche: Dict[s
     cambiate = [o for o in ore if o in dopo and (prima.get(o) or {}).get("online_aperta", True) != dopo[o]["online_aperta"]]
 
     esiti: List[Dict[str, Any]] = []
-    if cambiate and tf.credenziali_presenti() and tf._restaurant_uuid_atteso():
+    if cambiate and solo_trgb:
+        esiti.append({"ore": cambiate, "esito": "allineato a TheFork: cambiato solo in TRGB"})
+    elif cambiate and tf.credenziali_presenti() and tf._restaurant_uuid_atteso():
         for stato in (True, False):
             for gruppo in _gruppi_contigui([o for o in cambiate if dopo[o]["online_aperta"] == stato]):
                 try:
@@ -275,6 +280,34 @@ def imposta_fasce(conn, data: str, turno: str, ore: List[str], modifiche: Dict[s
 # ogni aggiornamento della pagina.
 _CACHE_TFK: Dict[str, Any] = {}
 _CACHE_TFK_SECONDI = 120
+# Gli orari che TheFork offre «di norma» in quel giorno della settimana: TheFork online ha i suoi orari
+# (da noi non offre 19:00 e 22:15), e senza saperlo l'avviso usciva tutti i giorni (Marco 2026-11-27:
+# «lo fa su tutti»). Si leggono dallo stesso giorno delle due settimane dopo, lontane abbastanza da non
+# essere piene né fermate, e si tengono per qualche ora.
+_CACHE_BASE: Dict[int, Any] = {}
+_CACHE_BASE_SECONDI = 6 * 3600
+
+
+def _orari_di_norma(data: str) -> Optional[set]:
+    """Orari prenotabili online su TheFork in un giorno «normale» come questo. None se non si riesce a saperlo."""
+    import time
+    from datetime import date, timedelta
+    giorno = date.fromisoformat(data)
+    tenuto = _CACHE_BASE.get(giorno.weekday())
+    if tenuto and time.time() - tenuto[0] < _CACHE_BASE_SECONDI:
+        return tenuto[1]
+    norma: set = set()
+    riuscite = 0
+    for settimane in (1, 2):
+        try:
+            norma |= set(tf.fasce_prenotabili_online((giorno + timedelta(days=7 * settimane)).isoformat(), 2))
+            riuscite += 1
+        except Exception:  # noqa: BLE001
+            continue
+    if not riuscite:
+        return None
+    _CACHE_BASE[giorno.weekday()] = (time.time(), norma)
+    return norma
 
 
 def _intervalli(ore: List[str]) -> List[str]:
@@ -307,13 +340,21 @@ def confronto_thefork(conn, data: str, turno: str, adesso: Optional[Any] = None)
     fasce = [f for f in fasce_giorno(conn, data, turno)["fasce"] if not (data == oggi and f["ora"] <= ora_adesso)]
     aperte_trgb = [f["ora"] for f in fasce if f.get("aperta") and f.get("online_aperta")]
     chiuse_trgb = [f["ora"] for f in fasce if not (f.get("aperta") and f.get("online_aperta"))]
-    non_prenotabili = [o for o in aperte_trgb if o not in prenotabili]
+    # Contano solo gli orari che TheFork di norma offre: gli altri non sono «fermati», non ci sono mai.
+    norma = _orari_di_norma(data)
+    if norma is None:
+        return {"controllato": False, "motivo": "orari abituali di TheFork non leggibili"}
+    attese = [o for o in aperte_trgb if o in norma]
+    non_prenotabili = [o for o in attese if o not in prenotabili]
     aperte_solo_thefork = [o for o in chiuse_trgb if o in prenotabili]
+    # quelle che in TRGB hanno solo l'online chiuso (la fascia è aperta): si possono riallineare con un tocco
+    riapribili = [f["ora"] for f in fasce if f.get("aperta") and not f.get("online_aperta") and f["ora"] in prenotabili]
     return {
         "controllato": True, "data": data, "turno": turno,
-        "aperte_in_trgb": len(aperte_trgb),
+        "aperte_in_trgb": len(aperte_trgb), "attese_su_thefork": len(attese),
+        "riapribili": riapribili, "riapribili_testo": _intervalli(riapribili),
         "non_prenotabili": non_prenotabili, "non_prenotabili_testo": _intervalli(non_prenotabili),
-        "tutto_fermo": bool(aperte_trgb) and len(non_prenotabili) == len(aperte_trgb),
+        "tutto_fermo": bool(attese) and len(non_prenotabili) == len(attese),
         "aperte_solo_thefork": aperte_solo_thefork, "aperte_solo_thefork_testo": _intervalli(aperte_solo_thefork),
     }
 

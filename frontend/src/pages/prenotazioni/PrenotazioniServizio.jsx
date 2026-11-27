@@ -1,4 +1,4 @@
-// @version: v1.21 — avviso (non bloccante) quando su TheFork le fasce non sono prenotabili online e in TRGB risultano aperte, o il contrario (2026-11-27); v1.20 — spostando un tavolo che ha un'altra prenotazione abbinata (non ancora andata via) propone di spostarle insieme (2026-11-27); v1.19 — il bollino sui tavoli conta solo chi deve arrivare o è seduto, non chi è già andato via (2026-11-27); v1.18 — «tavolo +» su un altro tavolo quando ne ha già uno: chiede se spostare o unire; tavoli scelti come pastiglie che si tolgono una a una (2026-11-27); v1.17 — «tavolo +» su un tavolo occupato: chiede se sovrapporre o invertire (2026-11-27); v1.16 — numero sul tavolo quando ha più prenotazioni nel turno; ogni tocco passa alla successiva (2026-11-27); v1.15 — senza un orario toccato la mappa mostra tutto il turno, non più «adesso» (2026-11-27); v1.14 — colori secondo la regola del modulo (blu = azione, indaco scuro = scelto) e caselle dello stato da components/GiroStato (2026-11-26); v1.13 — riconferma WhatsApp: ✓ solo se il messaggio è partito davvero, «?» se WhatsApp è stato solo aperto (2026-11-26); v1.12 — azioni della prenotazione su una riga sola, tasti quadrati col disegno (matita, tavolo +, persona, WhatsApp, ⋯) (2026-11-26); v1.11 — tasto «tavolo +»: si assegnano i tavoli a una prenotazione toccandoli sulla mappa (2026-11-26); v1.10 — stato a quattro caselle in una riga (Prenotato · Confermato · Seduto · Libero): si tocca quella dove deve andare, avanti o indietro; le altre azioni sotto, piccole e uguali (2026-11-26); v1.9 — sul telefono gli orari sono un elenco a tendina (i tasti erano inutilizzabili) (2026-11-26); v1.8 — un tasto solo per lo stato che avanza (Prenotato → Confermato → Seduto → libera il tavolo), «↩» per tornare indietro, gli altri cambi in «Altro» (2026-11-26); v1.7 — riepilogo del turno nella riga sopra la sala (la testata resta su una riga) (2026-11-26); v1.6 — tutti i cambi di stato del Planning (stessi bottoni) e riconferma WhatsApp; testata comune del modulo (components/Testata.jsx) (2026-11-26); v1.5 — nell'elenco le stesse etichette del Planning (canale, stelle, segmento, bollino, no-show, allergie, doppione…), nome che apre la scheda cliente, note in riga (2026-11-26); v1.4 — niente barre di scorrimento (orari a colonne uguali, schede sale, elenco), piantina stretta sui tavoli, «tavoli liberi» solo nelle sale aperte (2026-11-26); v1.3 — nell'ingranaggio «Blocca le prenotazioni online» e «Chiudi servizio» (anche su TheFork), con conferma (2026-11-26); v1.2 — ingranaggio «Modifica servizio» (sale aperte, fasce e online, tavoli del turno) e matita per la sala (2026-11-26); v1.1 — stessa larghezza di pagina di Planning e Mappa, elenco a larghezza fissa e sala che non cambia misura; iPad in piedi: sala sopra, elenco sotto (2026-11-26); v1.0 — vista «Servizio»: elenco del turno e sala nella stessa schermata, striscia degli orari per vedere la sala a un'altra ora, due schede sul telefono (2026-11-26)
+// @version: v1.22 — nell'avviso TheFork: «Vuoi bloccare le stesse fasce anche su TRGB?» Sì / No (2026-11-27); v1.21 — avviso (non bloccante) quando su TheFork le fasce non sono prenotabili online e in TRGB risultano aperte, o il contrario (2026-11-27); v1.20 — spostando un tavolo che ha un'altra prenotazione abbinata (non ancora andata via) propone di spostarle insieme (2026-11-27); v1.19 — il bollino sui tavoli conta solo chi deve arrivare o è seduto, non chi è già andato via (2026-11-27); v1.18 — «tavolo +» su un altro tavolo quando ne ha già uno: chiede se spostare o unire; tavoli scelti come pastiglie che si tolgono una a una (2026-11-27); v1.17 — «tavolo +» su un tavolo occupato: chiede se sovrapporre o invertire (2026-11-27); v1.16 — numero sul tavolo quando ha più prenotazioni nel turno; ogni tocco passa alla successiva (2026-11-27); v1.15 — senza un orario toccato la mappa mostra tutto il turno, non più «adesso» (2026-11-27); v1.14 — colori secondo la regola del modulo (blu = azione, indaco scuro = scelto) e caselle dello stato da components/GiroStato (2026-11-26); v1.13 — riconferma WhatsApp: ✓ solo se il messaggio è partito davvero, «?» se WhatsApp è stato solo aperto (2026-11-26); v1.12 — azioni della prenotazione su una riga sola, tasti quadrati col disegno (matita, tavolo +, persona, WhatsApp, ⋯) (2026-11-26); v1.11 — tasto «tavolo +»: si assegnano i tavoli a una prenotazione toccandoli sulla mappa (2026-11-26); v1.10 — stato a quattro caselle in una riga (Prenotato · Confermato · Seduto · Libero): si tocca quella dove deve andare, avanti o indietro; le altre azioni sotto, piccole e uguali (2026-11-26); v1.9 — sul telefono gli orari sono un elenco a tendina (i tasti erano inutilizzabili) (2026-11-26); v1.8 — un tasto solo per lo stato che avanza (Prenotato → Confermato → Seduto → libera il tavolo), «↩» per tornare indietro, gli altri cambi in «Altro» (2026-11-26); v1.7 — riepilogo del turno nella riga sopra la sala (la testata resta su una riga) (2026-11-26); v1.6 — tutti i cambi di stato del Planning (stessi bottoni) e riconferma WhatsApp; testata comune del modulo (components/Testata.jsx) (2026-11-26); v1.5 — nell'elenco le stesse etichette del Planning (canale, stelle, segmento, bollino, no-show, allergie, doppione…), nome che apre la scheda cliente, note in riga (2026-11-26); v1.4 — niente barre di scorrimento (orari a colonne uguali, schede sale, elenco), piantina stretta sui tavoli, «tavoli liberi» solo nelle sale aperte (2026-11-26); v1.3 — nell'ingranaggio «Blocca le prenotazioni online» e «Chiudi servizio» (anche su TheFork), con conferma (2026-11-26); v1.2 — ingranaggio «Modifica servizio» (sale aperte, fasce e online, tavoli del turno) e matita per la sala (2026-11-26); v1.1 — stessa larghezza di pagina di Planning e Mappa, elenco a larghezza fissa e sala che non cambia misura; iPad in piedi: sala sopra, elenco sotto (2026-11-26); v1.0 — vista «Servizio»: elenco del turno e sala nella stessa schermata, striscia degli orari per vedere la sala a un'altra ora, due schede sul telefono (2026-11-26)
 // Modulo: prenotazioni
 // Idea presa da TheFork Manager (Marco 2026-11-26: «il mix tra prenotazioni e tavoli è una visual molto utile»).
 // Non sostituisce Planning né Mappa Tavoli: è una terza vista, da provare in servizio.
@@ -147,6 +147,27 @@ export default function PrenotazioniServizio() {
     const t = setInterval(leggi, 300000);
     return () => { vivo2 = false; clearInterval(t); };
   }, [data, turno]);
+  // «Vuoi bloccare le stesse fasce anche su TRGB?» (Marco 2026-11-27): chiude l'online qui, a TheFork non manda niente
+  // aperta=false: chiude in TRGB le fasce ferme su TheFork; aperta=true: riapre in TRGB quelle che TheFork ha riaperto
+  const allineaATheFork = async (aperta = false) => {
+    const ore = aperta ? tfk?.riapribili : tfk?.non_prenotabili;
+    const testo = aperta ? tfk?.riapribili_testo : tfk?.non_prenotabili_testo;
+    if (!ore?.length) return;
+    setLavoro(true);
+    try {
+      const r = await apiFetch(`${API_BASE}/prenotazioni/fasce/${data}/${turno}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ore, online_aperta: aperta, solo_trgb: true, motivo: "come su TheFork Manager" }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.detail || "Fasce non cambiate");
+      flash("ok", `Online ${aperta ? "riaperto" : "chiuso"} anche in TRGB: ${testo.join(", ")}`);
+      const c = await apiFetch(`${API_BASE}/prenotazioni/fasce/${data}/${turno}/confronto-thefork`);
+      if (c.ok) setTfk(await c.json());
+      carica();
+    } catch (e) { flash("err", e.message || "Errore di connessione"); }
+    finally { setLavoro(false); }
+  };
   const avvisoTfk = tfk?.controllato && tfkVisto !== `${data}/${turno}` && (tfk.non_prenotabili?.length || tfk.aperte_solo_thefork?.length) ? tfk : null;
 
   // tavolo (nome) → tutte le prenotazioni del turno su quel tavolo, in ordine d'arrivo: due turni sullo stesso tavolo
@@ -689,14 +710,30 @@ export default function PrenotazioniServizio() {
             <div>
               {avvisoTfk.non_prenotabili.length > 0 && (
                 <div>
-                  <strong>TheFork: {avvisoTfk.tutto_fermo ? `${turno === "cena" ? "stasera" : "a pranzo"} online non si può prenotare` : `online non prenotabili ${avvisoTfk.non_prenotabili_testo.join(", ")}`}</strong>
+                  <strong>TheFork: {avvisoTfk.tutto_fermo ? `online non si può prenotare per ${turno === "cena" ? "questa cena" : "questo pranzo"}` : `online non prenotabili ${avvisoTfk.non_prenotabili_testo.join(", ")}`}</strong>
                   {" "}(fermate da TheFork Manager, oppure al completo). In TRGB queste fasce risultano aperte.
                 </div>
               )}
               {avvisoTfk.aperte_solo_thefork.length > 0 && (
                 <div><strong>TheFork: online si può prenotare alle {avvisoTfk.aperte_solo_thefork_testo.join(", ")}</strong>, che in TRGB hai chiuso.</div>
               )}
-              <div className="text-xs text-amber-800 mt-0.5">È solo un avviso: TRGB non cambia niente né qui né su TheFork.</div>
+              {avvisoTfk.non_prenotabili.length > 0 ? (
+                <div className="mt-1.5 flex items-center gap-2 flex-wrap">
+                  <span className="font-semibold">Vuoi bloccare le stesse fasce anche su TRGB?</span>
+                  <button type="button" disabled={lavoro} onClick={() => allineaATheFork(false)} className="px-4 min-h-[40px] rounded-lg bg-brand-blue text-white text-sm font-bold hover:bg-blue-700 disabled:opacity-50">Sì</button>
+                  <button type="button" onClick={() => setTfkVisto(`${data}/${turno}`)} className="px-4 min-h-[40px] rounded-lg border border-neutral-300 bg-white text-neutral-800 text-sm font-semibold hover:bg-neutral-50">No</button>
+                  <span className="text-xs text-amber-800">Con «Sì» l'online si chiude solo qui: a TheFork non viene mandato niente.</span>
+                </div>
+              ) : avvisoTfk.riapribili?.length > 0 ? (
+                <div className="mt-1.5 flex items-center gap-2 flex-wrap">
+                  <span className="font-semibold">Vuoi riaprire le stesse fasce anche su TRGB?</span>
+                  <button type="button" disabled={lavoro} onClick={() => allineaATheFork(true)} className="px-4 min-h-[40px] rounded-lg bg-brand-blue text-white text-sm font-bold hover:bg-blue-700 disabled:opacity-50">Sì</button>
+                  <button type="button" onClick={() => setTfkVisto(`${data}/${turno}`)} className="px-4 min-h-[40px] rounded-lg border border-neutral-300 bg-white text-neutral-800 text-sm font-semibold hover:bg-neutral-50">No</button>
+                  <span className="text-xs text-amber-800">Con «Sì» l'online si riapre solo qui ({avvisoTfk.riapribili_testo.join(", ")}): a TheFork non viene mandato niente.</span>
+                </div>
+              ) : (
+                <div className="text-xs text-amber-800 mt-0.5">È solo un avviso: TRGB non cambia niente né qui né su TheFork.</div>
+              )}
             </div>
             <button type="button" onClick={() => setTfkVisto(`${data}/${turno}`)} aria-label="Chiudi l'avviso" className="flex-shrink-0 w-9 h-9 rounded-lg hover:bg-amber-100 text-amber-900">✕</button>
           </div>

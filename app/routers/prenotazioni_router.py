@@ -1330,9 +1330,13 @@ async def put_fasce(data: str, turno: str, request: Request, user: dict = Depend
     verifica_ruoli(user, *RUOLI_FASCE, cosa="la gestione delle fasce orarie")
     corpo = await request.json()
     ore = corpo.pop("ore", None) or []
+    # «solo_trgb»: allineamento a fasce già fermate su TheFork Manager — niente comando a TheFork (2026-11-27)
+    solo_trgb = bool(corpo.pop("solo_trgb", False))
+    motivo = (corpo.pop("motivo", None) or None) if solo_trgb else None
     conn = get_clienti_conn()
     try:
-        out = fasce_srv.imposta_fasce(conn, data, _turno_valido(turno), ore, corpo, user.get("username"))
+        out = fasce_srv.imposta_fasce(conn, data, _turno_valido(turno), ore, corpo, user.get("username"),
+                                      motivo=motivo, solo_trgb=solo_trgb)
         out["registro"] = fasce_srv.registro(conn, data)
         return out
     except ValueError as e:

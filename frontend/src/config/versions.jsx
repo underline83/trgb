@@ -903,7 +903,8 @@ const MODULE_VERSIONS = {
     // 2.59 (2026-11-27): il bollino sui tavoli con più prenotazioni non conta più chi è già andato via.
     //   Spostando col «tavolo +» una prenotazione che divide il tavolo con un'altra (doppio turno) propone di spostarle
     //   tutte e due; chi è già andato via resta sul suo tavolo, per lo storico e la consumazione.
-    //   Avviso (non bloccante) in Servizio se su TheFork le fasce non sono prenotabili online mentre in TRGB sono aperte.
+    //   Avviso (non bloccante) in Servizio se su TheFork le fasce non sono prenotabili online mentre in TRGB sono aperte,
+    //   con «Vuoi bloccare le stesse fasce anche su TRGB?» (Sì chiude l'online solo in TRGB, a TheFork non manda niente).
     version: "2.59",
     label: "Prenotazioni",
     status: "beta",
