@@ -268,6 +268,56 @@ def imposta_fasce(conn, data: str, turno: str, ore: List[str], modifiche: Dict[s
     return out
 
 
+# ── Confronto con TheFork (Marco 2026-11-27: «se io stoppo le prenotazioni da TheFork tu ti accorgi?») ──
+# Solo un avviso, non blocca e non corregge niente: TRGB chiede a TheFork gli orari prenotabili online e
+# dice dove non coincidono con le sue fasce. TheFork non distingue «chiuso» da «al completo»: per questo
+# l'avviso dice «non prenotabile online». La risposta di TheFork si tiene per poco, per non chiamarlo a
+# ogni aggiornamento della pagina.
+_CACHE_TFK: Dict[str, Any] = {}
+_CACHE_TFK_SECONDI = 120
+
+
+def _intervalli(ore: List[str]) -> List[str]:
+    """['19:00','19:15','19:30','21:00'] → ['19:00–19:30', '21:00']"""
+    return [g[0] if len(g) == 1 else f"{g[0]}–{g[-1]}" for g in _gruppi_contigui(sorted(ore))]
+
+
+def confronto_thefork(conn, data: str, turno: str, adesso: Optional[Any] = None) -> Dict[str, Any]:
+    """Le fasce che TRGB crede aperte online ma su TheFork non sono prenotabili, e il contrario.
+    Non solleva mai: se TheFork non risponde torna controllato=False col motivo."""
+    import time
+    from datetime import datetime
+    adesso = adesso or datetime.now()
+    oggi = adesso.strftime("%Y-%m-%d")
+    if data < oggi:
+        return {"controllato": False, "motivo": "giorno passato"}
+    chiave = f"{data}"
+    tenuto = _CACHE_TFK.get(chiave)
+    if tenuto and time.time() - tenuto[0] < _CACHE_TFK_SECONDI:
+        prenotabili = tenuto[1]
+    else:
+        try:
+            prenotabili = set(tf.fasce_prenotabili_online(data, 2))
+        except Exception as e:  # noqa: BLE001 — TheFork spento, non configurato, errore di rete: niente avviso
+            return {"controllato": False, "motivo": str(e)[:200]}
+        _CACHE_TFK[chiave] = (time.time(), prenotabili)
+        for k in [k for k, v in _CACHE_TFK.items() if time.time() - v[0] > 3600]:
+            _CACHE_TFK.pop(k, None)
+    ora_adesso = adesso.strftime("%H:%M")
+    fasce = [f for f in fasce_giorno(conn, data, turno)["fasce"] if not (data == oggi and f["ora"] <= ora_adesso)]
+    aperte_trgb = [f["ora"] for f in fasce if f.get("aperta") and f.get("online_aperta")]
+    chiuse_trgb = [f["ora"] for f in fasce if not (f.get("aperta") and f.get("online_aperta"))]
+    non_prenotabili = [o for o in aperte_trgb if o not in prenotabili]
+    aperte_solo_thefork = [o for o in chiuse_trgb if o in prenotabili]
+    return {
+        "controllato": True, "data": data, "turno": turno,
+        "aperte_in_trgb": len(aperte_trgb),
+        "non_prenotabili": non_prenotabili, "non_prenotabili_testo": _intervalli(non_prenotabili),
+        "tutto_fermo": bool(aperte_trgb) and len(non_prenotabili) == len(aperte_trgb),
+        "aperte_solo_thefork": aperte_solo_thefork, "aperte_solo_thefork_testo": _intervalli(aperte_solo_thefork),
+    }
+
+
 def _ha_modo(conn) -> bool:
     return "online_modo" in {r[1] for r in conn.execute("PRAGMA table_info(prenotazioni_fasce)")}
 

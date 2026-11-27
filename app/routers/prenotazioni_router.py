@@ -1341,6 +1341,18 @@ async def put_fasce(data: str, turno: str, request: Request, user: dict = Depend
         conn.close()
 
 
+@router.get("/fasce/{data}/{turno}/confronto-thefork")
+def get_confronto_thefork(data: str, turno: str, user: dict = Depends(get_current_user)):
+    """Avviso, non blocco (Marco 2026-11-27): le fasce che in TRGB risultano aperte online ma su TheFork
+    non sono prenotabili (fermate da TheFork Manager, o al completo), e quelle chiuse in TRGB ma prenotabili lì."""
+    verifica_ruoli(user, "admin", "sala", "sommelier", "capo_sala", cosa="il confronto con TheFork")
+    conn = get_clienti_conn()
+    try:
+        return fasce_srv.confronto_thefork(conn, data, _turno_valido(turno))
+    finally:
+        conn.close()
+
+
 @router.get("/fasce/{data}/{turno}/thefork")
 def get_fasce_thefork(data: str, turno: str, coperti: int = Query(default=2, ge=1, le=50),
                       user: dict = Depends(get_current_user)):
