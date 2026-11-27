@@ -3,7 +3,10 @@
 
 ---
 
-## 2026-11-27 — Prenotazioni 2.59: bollino dei tavoli `[core]`
+## 2026-11-27 — Prenotazioni 2.59: bollino dei tavoli, spostamento dei tavoli abbinati `[core]`
+
+### Aggiunto
+- Servizio, «tavolo +»: spostando una prenotazione da un tavolo che ha un'altra prenotazione abbinata (doppio turno, non ancora andata via) chiede se spostarle tutte e due o solo quella. Chi è già andato via non viene mai spostato: nello storico resta il tavolo dove ha mangiato, così la consumazione si lega a quello giusto.
 
 ### Corretto
 - Servizio: il bollino col numero sul tavolo contava anche le prenotazioni già andate via (il 5 segnava «3» con una sola persona seduta). Ora conta solo chi deve ancora arrivare o è al tavolo; con una sola il bollino non c'è.
