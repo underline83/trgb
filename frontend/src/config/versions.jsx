@@ -892,7 +892,10 @@ const MODULE_VERSIONS = {
     //   (capo sala, chef, admin), da GET /turni/giorno.
     //   Riconferma WhatsApp: segnaposto {quando} («stasera», «oggi a pranzo», «domani sera», «sabato 5 dicembre») al posto
     //   di «domani» scritto fisso (mig 253).
-    version: "2.56",
+    // 2.57 (2026-11-27): Servizio, senza un orario toccato la mappa mostra tutto il turno (tutti i tavoli assegnati),
+    //   non più la sala «adesso»: prima del servizio sembrava vuota. Toccando un orario si vede la sala a quell'ora.
+    //   Un tavolo con più prenotazioni nel turno ha un bollino nero col numero; ogni tocco passa alla successiva.
+    version: "2.57",
     label: "Prenotazioni",
     status: "beta",
     color: "blue",

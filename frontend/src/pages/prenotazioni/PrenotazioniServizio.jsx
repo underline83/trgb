@@ -1,4 +1,4 @@
-// @version: v1.14 — colori secondo la regola del modulo (blu = azione, indaco scuro = scelto) e caselle dello stato da components/GiroStato (2026-11-26); v1.13 — riconferma WhatsApp: ✓ solo se il messaggio è partito davvero, «?» se WhatsApp è stato solo aperto (2026-11-26); v1.12 — azioni della prenotazione su una riga sola, tasti quadrati col disegno (matita, tavolo +, persona, WhatsApp, ⋯) (2026-11-26); v1.11 — tasto «tavolo +»: si assegnano i tavoli a una prenotazione toccandoli sulla mappa (2026-11-26); v1.10 — stato a quattro caselle in una riga (Prenotato · Confermato · Seduto · Libero): si tocca quella dove deve andare, avanti o indietro; le altre azioni sotto, piccole e uguali (2026-11-26); v1.9 — sul telefono gli orari sono un elenco a tendina (i tasti erano inutilizzabili) (2026-11-26); v1.8 — un tasto solo per lo stato che avanza (Prenotato → Confermato → Seduto → libera il tavolo), «↩» per tornare indietro, gli altri cambi in «Altro» (2026-11-26); v1.7 — riepilogo del turno nella riga sopra la sala (la testata resta su una riga) (2026-11-26); v1.6 — tutti i cambi di stato del Planning (stessi bottoni) e riconferma WhatsApp; testata comune del modulo (components/Testata.jsx) (2026-11-26); v1.5 — nell'elenco le stesse etichette del Planning (canale, stelle, segmento, bollino, no-show, allergie, doppione…), nome che apre la scheda cliente, note in riga (2026-11-26); v1.4 — niente barre di scorrimento (orari a colonne uguali, schede sale, elenco), piantina stretta sui tavoli, «tavoli liberi» solo nelle sale aperte (2026-11-26); v1.3 — nell'ingranaggio «Blocca le prenotazioni online» e «Chiudi servizio» (anche su TheFork), con conferma (2026-11-26); v1.2 — ingranaggio «Modifica servizio» (sale aperte, fasce e online, tavoli del turno) e matita per la sala (2026-11-26); v1.1 — stessa larghezza di pagina di Planning e Mappa, elenco a larghezza fissa e sala che non cambia misura; iPad in piedi: sala sopra, elenco sotto (2026-11-26); v1.0 — vista «Servizio»: elenco del turno e sala nella stessa schermata, striscia degli orari per vedere la sala a un'altra ora, due schede sul telefono (2026-11-26)
+// @version: v1.16 — numero sul tavolo quando ha più prenotazioni nel turno; ogni tocco passa alla successiva (2026-11-27); v1.15 — senza un orario toccato la mappa mostra tutto il turno, non più «adesso» (2026-11-27); v1.14 — colori secondo la regola del modulo (blu = azione, indaco scuro = scelto) e caselle dello stato da components/GiroStato (2026-11-26); v1.13 — riconferma WhatsApp: ✓ solo se il messaggio è partito davvero, «?» se WhatsApp è stato solo aperto (2026-11-26); v1.12 — azioni della prenotazione su una riga sola, tasti quadrati col disegno (matita, tavolo +, persona, WhatsApp, ⋯) (2026-11-26); v1.11 — tasto «tavolo +»: si assegnano i tavoli a una prenotazione toccandoli sulla mappa (2026-11-26); v1.10 — stato a quattro caselle in una riga (Prenotato · Confermato · Seduto · Libero): si tocca quella dove deve andare, avanti o indietro; le altre azioni sotto, piccole e uguali (2026-11-26); v1.9 — sul telefono gli orari sono un elenco a tendina (i tasti erano inutilizzabili) (2026-11-26); v1.8 — un tasto solo per lo stato che avanza (Prenotato → Confermato → Seduto → libera il tavolo), «↩» per tornare indietro, gli altri cambi in «Altro» (2026-11-26); v1.7 — riepilogo del turno nella riga sopra la sala (la testata resta su una riga) (2026-11-26); v1.6 — tutti i cambi di stato del Planning (stessi bottoni) e riconferma WhatsApp; testata comune del modulo (components/Testata.jsx) (2026-11-26); v1.5 — nell'elenco le stesse etichette del Planning (canale, stelle, segmento, bollino, no-show, allergie, doppione…), nome che apre la scheda cliente, note in riga (2026-11-26); v1.4 — niente barre di scorrimento (orari a colonne uguali, schede sale, elenco), piantina stretta sui tavoli, «tavoli liberi» solo nelle sale aperte (2026-11-26); v1.3 — nell'ingranaggio «Blocca le prenotazioni online» e «Chiudi servizio» (anche su TheFork), con conferma (2026-11-26); v1.2 — ingranaggio «Modifica servizio» (sale aperte, fasce e online, tavoli del turno) e matita per la sala (2026-11-26); v1.1 — stessa larghezza di pagina di Planning e Mappa, elenco a larghezza fissa e sala che non cambia misura; iPad in piedi: sala sopra, elenco sotto (2026-11-26); v1.0 — vista «Servizio»: elenco del turno e sala nella stessa schermata, striscia degli orari per vedere la sala a un'altra ora, due schede sul telefono (2026-11-26)
 // Modulo: prenotazioni
 // Idea presa da TheFork Manager (Marco 2026-11-26: «il mix tra prenotazioni e tavoli è una visual molto utile»).
 // Non sostituisce Planning né Mappa Tavoli: è una terza vista, da provare in servizio.
@@ -106,8 +106,11 @@ export default function PrenotazioniServizio() {
   const adessoMin = new Date().getHours() * 60 + new Date().getMinutes();
   const orari = carico.orari || [];
   const inTurno = oggi && orari.length > 0 && adessoMin >= minuti(orari[0].ora) - 60 && adessoMin <= minuti(orari[orari.length - 1].ora) + 180;
-  const guardo = ora != null ? ora : (inTurno ? adessoMin : null);   // null = tutto il turno
-  const vivo = ora == null && inTurno;                               // sto guardando «adesso»
+  // Senza un orario toccato si vede TUTTO il turno: ogni tavolo assegnato risulta di chi l'ha prenotato
+  // (Marco 2026-11-27: la vista «adesso» prima del servizio mostrava la sala vuota e «crea confusione»).
+  const guardo = ora;                                                // null = tutto il turno
+  const vivo = false;                                                // la vista «adesso» automatica non c'è più
+  const tuttoIlTurno = turno === "cena" ? "Tutta la serata" : "Tutto il pranzo";
 
   const occupaA = useCallback((p, m) => {
     if (m == null) return p.stato !== "LEFT";
@@ -129,6 +132,16 @@ export default function PrenotazioniServizio() {
     return out;
   }, [attive, guardo, occupaA]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // tavolo (nome) → tutte le prenotazioni del turno su quel tavolo, in ordine d'arrivo: due turni sullo stesso tavolo
+  // si segnano con un numero sul tavolo (Marco 2026-11-27)
+  const tutteSul = useMemo(() => {
+    const out = {};
+    for (const p of [...attive].sort((a, b) => String(a.ora_pasto).localeCompare(String(b.ora_pasto)))) {
+      for (const n of nomiTavolo(p.tavolo)) (out[n] = out[n] || []).push(p);
+    }
+    return out;
+  }, [attive]);
+
   const scelta = attive.find((p) => p.id === sceltaId) || null;
   const tavoliScelta = new Set(scelta ? nomiTavolo(scelta.tavolo) : []);
 
@@ -139,6 +152,7 @@ export default function PrenotazioniServizio() {
   const elementi = (mappa?.elementi || []).filter((e) => (e.zona || "sala") === salaAttiva);
   const nomiDelTavolo = (t) => (t.membri_nomi?.length ? t.membri_nomi : [t.nome]);
   const prenDelTavolo = (t) => nomiDelTavolo(t).map((n) => chiTiene[n]).find(Boolean) || null;
+  const turniDelTavolo = (t) => { const visti = new Map(); for (const n of nomiDelTavolo(t)) for (const p of tutteSul[n] || []) visti.set(p.id, p); return [...visti.values()]; };
   const saleAperte = new Set((mappa?.sale_stato || []).filter((x) => x.aperta).map((x) => x.zona));
   const inSalaAperta = (t) => saleAperte.size === 0 || saleAperte.has(t.zona);
   const liberi = tuttiTavoli.filter((t) => inSalaAperta(t) && !prenDelTavolo(t) && t.stato_tavolo !== "BLOCCATO").length;
@@ -462,7 +476,7 @@ export default function PrenotazioniServizio() {
       Vedi la sala
       <select value={ora == null ? "" : String(ora)} onChange={(e) => setOra(e.target.value === "" ? null : Number(e.target.value))}
         className="w-full px-3 min-h-[48px] rounded-lg border border-neutral-300 bg-white text-base text-neutral-900 tabular-nums">
-        <option value="">{inTurno ? "Adesso" : "Tutto il turno"}</option>
+        <option value="">{tuttoIlTurno}</option>
         {orari.map((o) => (
           <option key={o.ora} value={minuti(o.ora)}>
             {o.ora} — {o.coperti}{carico.capienza ? `/${carico.capienza}` : ""} coperti · {o.tavoli} tavoli{o.ora === slotAdesso ? " (adesso)" : ""}
@@ -511,10 +525,10 @@ export default function PrenotazioniServizio() {
         ) : ora != null ? (
           <>
             <span>Stai guardando la sala <strong>alle {hhmm(ora)}</strong>: {liberi} tavoli liberi. Tocca un tavolo libero per prenotarlo a quell'ora.</span>
-            <button type="button" onClick={() => setOra(null)} className="flex-shrink-0 whitespace-nowrap px-3 min-h-[36px] rounded-lg border border-neutral-300 bg-white text-sm font-semibold text-neutral-800">{inTurno ? "Torna ad adesso" : "Tutto il turno"}</button>
+            <button type="button" onClick={() => setOra(null)} className="flex-shrink-0 whitespace-nowrap px-3 min-h-[36px] rounded-lg border border-neutral-300 bg-white text-sm font-semibold text-neutral-800">{tuttoIlTurno}</button>
           </>
         ) : (
-          <span><strong className="text-neutral-800">{attive.length} prenotazioni · {coperti} coperti{carico.capienza ? ` su ${carico.capienza}` : ""} · {liberi} tavoli liberi {vivo ? "adesso" : "nel turno"}</strong> · tocca un orario per vedere la sala a quell'ora</span>
+          <span><strong className="text-neutral-800">{attive.length} prenotazioni · {coperti} coperti{carico.capienza ? ` su ${carico.capienza}` : ""} · {liberi} tavoli senza prenotazione</strong> · tocca un orario per vedere la sala a quell'ora</span>
         )}
       </div>
       <div className="flex items-start justify-between gap-2">
@@ -533,9 +547,10 @@ export default function PrenotazioniServizio() {
           {tavoli.map((t) => {
             const p = prenDelTavolo(t);
             const bloccato = !p && t.stato_tavolo === "BLOCCATO";
+            const turni = turniDelTavolo(t);
             const eScelto = assegno
               ? nomiDelTavolo(t).every((n) => assegno.nomi.includes(n))
-              : nomiDelTavolo(t).some((n) => tavoliScelta.has(n)) && (!p || p.id === sceltaId);
+              : nomiDelTavolo(t).some((n) => tavoliScelta.has(n)) && (!p || p.id === sceltaId || (guardo == null && turni.some((x) => x.id === sceltaId)));
             const c = COLORI[eScelto ? "scelto" : bloccato ? "bloccato" : !p ? "libero" : venuti.includes(p.stato) ? "seduto" : "arrivo"];
             const cx = t.posizione_x + t.larghezza / 2;
             const cy = t.posizione_y + t.altezza / 2;
@@ -543,12 +558,24 @@ export default function PrenotazioniServizio() {
               <g key={t.id} style={{ cursor: bloccato ? "default" : "pointer" }}
                 onClick={() => {
                   if (assegno) toccaPerAssegno(t, p, bloccato);
+                  else if (p && guardo == null && turni.length > 1) {
+                    // più prenotazioni sullo stesso tavolo: ogni tocco passa alla successiva
+                    const i = turni.findIndex((x) => x.id === sceltaId);
+                    scegli(turni[(i + 1) % turni.length], true);
+                  }
                   else if (p) scegli(p, true);
                   else if (!bloccato) setForm({ nuova: { tavolo: nomiDelTavolo(t).join("+") } });
                 }}>
                 <FormaTavolo t={t} fill={c.fill} stroke={c.stroke} strokeWidth={eScelto ? 3 : 1.5} dash={bloccato ? "4 2" : "none"} />
                 <text x={cx} y={p ? cy - 6 : cy} textAnchor="middle" dominantBaseline="middle" fontSize="12" fontWeight="bold" fill={c.text} className="select-none pointer-events-none">{t.nome}</text>
                 {p && <text x={cx} y={cy + 8} textAnchor="middle" dominantBaseline="middle" fontSize="9" fill={c.text} className="select-none pointer-events-none">{(p.cognome || nomeDi(p)).slice(0, 9)} · {p.pax}</text>}
+                {turni.length > 1 && (
+                  <g className="pointer-events-none">
+                    <title>{turni.map((x) => `${String(x.ora_pasto).slice(0, 5)} ${nomeDi(x)}`).join(" · ")}</title>
+                    <circle cx={t.posizione_x + t.larghezza - 3} cy={t.posizione_y + 3} r="9" fill="#111111" stroke="#ffffff" strokeWidth="1.5" />
+                    <text x={t.posizione_x + t.larghezza - 3} y={t.posizione_y + 3.5} textAnchor="middle" dominantBaseline="middle" fontSize="10" fontWeight="bold" fill="#ffffff" className="select-none">{turni.length}</text>
+                  </g>
+                )}
                 {!p && !bloccato && <text x={cx} y={cy + 12} textAnchor="middle" dominantBaseline="middle" fontSize="8" fill={c.text} className="select-none pointer-events-none">{t.posti_max} p</text>}
               </g>
             );
@@ -561,6 +588,9 @@ export default function PrenotazioniServizio() {
             <span aria-hidden="true" className="inline-block w-3.5 h-3.5 rounded-lg" style={{ background: COLORI[k].fill, border: `2px solid ${COLORI[k].stroke}` }} />{t}
           </span>
         ))}
+        <span className="flex items-center gap-1.5">
+          <span aria-hidden="true" className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-brand-ink text-white text-[10px] font-bold">2</span>più prenotazioni sullo stesso tavolo (tocca per passare dall'una all'altra)
+        </span>
       </div>
       {telefono && scelta && (
         <div className="rounded-xl px-3 py-2.5 bg-indigo-50 border-2 border-indigo-700 flex flex-col gap-2">

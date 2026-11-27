@@ -3,6 +3,12 @@
 
 ---
 
+## 2026-11-27 — Prenotazioni 2.57: la mappa di Servizio mostra tutto il turno `[core]`
+
+### Cambiato
+- Servizio: senza un orario toccato la mappa mostra tutto il turno, con ogni tavolo assegnato a chi l'ha prenotato (indaco = deve arrivare, verde = al tavolo, bianco = senza prenotazione o già liberato). Prima, durante il servizio, mostrava da sola la sala «adesso»: alle 19 con i primi arrivi alle 19:30 sembrava tutta vuota. Toccando un orario sulla striscia si vede la sala a quell'ora; «Tutta la serata» / «Tutto il pranzo» riporta alla vista intera.
+- Un tavolo con più prenotazioni nello stesso turno (doppio turno) ha un bollino nero col numero nell'angolo. Nella vista intera ogni tocco sul tavolo passa alla prenotazione successiva.
+
 ## 2026-11-27 — Prenotazioni 2.56 / sistema 6.18: colori del modulo, turni del personale nel Mese, riconferma «stasera» (mig 253) `[core]`
 
 ### Cambiato
