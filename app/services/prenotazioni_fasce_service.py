@@ -1,4 +1,4 @@
-# @version: v1.1 — online deciso a mano o dal motore per tavoli (online_modo, mig 216); v1.0 — fasce orarie del servizio (2026-10-16, mig 195)
+# @version: v1.2 — «online» = solo chi ha prenotato da solo online (portale TheFork, TripAdvisor, Booking Module, sito), non le telefonate con codice TheFork (2026-11-28); v1.1 — online deciso a mano o dal motore per tavoli (online_modo, mig 216); v1.0 — fasce orarie del servizio (2026-10-16, mig 195)
 # -*- coding: utf-8 -*-
 """
 Fasce orarie del servizio — Modulo: prenotazioni — [core]
@@ -91,6 +91,20 @@ def _auto(conn, data: str) -> Dict[str, Dict[str, Any]]:
         return {}
 
 
+# Chi ha prenotato DA SOLO, online: il portale e l'app di TheFork, TripAdvisor (via TheFork), il Booking
+# Module di TheFork sul sito e il nostro widget. Tutto il resto (telefono, email, walk-in, inserite a mano su
+# TheFork Manager come «Offline», o mandate da TRGB a TheFork) NON è online, anche se ha un codice TheFork.
+# Marco 28/11/2026: «sono due tetti diversi, perché potrei decidere di tenermi un margine sulle prenotazioni
+# telefoniche fatte da noi tenendo dei tavoli liberi per loro». Il tetto dei coperti conta tutti, il tetto
+# online solo questi.
+CANALI_ONLINE = ("TheFork", "TripAdvisor", "Booking Module", "Sito")
+FONTI_ONLINE = ("sito", "widget")
+
+
+def e_online(fonte: Optional[str], canale: Optional[str]) -> bool:
+    return (fonte or "") in FONTI_ONLINE or (canale or "") in CANALI_ONLINE
+
+
 def fasce_giorno(conn, data: str, turno: str, config: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
     config = config or _config(conn)
     dflt = default_turno(config, turno)
@@ -99,7 +113,7 @@ def fasce_giorno(conn, data: str, turno: str, config: Optional[Dict[str, str]] =
     ore = sorted(set(_slot(config, turno)) | set(eccezioni), key=_minuti)
 
     pren = conn.execute(f"""
-        SELECT ora_pasto, pax, thefork_booking_id, fonte FROM clienti_prenotazioni
+        SELECT ora_pasto, pax, thefork_booking_id, fonte, canale FROM clienti_prenotazioni
         WHERE data_pasto = ? AND turno = ? AND stato NOT IN ({','.join('?' * len(stati_srv.non_occupano()))})
     """, (data, turno, *stati_srv.non_occupano())).fetchall()
 
@@ -116,7 +130,7 @@ def fasce_giorno(conn, data: str, turno: str, config: Optional[Dict[str, str]] =
         c = conti[fascia]
         c["coperti"] += p["pax"] or 0
         c["prenotazioni"] += 1
-        if p["thefork_booking_id"] or p["fonte"] == "sito":  # online = TheFork + il nostro sito
+        if e_online(p["fonte"], p["canale"]):  # solo chi ha prenotato da solo online (28/11/2026)
             c["online"] += p["pax"] or 0
 
     fasce = []

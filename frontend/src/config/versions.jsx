@@ -927,7 +927,10 @@ const MODULE_VERSIONS = {
     //   tavolo da toccare, libero/occupato all'ora scelta), persone e canale a pastiglie, Pranzo/Cena accanto agli orari,
     //   stato e riepilogo in fondo; sul telefono resta in colonna. Servizio: filtri rapidi sull'elenco
     //   (Tutte · Imminenti · Al tavolo · Senza tavolo).
-    version: "2.64",
+    // 2.65 (2026-11-28): tetto online di una fascia = solo chi ha prenotato da solo online (portale TheFork,
+    //   TripAdvisor, Booking Module, sito). Prima contava ogni codice TheFork: anche «Offline», walk-in e telefonate
+    //   mandate da TRGB. Il tetto dei coperti conta tutti: con due numeri diversi resta un margine per il telefono.
+    version: "2.65",
     label: "Prenotazioni",
     status: "beta",
     color: "blue",

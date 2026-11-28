@@ -272,5 +272,19 @@ class Sito(Base):
         self.assertTrue(any(m == "PATCH" and uuid in p and "cancel" in p for m, p, _ in self.chiamate), self.chiamate)
 
 
+class TettoOnline(unittest.TestCase):
+    """Marco 28/11: il tetto dei coperti conta tutti, quello online solo chi ha prenotato da solo online."""
+    def test_chi_conta_come_online(self):
+        e = fasce_srv.e_online
+        self.assertTrue(e("thefork", "TheFork"))
+        self.assertTrue(e("thefork", "TripAdvisor"))
+        self.assertTrue(e("widget", "Booking Module"))
+        self.assertTrue(e("sito", "Sito"))
+        self.assertFalse(e("thefork", "Offline"))              # scritta a mano su TheFork Manager
+        self.assertFalse(e("thefork", "Walk-in"))
+        self.assertFalse(e("thefork", "TheFork Manager API"))  # mandata da TRGB
+        self.assertFalse(e("manuale", "Telefono"))              # anche se è partita per TheFork
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)

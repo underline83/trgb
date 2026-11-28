@@ -3,6 +3,11 @@
 
 ---
 
+## 2026-11-28 — Prenotazioni 2.65: il tetto online conta solo chi prenota da solo online `[core]`
+
+### Corretto
+- Il massimo «online» di una fascia contava ogni prenotazione con un codice TheFork: anche quelle scritte a mano su TheFork Manager («Offline»), i walk-in e, dal 26/11, le telefonate prese in TRGB e mandate a TheFork. Ora conta solo chi ha prenotato da solo: portale e app di TheFork, TripAdvisor, il modulo di TheFork sul sito e il nostro widget. Il massimo dei coperti conta tutte le prenotazioni: con i due numeri diversi si tengono tavoli liberi per le prenotazioni prese da voi.
+
 ## 2026-11-28 — Prenotazioni 2.64: form a tre zone e filtri rapidi `[core]`
 
 ### Cambiato
