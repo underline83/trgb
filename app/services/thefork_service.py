@@ -493,6 +493,10 @@ def mappa_prenotazione(r: Dict[str, Any], soglia: str) -> Dict[str, Any]:
     # `stato_thefork` = l'ultimo stato detto da TheFork: serve a capire se lo stato in TRGB è
     # ancora il suo o è stato cambiato a mano in sala (v. _priorita_trgb, mig 254).
     rec["stato_thefork"] = rec.get("stato")
+    # Lo stesso per persone e ora (mig 257 e 256): quello che TheFork dice adesso, per riconoscere
+    # al giro dopo se lo sta solo ripetendo.
+    rec["pax_thefork"] = rec.get("pax")
+    rec["ora_thefork"] = str(rec.get("ora_pasto") or "")[:5] or None
 
     # Tavoli: solo se TheFork ne ha assegnati, per non cancellare quelli dati in TRGB.
     # `tavolo_thefork` = l'ultimo tavolo detto da TheFork: serve a capire se quello in
@@ -645,6 +649,12 @@ def _priorita_trgb(conn, rec: Dict[str, Any]) -> List[str]:
         rec.pop("ora_pasto")
         rec.pop("turno", None)
         tenuti.append("ora_pasto")
+    # Le persone cambiate in TRGB (Marco 2026-11-28: Levati portata a 4 «continua a tornare da 6»): se
+    # TheFork ripete il numero che aveva già detto resta quello di TRGB; un numero nuovo passa (mig 257).
+    detti = gia["pax_thefork"] if "pax_thefork" in gia.keys() else None
+    if detti is not None and rec.get("pax") is not None and rec["pax"] == detti and gia["pax"] not in (None, detti):
+        rec.pop("pax")
+        tenuti.append("pax")
     return tenuti
 
 
@@ -661,7 +671,7 @@ def _sincronizza_prenotazione(conn, uuid: str, solo_se_cambia: bool = False) -> 
     if not rec.get("data_pasto"):
         raise ValueError("prenotazione senza mealDate")
     colonne = {c[1] for c in conn.execute("PRAGMA table_info(clienti_prenotazioni)")}
-    for k in ("tavolo_thefork", "stato_thefork"):
+    for k in ("tavolo_thefork", "stato_thefork", "pax_thefork", "ora_thefork"):
         if k in rec and k not in colonne:
             rec.pop(k)   # DB non ancora aggiornato: si lavora come prima
     tenuti_trgb = _priorita_trgb(conn, rec)   # descrittivo: vince TRGB (2026-11-13)

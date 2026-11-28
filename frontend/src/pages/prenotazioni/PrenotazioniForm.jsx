@@ -1,4 +1,4 @@
-// @version: v2.3 — cliente nuovo anche col solo nome (2026-11-28); v2.2 — «+ Nuovo» accanto al campo del cliente, sempre in vista (2026-11-28); v2.1 — sala più larga, niente barra orizzontale sotto la finestra; «Nuovo cliente» con campi più alti e telefono ed email ognuno sulla sua riga (2026-11-28); v2.0 — su iPad e Mac tre zone affiancate (prenotazione · altri dettagli · sala col tavolo da toccare), persone e canale a pastiglie, Pranzo/Cena accanto agli orari, stato e riepilogo in fondo; sul telefono resta in colonna (2026-11-28); v1.13 — canale «Walk-in»: il nome non si chiede, va sulla scheda «Walk-in» (2026-11-28); v1.12-thefork — numero sconosciuto a TRGB ma noto a TheFork: nome, email e prossime prenotazioni da TheFork, «Usa questi dati» (2026-11-28); v1.11 — orari a 6 per riga senza testo che esce dalla casella, seggioloni dentro il riquadro (2026-11-26); v1.10-ordine — «Crea nuovo cliente» porta nei campi quello che era scritto nella ricerca (numero, email o nome); orari in griglia a caselle uguali con «Altro orario» a parte; tavolo a caselle per sala (libero, occupato, bloccato, suggerito; due tocchi = unione) al posto della tendina (2026-11-26); v1.9-thefork — copiato dal form di TheFork Manager: carico su ogni orario (arrivi e coperti in sala), durata sulla singola prenotazione, titolo e lingua del cliente nuovo, «apri WhatsApp con la conferma» al salvataggio (2026-11-26); v1.8-fonte — il form è la fonte: prefisso per paese, scheda riconosciuta da telefono o email mentre scrivi, persone della scheda («chi sta prenotando»), esito verso TheFork (2026-11-26); v1.7-telefono — su iPhone a tutto schermo con titolo e «Salva» sempre a vista, campi a 16 px (Safari non ingrandisce la pagina), orari e ± da pollice (2026-11-24); v1.6-stati — si nasce Confermata, In opzione (con «tenuto fino al») o in Lista d'attesa; in modifica la data dell'opzione (2026-11-13); v1.5-motore — «entra / non entra» col tavolo suggerito dal motore per tavoli, «Usa» lo scrive (anche le unioni) (2026-10-29); v1.4 — stesso form per modificare una prenotazione (prop «prenotazione», PUT) (2026-10-28); v1.3 — defaultCliente: aperto dalla scheda cliente con il cliente già scelto (2026-10-19); v1.2-fasce — slot chiusi/pieni segnati e avviso sulla fascia; v1.1-tavolo-turno — apribile dalla mappa con tavolo e turno già scelti; tavoli bloccati non selezionabili
+// @version: v2.4 — «Durata»: Nessuna limitazione · Primo turno, libera entro le HH:MM · Secondo turno, dalle HH:MM (ora nelle Impostazioni) (2026-11-28); v2.3 — cliente nuovo anche col solo nome (2026-11-28); v2.2 — «+ Nuovo» accanto al campo del cliente, sempre in vista (2026-11-28); v2.1 — sala più larga, niente barra orizzontale sotto la finestra; «Nuovo cliente» con campi più alti e telefono ed email ognuno sulla sua riga (2026-11-28); v2.0 — su iPad e Mac tre zone affiancate (prenotazione · altri dettagli · sala col tavolo da toccare), persone e canale a pastiglie, Pranzo/Cena accanto agli orari, stato e riepilogo in fondo; sul telefono resta in colonna (2026-11-28); v1.13 — canale «Walk-in»: il nome non si chiede, va sulla scheda «Walk-in» (2026-11-28); v1.12-thefork — numero sconosciuto a TRGB ma noto a TheFork: nome, email e prossime prenotazioni da TheFork, «Usa questi dati» (2026-11-28); v1.11 — orari a 6 per riga senza testo che esce dalla casella, seggioloni dentro il riquadro (2026-11-26); v1.10-ordine — «Crea nuovo cliente» porta nei campi quello che era scritto nella ricerca (numero, email o nome); orari in griglia a caselle uguali con «Altro orario» a parte; tavolo a caselle per sala (libero, occupato, bloccato, suggerito; due tocchi = unione) al posto della tendina (2026-11-26); v1.9-thefork — copiato dal form di TheFork Manager: carico su ogni orario (arrivi e coperti in sala), durata sulla singola prenotazione, titolo e lingua del cliente nuovo, «apri WhatsApp con la conferma» al salvataggio (2026-11-26); v1.8-fonte — il form è la fonte: prefisso per paese, scheda riconosciuta da telefono o email mentre scrivi, persone della scheda («chi sta prenotando»), esito verso TheFork (2026-11-26); v1.7-telefono — su iPhone a tutto schermo con titolo e «Salva» sempre a vista, campi a 16 px (Safari non ingrandisce la pagina), orari e ± da pollice (2026-11-24); v1.6-stati — si nasce Confermata, In opzione (con «tenuto fino al») o in Lista d'attesa; in modifica la data dell'opzione (2026-11-13); v1.5-motore — «entra / non entra» col tavolo suggerito dal motore per tavoli, «Usa» lo scrive (anche le unioni) (2026-10-29); v1.4 — stesso form per modificare una prenotazione (prop «prenotazione», PUT) (2026-10-28); v1.3 — defaultCliente: aperto dalla scheda cliente con il cliente già scelto (2026-10-19); v1.2-fasce — slot chiusi/pieni segnati e avviso sulla fascia; v1.1-tavolo-turno — apribile dalla mappa con tavolo e turno già scelti; tavoli bloccati non selezionabili
 // Modulo: prenotazioni
 // Form modale per nuova prenotazione — modulo Prenotazioni TRGB
 import React, { useState, useEffect, useRef } from "react";
@@ -49,6 +49,7 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
     tenuto_fino_al: P.tenuto_fino_al || "",
   });
   const [giorniOpzione, setGiorniOpzione] = useState(null);
+  const [secondoTurno, setSecondoTurno] = useState("");   // cena: «HH:MM» in cui il primo turno libera e comincia il secondo
 
   const [slotPranzo, setSlotPranzo] = useState([]);
   const [slotCena, setSlotCena] = useState([]);
@@ -83,6 +84,7 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
         try { setSlotCena(JSON.parse(cfg.slot_cena || "[]")); } catch { setSlotCena([]); }
         setSoglia(cfg.soglia_pranzo_cena || "15:00");
         setGiorniOpzione(cfg.opzione_giorni_default || null);
+        setSecondoTurno((cfg.secondo_turno_cena || "").slice(0, 5));
         // Aperto dalla mappa: primo orario del turno scelto
         if (defaultTurno && !modifica) {
           let slots = [];
@@ -187,6 +189,14 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
       .catch(() => setPersone([]));
   }, [selectedCliente?.id, modifica]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // «Primo turno» scelto e poi cambiata l'ora: la durata la segue, il tavolo libera sempre all'ora del secondo turno
+  const cambiaOra = (ora) => setForm((f) => {
+    const m = (x) => { const [h, mm] = String(x || "").split(":").map(Number); return Number.isFinite(h) ? h * 60 + (mm || 0) : 0; };
+    const eraPrimo = secondoTurno && f.durata_min && Number(f.durata_min) === m(secondoTurno) - m(f.ora_pasto);
+    const resto = m(secondoTurno) - m(ora);
+    return { ...f, ora_pasto: ora, durata_min: eraPrimo ? (resto > 0 ? String(resto) : "") : f.durata_min };
+  });
+
   const scegliPersona = (nome, relazione = "") => {
     setNuovaPersona(false);
     setForm((f) => ({ ...f, persona_nome: nome, persona_relazione: relazione }));
@@ -226,6 +236,14 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
       .then((d) => setCarico(d || { orari: [], capienza: 0, durata_regola: null }))
       .catch(() => setCarico({ orari: [], capienza: 0, durata_regola: null }));
   }, [form.data_pasto, turnoCorrente]);
+  // Durata: nessuna limitazione (durata di regola) oppure primo / secondo turno della cena, all'ora delle Impostazioni
+  const inMinuti = (hhmm) => { const [h, m] = String(hhmm || "").split(":").map(Number); return Number.isFinite(h) ? h * 60 + (m || 0) : 0; };
+  const haTurni = turnoCorrente === "cena" && !!secondoTurno;
+  const minutiPrimo = haTurni ? inMinuti(secondoTurno) - inMinuti(form.ora_pasto) : 0;
+  const sceltaDurata = !form.durata_min ? ""
+    : haTurni && minutiPrimo > 0 && Number(form.durata_min) === minutiPrimo ? "primo"
+    : haTurni && Number(form.durata_min) === 1440 && form.ora_pasto >= secondoTurno ? "secondo"
+    : "altro";
   // Passi di 30 minuti attorno alla durata di regola del turno, più «tutto il turno»
   const durateScelta = (() => {
     const base = carico.durata_regola || 0;
@@ -480,8 +498,8 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
           <div className="space-y-4 lg:w-[340px] lg:flex-shrink-0 lg:p-5 lg:border-r lg:border-neutral-200 lg:overflow-y-auto">
           {modifica && P.thefork_booking_id && (
             <div className="px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-xs">
-              Arriva da TheFork: giorno, ora e persone cambiali anche in TheFork Manager, altrimenti al prossimo
-              aggiornamento da TheFork tornano come lì. Nota staff, occasione, tavolo, allergie e lo stato «In opzione» restano quelli di TRGB.
+              Arriva da TheFork: giorno, ora e persone che cambi qui partono anche per TheFork.
+              Nota staff, occasione, tavolo, allergie e lo stato «In opzione» restano quelli di TRGB.
             </div>
           )}
           {!modifica && <div className="lg:hidden">{bloccoStato}</div>}
@@ -552,7 +570,7 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
                       key={s}
                       type="button"
                       title={[chiusa ? "Fascia chiusa" : piena ? `Fascia piena (${f.coperti}/${f.max_coperti})` : "", descr].filter(Boolean).join(" — ")}
-                      onClick={() => setForm({ ...form, ora_pasto: s })}
+                      onClick={() => cambiaOra(s)}
                       className={`w-full px-1 py-1.5 text-sm rounded-lg border transition tabular-nums max-sm:min-h-[48px] ${
                         form.ora_pasto === s
                           ? "bg-indigo-900 text-white border-indigo-900"
@@ -575,7 +593,7 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
                   <input
                     type="time"
                     value={form.ora_pasto}
-                    onChange={(e) => setForm({ ...form, ora_pasto: e.target.value })}
+                    onChange={(e) => cambiaOra(e.target.value)}
                     className="px-2 py-1.5 text-base sm:text-sm border border-neutral-300 rounded-lg w-28 max-sm:min-h-[44px]"
                   />
                 </label>
@@ -836,19 +854,28 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
             <h3 className="hidden lg:block text-sm font-semibold text-neutral-800">Altri dettagli</h3>
             {carico.durata_regola ? (
             <div>
+              {/* Marco 2026-11-28: di base nessuna limitazione (vale la durata di regola); se si sceglie, è primo o secondo turno */}
               <label className="block text-xs font-medium text-neutral-600 mb-1">Durata</label>
               <select
-                value={form.durata_min}
-                onChange={(e) => setForm({ ...form, durata_min: e.target.value })}
-                className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-base sm:text-sm max-sm:min-h-[44px] bg-white"
+                value={sceltaDurata}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v === "primo") setForm({ ...form, durata_min: String(minutiPrimo) });
+                  else if (v === "secondo") setForm({ ...form, durata_min: "1440", ora_pasto: form.ora_pasto < secondoTurno ? secondoTurno : form.ora_pasto });
+                  else if (v === "") setForm({ ...form, durata_min: "" });
+                }}
+                className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-base sm:text-sm min-h-[44px] bg-white"
               >
-                <option value="">Come da regola ({oreMin(carico.durata_regola)})</option>
-                {form.durata_min && !durateScelta.includes(Number(form.durata_min)) && Number(form.durata_min) !== 1440 && (
-                  <option value={form.durata_min}>{oreMin(Number(form.durata_min))}</option>
-                )}
-                {durateScelta.map((m) => <option key={m} value={m}>{oreMin(m)}</option>)}
-                <option value="1440">Tutto il turno</option>
+                <option value="">Nessuna limitazione</option>
+                {haTurni && <option value="primo" disabled={minutiPrimo <= 0}>Primo turno, libera entro le {secondoTurno}</option>}
+                {haTurni && <option value="secondo">Secondo turno, dalle {secondoTurno}</option>}
+                {sceltaDurata === "altro" && <option value="altro">{Number(form.durata_min) === 1440 ? "Tutto il turno" : oreMin(Number(form.durata_min))}</option>}
               </select>
+              <p className="mt-1 text-[11px] text-neutral-500">
+                {sceltaDurata === "" ? `Il tavolo si conta occupato ${oreMin(carico.durata_regola)}.`
+                  : sceltaDurata === "primo" ? `Tavolo libero dalle ${secondoTurno} per un'altra prenotazione.`
+                  : sceltaDurata === "secondo" ? "Tavolo occupato fino a chiusura." : ""}
+              </p>
             </div>
             ) : null}
             <div className="flex items-end gap-x-5 gap-y-2 pb-2 flex-wrap min-w-0">

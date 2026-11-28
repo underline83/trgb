@@ -5,6 +5,11 @@
 
 ## 2026-11-28 — Prenotazioni 2.66: persone e ora sui tavoli della mappa `[core]`
 
+### Corretto
+- Una prenotazione nata su TheFork e cambiata in TRGB (persone, giorno, ora) tornava com'era a ogni sincronizzazione (Levati da 4 di nuovo a 6). Ora la modifica parte anche per TheFork (`thefork_invio_service.dopo_modifica`, solo `mealDate` e `partySize`); se TheFork ripete il vecchio numero di persone resta quello di TRGB (`pax_thefork`, mig 257, sistema 6.21; per l'ora vale `ora_thefork`).
+- Form, «Durata» (Marco 28/11): le voci diventano «Nessuna limitazione» (di base: vale la durata di regola), «Primo turno, libera entro le 21:30» (durata fino a quell'ora, segue l'ora se la cambi) e «Secondo turno, dalle 21:30» (fino a chiusura; porta l'ora alle 21:30 se era prima). Solo a cena; l'ora è `prenotazioni_config.secondo_turno_cena` (mig 258), in Impostazioni › Turni e chiusura. Le durate a mezz'ore non ci sono più (una già salvata resta visibile).
+- Form: il comando per creare un cliente nuovo finiva sotto l'elenco dei trovati; ora «+ Nuovo» sta accanto al campo. Per un cliente nuovo basta il nome o il cognome.
+
 ### Aggiunto
 - Servizio, mappa (`PrenotazioniServizio.jsx` v1.27): su ogni tavolo occupato il cognome e una targhetta scura con persone e ora («4p 19:30»); sotto il tavolo, bordata di rosso, la prenotazione che viene dopo sullo stesso tavolo («Vermi 5p 21:30»). Chiesto da Marco: in sala lo trovano comodo su TheFork Manager. Non visto dal vero.
 

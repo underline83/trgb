@@ -382,6 +382,22 @@ def dopo_modifica(pid: int, prima: Dict[str, Any]) -> Dict[str, Any]:
                 _segna(conn, pid, "inviata", f"ATTENZIONE: modifica NON arrivata a TheFork ({_codice(e) or str(e)[:120]})")
                 return {"stato": "inviata", "errore": str(e)[:200]}
             return {"stato": "inviata"}
+        # Nata su TheFork (non mandata da noi): persone, giorno e ora cambiati in TRGB partono anche per
+        # TheFork, così non vanno rifatti su TheFork Manager (Marco 2026-11-28). Solo quei tre dati: nota
+        # e cancellazione restano di chi le ha fatte. Se TheFork rifiuta, in TRGB resta il valore nuovo.
+        if p["thefork_booking_id"] and inv != "inviata" and p["stato"] not in ("CANCELED", "REFUSED", "NO_SHOW") \
+                and any(k in prima and str(p[k] or "")[:10 if k == "data_pasto" else 5 if k == "ora_pasto" else None]
+                        != str(prima.get(k) or "")[:10 if k == "data_pasto" else 5 if k == "ora_pasto" else None]
+                        for k in ("data_pasto", "ora_pasto", "pax")):
+            try:
+                ora_tf = _ora_per_thefork(p["data_pasto"], p["ora_pasto"])
+                tf._richiesta("PATCH", f"/v1/reservations/{p['thefork_booking_id']}", corpo={
+                    "mealDate": prenota._con_fuso(p["data_pasto"], ora_tf), "partySize": int(p["pax"])})
+                _segna(conn, pid, inv, "Modifica riportata su TheFork")
+                return {"stato": inv, "riportata": True}
+            except (tf.TheForkErroreAPI, tf.TheForkNonConfigurato) as e:
+                _segna(conn, pid, inv, f"ATTENZIONE: modifica NON arrivata a TheFork ({_codice(e) or str(e)[:120]}): cambiala anche su TheFork Manager")
+                return {"stato": inv, "errore": str(e)[:200]}
         if inv in ("da_mandare", "sospesa") and p["stato"] in ("CANCELED", "REFUSED", "NO_SHOW"):
             _segna(conn, pid, "no", "Rifiutata prima di partire" if p["stato"] == "REFUSED" else "Cancellata prima di partire")
             return {"stato": "no"}

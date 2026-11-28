@@ -933,6 +933,10 @@ const MODULE_VERSIONS = {
     // 2.66 (2026-11-28): Servizio — sulla mappa ogni tavolo porta persone e ora della prenotazione e, sotto, l'etichetta
     //   di chi viene dopo sullo stesso tavolo (come su TheFork Manager). La vista «Mappa» è la stessa pagina di Servizio
     //   con la sala grande: toccando un tavolo si apre accanto la stessa scheda (stato a caselle e azioni).
+    //   Persone, giorno e ora cambiati in TRGB su una prenotazione nata su TheFork partono anche per TheFork; se
+    //   TheFork ripete il vecchio numero di persone resta quello di TRGB (mig 257). Form: «+ Nuovo» accanto al campo
+    //   del cliente, cliente nuovo anche col solo nome. «Durata»: Nessuna limitazione · Primo turno, libera entro le
+    //   21:30 · Secondo turno, dalle 21:30 (ora in Impostazioni, mig 258).
     version: "2.66",
     label: "Prenotazioni",
     status: "beta",
@@ -1108,6 +1112,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 6.21 (2026-11-28): mig 257 — clienti_prenotazioni.pax_thefork (ultime persone dette da TheFork); mig 258 — prenotazioni_config.secondo_turno_cena.
     // 6.20 (2026-11-28): mig 256 — clienti_prenotazioni.ora_thefork (ora mandata a TheFork se quella vera è già passata); mig 255 (email di servizio col numero).
     // 6.19 (2026-11-27): mig 254 — clienti_prenotazioni.stato_thefork (ultimo stato detto da TheFork).
     // 6.18 (2026-11-27): mig 253 — template_wa_reminder: «per domani» → «per {quando}».
@@ -1306,7 +1311,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "6.20",
+    version: "6.21",
     label: "Sistema",
     status: "stabile",
     color: "green",

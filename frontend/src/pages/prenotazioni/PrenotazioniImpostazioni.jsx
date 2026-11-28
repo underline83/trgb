@@ -1,4 +1,4 @@
-// @version: v2.17 — «Dal sito»: tolti i limiti di anticipo, il sito segue le regole del form (2026-11-27); v2.16 — voce «Editor Tavoli» nella colonna delle sezioni (2026-11-26); v2.15 — TheFork: «TRGB è la fonte» (interruttore dell'invio, email di servizio, titolo) (2026-11-26); v2.14 — prova di creazione: ora, coperti, telefono, fuso, modifica e risposta di TheFork a vista (2026-11-26); v2.13 — TheFork: «Prova a creare una prenotazione» (crea e cancella subito, verifica del permesso) (2026-11-26); v2.12 — «In opzione»: giorni proposti e ruoli degli avvisi (2026-11-13); v2.11 — posti di una prolunga; v2.10 — online automatico (modalità, soglia tavolo, giorni); v2.9 — prolunghe disponibili; v2.8 — sale aperte di default e regole di durata del tavolo (pranzo lungo nel weekend, gruppi tutto il turno); v2.7 — indirizzo dedicato prenota.<dominio>; v2.6 — sezione «Prenotazioni dal sito» (regole, testi, email, codice per il sito); v2.5 — soglia avviso recensioni TheFork; v2.4 — giorno di chiusura con la codifica del backend (0=dom…6=sab, -1=nessuno); v2.3 — soglia «cliente frequente»; sezione TheFork (webhook B2B API: stato, registro eventi, sincronizza)
+// @version: v2.18 — ora del secondo turno di cena (2026-11-28); v2.17 — «Dal sito»: tolti i limiti di anticipo, il sito segue le regole del form (2026-11-27); v2.16 — voce «Editor Tavoli» nella colonna delle sezioni (2026-11-26); v2.15 — TheFork: «TRGB è la fonte» (interruttore dell'invio, email di servizio, titolo) (2026-11-26); v2.14 — prova di creazione: ora, coperti, telefono, fuso, modifica e risposta di TheFork a vista (2026-11-26); v2.13 — TheFork: «Prova a creare una prenotazione» (crea e cancella subito, verifica del permesso) (2026-11-26); v2.12 — «In opzione»: giorni proposti e ruoli degli avvisi (2026-11-13); v2.11 — posti di una prolunga; v2.10 — online automatico (modalità, soglia tavolo, giorni); v2.9 — prolunghe disponibili; v2.8 — sale aperte di default e regole di durata del tavolo (pranzo lungo nel weekend, gruppi tutto il turno); v2.7 — indirizzo dedicato prenota.<dominio>; v2.6 — sezione «Prenotazioni dal sito» (regole, testi, email, codice per il sito); v2.5 — soglia avviso recensioni TheFork; v2.4 — giorno di chiusura con la codifica del backend (0=dom…6=sab, -1=nessuno); v2.3 — soglia «cliente frequente»; sezione TheFork (webhook B2B API: stato, registro eventi, sincronizza)
 // Modulo: prenotazioni
 // Impostazioni Prenotazioni — sidebar sinistra + sezioni (capienza, slot, template, widget, TheFork)
 import React, { useState, useEffect } from "react";
@@ -306,6 +306,16 @@ function CapienzaSection({ config, update }) {
               className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500"
             />
             <p className="text-[11px] text-neutral-400 mt-1">Prenotazioni prima = pranzo, dopo = cena</p>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-neutral-600 mb-1">Secondo turno di cena</label>
+            <input
+              type="time"
+              value={config.secondo_turno_cena || ""}
+              onChange={(e) => update("secondo_turno_cena", e.target.value)}
+              className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-sm focus:ring-indigo-500 focus:border-indigo-500"
+            />
+            <p className="text-[11px] text-neutral-500 mt-1">Nel form, «Durata»: il primo turno libera il tavolo a quest'ora, il secondo comincia da qui. Vuoto = non si usa</p>
           </div>
           <div>
             <label className="block text-xs font-medium text-neutral-600 mb-1">Giorno di chiusura</label>
