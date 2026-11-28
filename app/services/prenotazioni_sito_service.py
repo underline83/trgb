@@ -1,4 +1,4 @@
-# @version: v2.0 — porta del percorso unico (inserimento_service), lista d'attesa, niente anticipo (2026-11-27); v1.0 widget pubblico (2026-10-20, mig 205)
+# @version: v2.1 — email in 6 lingue (it, en, fr, de, es, uk), come il sito (2026-11-28); v2.0 — porta del percorso unico (inserimento_service), lista d'attesa, niente anticipo (2026-11-27); v1.0 widget pubblico (2026-10-20, mig 205)
 # -*- coding: utf-8 -*-
 """
 Prenotazioni dal sito — Modulo: prenotazioni — [core]
@@ -15,7 +15,7 @@ una richiesta da accettare nel Planning, oltre si chiede di telefonare. Niente
 anticipo minimo né massimo: conta che il servizio sia aperto.
 
 Qui restano le cose solo del sito:
-- Email (M.D email_service) in italiano o inglese: conferma, richiesta
+- Email (M.D email_service) nelle 6 lingue del sito (it, en, fr, de, es, uk): conferma, richiesta
   ricevuta, lista d'attesa, richiesta accettata/rifiutata, promemoria il giorno
   prima, annullamento. Registrate in prenotazioni_email_log.
 - Avvisi M.A a sala e admin per ogni prenotazione, richiesta, lista d'attesa o
@@ -283,24 +283,63 @@ def annulla(token: str) -> Dict[str, Any]:
 
 
 # ── Email al cliente ─────────────────────────────────────────
+# Sei lingue come il sito (2026-11-28): it, en, fr, de, es, uk. La lingua è quella della scheda
+# del cliente (it_IT, en_GB, fr_FR…): se non è fra queste, inglese; se manca, italiano.
+
+LINGUE_EMAIL = ("it", "en", "fr", "de", "es", "uk")
 
 _MESI = {
     "it": ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto",
            "settembre", "ottobre", "novembre", "dicembre"],
     "en": ["January", "February", "March", "April", "May", "June", "July", "August",
            "September", "October", "November", "December"],
+    "fr": ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août",
+           "septembre", "octobre", "novembre", "décembre"],
+    "de": ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August",
+           "September", "Oktober", "November", "Dezember"],
+    "es": ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto",
+           "septiembre", "octubre", "noviembre", "diciembre"],
+    # genitivo: «13 грудня»
+    "uk": ["січня", "лютого", "березня", "квітня", "травня", "червня", "липня", "серпня",
+           "вересня", "жовтня", "листопада", "грудня"],
 }
 _GIORNI = {
     "it": ["lunedì", "martedì", "mercoledì", "giovedì", "venerdì", "sabato", "domenica"],
     "en": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+    "fr": ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"],
+    "de": ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"],
+    "es": ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"],
+    "uk": ["понеділок", "вівторок", "середа", "четвер", "п'ятниця", "субота", "неділя"],
 }
+
+
+def lingua_email(lingua: Optional[str]) -> str:
+    l = (lingua or "it")[:2].lower()
+    return l if l in LINGUE_EMAIL else "en"
 
 
 def data_estesa(data: str, lingua: str) -> str:
     d = date.fromisoformat(data)
-    if lingua == "en":
-        return f"{_GIORNI['en'][d.weekday()]} {d.day} {_MESI['en'][d.month - 1]} {d.year}"
-    return f"{_GIORNI['it'][d.weekday()]} {d.day} {_MESI['it'][d.month - 1]} {d.year}"
+    l = lingua_email(lingua)
+    g, m = _GIORNI[l][d.weekday()], _MESI[l][d.month - 1]
+    if l == "en":
+        return f"{g} {d.day} {m} {d.year}"
+    if l == "de":
+        return f"{g}, {d.day}. {m} {d.year}"
+    if l == "es":
+        return f"{g} {d.day} de {m} de {d.year}"
+    if l == "uk":
+        return f"{d.day} {m} {d.year} ({g})"
+    return f"{g} {d.day} {m} {d.year}"   # it, fr
+
+
+def _persone_uk(n: int) -> str:
+    d, c = n % 10, n % 100
+    if d == 1 and c != 11:
+        return f"{n} особа"
+    if 2 <= d <= 4 and not 12 <= c <= 14:
+        return f"{n} особи"
+    return f"{n} осіб"
 
 
 TESTI = {
@@ -332,11 +371,67 @@ TESTI = {
         "tel_frase": " If you like, call us on {tel} and we will find another solution.",
         "firma": "See you soon,\n{locale}",
     },
+    "fr": {
+        "conferma": ("Votre réservation est confirmée", "Bonjour {nome},\n\nnous vous attendons le {quando} à {ora}, {pax}.\n"),
+        "richiesta": ("Nous avons reçu votre demande", "Bonjour {nome},\n\nnous avons reçu votre demande pour le {quando} à {ora}, {pax}.\nPour les groupes, c'est nous qui confirmons : nous vous écrivons au plus vite.\n"),
+        "accettata": ("Votre réservation est confirmée", "Bonjour {nome},\n\nnous avons confirmé votre réservation : le {quando} à {ora}, {pax}.\n"),
+        "attesa": ("Vous êtes sur la liste d'attente", "Bonjour {nome},\n\nnous vous avons inscrit sur la liste d'attente pour le {quando} à {ora}, {pax}.\nSi une table se libère, nous vous contactons.\n"),
+        "rifiutata": ("Nous ne pouvons pas vous accueillir", "Bonjour {nome},\n\nnous sommes désolés, le {quando} à {ora} nous n'avons pas de place pour {pax}.{tel_frase}\n"),
+        "promemoria": ("À demain", "Bonjour {nome},\n\nnous vous rappelons votre réservation de demain, {quando}, à {ora}, {pax}.\n"),
+        "annullata": ("Réservation annulée", "Bonjour {nome},\n\nvotre réservation du {quando} à {ora} est annulée. Nous espérons vous voir bientôt.\n"),
+        "persone": lambda n: "1 personne" if n == 1 else f"{n} personnes",
+        "annulla": "Si vous ne pouvez pas venir, annulez ici : {link}",
+        "telefono": "Pour toute question, appelez-nous au {tel}.",
+        "tel_frase": " Si vous le souhaitez, appelez-nous au {tel} pour trouver une autre solution.",
+        "firma": "À bientôt,\n{locale}",
+    },
+    "de": {
+        "conferma": ("Ihre Reservierung ist bestätigt", "Guten Tag {nome},\n\nwir erwarten Sie am {quando} um {ora} Uhr, {pax}.\n"),
+        "richiesta": ("Wir haben Ihre Anfrage erhalten", "Guten Tag {nome},\n\nwir haben Ihre Anfrage für {quando} um {ora} Uhr erhalten, {pax}.\nGruppenreservierungen bestätigen wir selbst: Wir melden uns so bald wie möglich.\n"),
+        "accettata": ("Ihre Reservierung ist bestätigt", "Guten Tag {nome},\n\nwir haben Ihre Reservierung bestätigt: {quando} um {ora} Uhr, {pax}.\n"),
+        "attesa": ("Sie stehen auf der Warteliste", "Guten Tag {nome},\n\nwir haben Sie für {quando} um {ora} Uhr auf die Warteliste gesetzt, {pax}.\nWird ein Tisch frei, melden wir uns.\n"),
+        "rifiutata": ("Leider können wir Sie nicht empfangen", "Guten Tag {nome},\n\nes tut uns leid, am {quando} um {ora} Uhr haben wir keinen Platz für {pax}.{tel_frase}\n"),
+        "promemoria": ("Bis morgen", "Guten Tag {nome},\n\nwir erinnern Sie an Ihre Reservierung morgen, {quando}, um {ora} Uhr, {pax}.\n"),
+        "annullata": ("Reservierung storniert", "Guten Tag {nome},\n\nIhre Reservierung am {quando} um {ora} Uhr ist storniert. Wir hoffen, Sie bald zu sehen.\n"),
+        "persone": lambda n: "1 Person" if n == 1 else f"{n} Personen",
+        "annulla": "Falls Sie nicht kommen können, stornieren Sie bitte hier: {link}",
+        "telefono": "Bei Fragen erreichen Sie uns unter {tel}.",
+        "tel_frase": " Wenn Sie möchten, rufen Sie uns unter {tel} an, dann finden wir eine andere Lösung.",
+        "firma": "Bis bald,\n{locale}",
+    },
+    "es": {
+        "conferma": ("Tu reserva está confirmada", "Hola {nome}:\n\nte esperamos el {quando} a las {ora}, {pax}.\n"),
+        "richiesta": ("Hemos recibido tu solicitud", "Hola {nome}:\n\nhemos recibido tu solicitud para el {quando} a las {ora}, {pax}.\nLas reservas de grupo las confirmamos nosotros: te escribimos lo antes posible.\n"),
+        "accettata": ("Tu reserva está confirmada", "Hola {nome}:\n\nhemos confirmado tu reserva: el {quando} a las {ora}, {pax}.\n"),
+        "attesa": ("Estás en la lista de espera", "Hola {nome}:\n\nte hemos apuntado en la lista de espera para el {quando} a las {ora}, {pax}.\nSi se libera una mesa te avisamos.\n"),
+        "rifiutata": ("No podemos atenderte", "Hola {nome}:\n\nlo sentimos, el {quando} a las {ora} no tenemos sitio para {pax}.{tel_frase}\n"),
+        "promemoria": ("Nos vemos mañana", "Hola {nome}:\n\nte recordamos tu reserva de mañana, {quando}, a las {ora}, {pax}.\n"),
+        "annullata": ("Reserva cancelada", "Hola {nome}:\n\ntu reserva del {quando} a las {ora} está cancelada. Esperamos verte pronto.\n"),
+        "persone": lambda n: "1 persona" if n == 1 else f"{n} personas",
+        "annulla": "Si no puedes venir, cancela aquí: {link}",
+        "telefono": "Para cualquier cosa, llámanos al {tel}.",
+        "tel_frase": " Si quieres, llámanos al {tel} y buscamos otra solución.",
+        "firma": "Hasta pronto,\n{locale}",
+    },
+    "uk": {
+        "conferma": ("Ваше бронювання підтверджено", "Вітаємо, {nome}!\n\nЧекаємо на вас {quando} о {ora}, {pax}.\n"),
+        "richiesta": ("Ми отримали ваш запит", "Вітаємо, {nome}!\n\nМи отримали ваш запит на {quando} о {ora}, {pax}.\nБронювання для груп підтверджуємо ми: напишемо вам якомога швидше.\n"),
+        "accettata": ("Ваше бронювання підтверджено", "Вітаємо, {nome}!\n\nМи підтвердили ваше бронювання: {quando} о {ora}, {pax}.\n"),
+        "attesa": ("Ви в листі очікування", "Вітаємо, {nome}!\n\nМи додали вас до листа очікування на {quando} о {ora}, {pax}.\nЯкщо звільниться столик, ми з вами зв'яжемося.\n"),
+        "rifiutata": ("На жаль, ми не можемо вас прийняти", "Вітаємо, {nome}!\n\nНа жаль, {quando} о {ora} у нас немає місця для {pax}.{tel_frase}\n"),
+        "promemoria": ("До зустрічі завтра", "Вітаємо, {nome}!\n\nНагадуємо про ваше бронювання на завтра, {quando}, о {ora}, {pax}.\n"),
+        "annullata": ("Бронювання скасовано", "Вітаємо, {nome}!\n\nВаше бронювання на {quando} о {ora} скасовано. Сподіваємося скоро вас побачити.\n"),
+        "persone": _persone_uk,
+        "annulla": "Якщо не зможете прийти, скасуйте тут: {link}",
+        "telefono": "З будь-яких питань телефонуйте нам: {tel}.",
+        "tel_frase": " Якщо бажаєте, зателефонуйте нам ({tel}), і ми знайдемо інше рішення.",
+        "firma": "До зустрічі,\n{locale}",
+    },
 }
 
 
 def componi(tipo: str, p: Dict[str, Any], rg: Dict[str, Any]) -> Tuple[str, str]:
-    lingua = "en" if (p.get("lingua") or "it").startswith("en") else "it"
+    lingua = lingua_email(p.get("lingua"))
     T = TESTI[lingua]
     locale = _nome_locale()
     oggetto, corpo = T[tipo]

@@ -937,7 +937,11 @@ const MODULE_VERSIONS = {
     //   TheFork ripete il vecchio numero di persone resta quello di TRGB (mig 257). Form: «+ Nuovo» accanto al campo
     //   del cliente, cliente nuovo anche col solo nome. «Durata»: Nessuna limitazione · Primo turno, libera entro le
     //   21:30 · Secondo turno, dalle 21:30 (ora in Impostazioni, mig 258).
-    version: "2.66",
+    // 2.67 (2026-11-28): widget del sito, fase 3 (proposta A scelta da Marco): veste del sito (EB Garamond + Courier Prime
+    //   serviti da TRGB in public/fonts/prenota, niente Google; carta, inchiostro, ottone), 6 lingue (it en fr de es uk,
+    //   ?lang= dal sito), solo orari liberi + «Vuoi un altro orario? Mettiti in lista d'attesa», giorni pieni apribili per la
+    //   lista, titolo facoltativo, tre finali (confermata, richiesta, lista d'attesa). Email al cliente nelle 6 lingue.
+    version: "2.67",
     label: "Prenotazioni",
     status: "beta",
     color: "blue",

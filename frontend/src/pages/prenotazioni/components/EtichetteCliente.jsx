@@ -1,8 +1,17 @@
-// @version: v1.0 — etichette accanto al nome del cliente, uguali in Planning e in Servizio (2026-11-26; prima stavano dentro PrenotazioniPlanning.jsx)
+// @version: v1.1 — etichetta «libera entro HH:MM» (primo turno) e «2° turno» (2026-11-28); v1.0 — etichette accanto al nome del cliente, uguali in Planning e in Servizio (2026-11-26; prima stavano dentro PrenotazioniPlanning.jsx)
 // Modulo: prenotazioni
 import React from "react";
 import Tooltip from "../../../components/Tooltip";
 import { Stelle, SegmentoPill } from "../../clienti/ProfiloCliente";
+
+// «HH:MM» entro cui il tavolo va liberato, se la prenotazione ha una durata sua più corta di tutto il turno
+export const liberaEntro = (pren) => {
+  const d = Number(pren?.durata_min);
+  const [h, m] = String(pren?.ora_pasto || "").split(":").map(Number);
+  if (!d || d >= 1440 || !Number.isFinite(h)) return null;
+  const t = h * 60 + (m || 0) + d;
+  return `${String(Math.floor(t / 60) % 24).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`;
+};
 
 // Bollino cliente come in TheFork Manager (visite fatte PRIMA di quel giorno; soglia in config)
 export const BOLLINI = {
@@ -53,6 +62,17 @@ export default function EtichetteCliente({ pren }) {
       {(pren.allergie || pren.allergie_segnalate) && (
         <Tooltip label={pren.allergie || pren.allergie_segnalate}>
           <span className="text-red-500 text-xs">⚠️</span>
+        </Tooltip>
+      )}
+      {/* Limitazione del tavolo scelta nel form («Durata»): primo turno = libera entro un'ora, secondo = fino a chiusura (Marco 2026-11-28) */}
+      {liberaEntro(pren) && (
+        <Tooltip label="Primo turno: il tavolo va liberato entro quest'ora">
+          <span className="px-1.5 py-0.5 bg-amber-100 text-amber-900 border border-amber-400 text-[10px] font-bold rounded-full whitespace-nowrap">libera entro {liberaEntro(pren)}</span>
+        </Tooltip>
+      )}
+      {Number(pren.durata_min) >= 1440 && (
+        <Tooltip label="Secondo turno: il tavolo resta suo fino a chiusura">
+          <span className="px-1.5 py-0.5 bg-indigo-50 text-indigo-900 border border-indigo-300 text-[10px] font-bold rounded-full whitespace-nowrap">2° turno</span>
         </Tooltip>
       )}
       {pren.stato === "REQUESTED" && (

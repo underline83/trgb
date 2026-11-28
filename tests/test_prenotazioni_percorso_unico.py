@@ -286,5 +286,32 @@ class TettoOnline(unittest.TestCase):
         self.assertFalse(e("manuale", "Telefono"))              # anche se è partita per TheFork
 
 
+class Email6Lingue(unittest.TestCase):
+    """2026-11-28: le email al cliente nelle 6 lingue del sito."""
+    def setUp(self):
+        sito._nome_locale = lambda: "Osteria"
+
+    def test_ogni_lingua_ogni_email(self):
+        p = {"nome": "Ana", "data_pasto": "2026-12-13", "ora_pasto": "20:00:00", "pax": 3, "token_cancellazione": "tok"}
+        rg = {"telefono": "035 24 34 05", "url_pubblico": "https://prenota.esempio.it"}
+        for l in sito.LINGUE_EMAIL:
+            for tipo in ("conferma", "richiesta", "accettata", "attesa", "rifiutata", "promemoria", "annullata"):
+                oggetto, corpo = sito.componi(tipo, {**p, "lingua": f"{l}_XX"}, rg)
+                self.assertIn("Ana", corpo, (l, tipo))
+                self.assertIn("20:00", corpo, (l, tipo))
+                self.assertNotIn("{", corpo + oggetto, (l, tipo))
+                self.assertTrue(oggetto.startswith("Osteria — "), (l, tipo))
+
+    def test_date_e_lingue(self):
+        self.assertEqual(sito.data_estesa("2026-12-13", "it_IT"), "domenica 13 dicembre 2026")
+        self.assertEqual(sito.data_estesa("2026-12-13", "de_DE"), "Sonntag, 13. Dezember 2026")
+        self.assertEqual(sito.data_estesa("2026-12-13", "es"), "domingo 13 de diciembre de 2026")
+        self.assertEqual(sito.data_estesa("2026-12-13", "uk_UA"), "13 грудня 2026 (неділя)")
+        self.assertEqual(sito.lingua_email("pt_BR"), "en")
+        self.assertEqual(sito.lingua_email(None), "it")
+        self.assertEqual([sito._persone_uk(n) for n in (1, 3, 5, 11, 21, 22)],
+                         ["1 особа", "3 особи", "5 осіб", "11 осіб", "21 особа", "22 особи"])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=1)

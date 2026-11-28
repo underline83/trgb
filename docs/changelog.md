@@ -3,11 +3,20 @@
 
 ---
 
+## 2026-11-28 — Prenotazioni 2.67: il widget del sito con la veste del sito e in 6 lingue `[core]`
+
+### Cambiato
+- Widget prenotazioni (prenota.tregobbi.it): stessi caratteri e colori del sito (EB Garamond, Courier Prime, carta e ottone), serviti da TRGB: prima di prenotare la pagina non chiama Google né altri.
+- Il cliente vede solo gli orari liberi. Sotto: «Vuoi un altro orario? Mettiti in lista d'attesa», con gli altri orari del turno. Un giorno al completo si apre lo stesso e propone subito la lista d'attesa.
+- Sei lingue come il sito (italiano, inglese, francese, tedesco, spagnolo, ucraino): il sito passa la sua, altrimenti quella del browser. Anche le email al cliente (conferma, richiesta, lista d'attesa, accettata, rifiutata, promemoria, annullamento) e la pagina di annullamento.
+- Titolo facoltativo (Sig. / Sig.ra), che va anche a TheFork. Tre finali: confermata, richiesta, in lista d'attesa.
+
 ## 2026-11-28 — Prenotazioni 2.66: persone e ora sui tavoli della mappa `[core]`
 
 ### Corretto
 - Una prenotazione nata su TheFork e cambiata in TRGB (persone, giorno, ora) tornava com'era a ogni sincronizzazione (Levati da 4 di nuovo a 6). Ora la modifica parte anche per TheFork (`thefork_invio_service.dopo_modifica`, solo `mealDate` e `partySize`); se TheFork ripete il vecchio numero di persone resta quello di TRGB (`pax_thefork`, mig 257, sistema 6.21; per l'ora vale `ora_thefork`).
 - Form, «Durata» (Marco 28/11): le voci diventano «Nessuna limitazione» (di base: vale la durata di regola), «Primo turno, libera entro le 21:30» (durata fino a quell'ora, segue l'ora se la cambi) e «Secondo turno, dalle 21:30» (fino a chiusura; porta l'ora alle 21:30 se era prima). Solo a cena; l'ora è `prenotazioni_config.secondo_turno_cena` (mig 258), in Impostazioni › Turni e chiusura. Le durate a mezz'ore non ci sono più (una già salvata resta visibile).
+- Accanto al nome, in Servizio e in Elenco, l'etichetta «libera entro 21:30» (primo turno) o «2° turno» quando nel form è stata scelta la limitazione (`components/EtichetteCliente.jsx` v1.1).
 - Form: il comando per creare un cliente nuovo finiva sotto l'elenco dei trovati; ora «+ Nuovo» sta accanto al campo. Per un cliente nuovo basta il nome o il cognome.
 
 ### Aggiunto
