@@ -931,7 +931,8 @@ const MODULE_VERSIONS = {
     //   TripAdvisor, Booking Module, sito). Prima contava ogni codice TheFork: anche «Offline», walk-in e telefonate
     //   mandate da TRGB. Il tetto dei coperti conta tutti: con due numeri diversi resta un margine per il telefono.
     // 2.66 (2026-11-28): Servizio — sulla mappa ogni tavolo porta persone e ora della prenotazione e, sotto, l'etichetta
-    //   di chi viene dopo sullo stesso tavolo (come su TheFork Manager).
+    //   di chi viene dopo sullo stesso tavolo (come su TheFork Manager). La vista «Mappa» è la stessa pagina di Servizio
+    //   con la sala grande: toccando un tavolo si apre accanto la stessa scheda (stato a caselle e azioni).
     version: "2.66",
     label: "Prenotazioni",
     status: "beta",

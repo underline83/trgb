@@ -1,12 +1,13 @@
-// @version: v2.13 — riga in alto come Servizio ed Elenco («+ Nuova prenotazione» a destra, attrezzi della mappa nella riga sotto) (2026-11-26); v2.12 — testata comune del modulo e sfondo brand-cream come le altre pagine (2026-11-26); v2.11 — apribile dalla matita di «Servizio» sulla sala giusta e già in «Sposta» (2026-11-26); v2.10 — su iPhone la mappa prende tutta la larghezza e i riquadri (prenotazione scelta, senza tavolo, riepilogo) scendono sotto; tasti da pollice (2026-11-24); v2.9 — «In opzione»: tavolo ambra tratteggiato, «✓ Conferma» (2026-11-13); v2.8 — «✂️ Dividi» anche da un tavolo occupato (scheda prenotazione); v2.7 — Sposta, Unisci e Sala com'era vicini; v2.6 — «✂️ Stacca» anche da un'unione occupata (scheda prenotazione); v2.5-sposta — tavoli trascinabili per il turno (in assegnazione o con «✋ Sposta»), «↺ Sala com'era»; v2.4-unioni — «🔗 Unisci» (anche assegnando): tavoli uniti per il turno disegnati come un rettangolo unico, «Stacca»; uniti anche i tavoli di una stessa prenotazione; v2.3-menu-nei-bordi — menu del tavolo sempre dentro la mappa; v2.2-dividi — tavoli dividibili spezzati in A/B per il turno; v2.1-menu-tavolo — clic su tavolo libero: aggiungi prenotazione / blocca tavolo (come TheFork Manager)
+// @version: v2.14 — la vista «Mappa» è la pagina di Servizio con la sala grande; questa resta per sistemare la sala del turno (?sposta=1), con «← Mappa del servizio» (2026-11-28); v2.13 — riga in alto come Servizio ed Elenco («+ Nuova prenotazione» a destra, attrezzi della mappa nella riga sotto) (2026-11-26); v2.12 — testata comune del modulo e sfondo brand-cream come le altre pagine (2026-11-26); v2.11 — apribile dalla matita di «Servizio» sulla sala giusta e già in «Sposta» (2026-11-26); v2.10 — su iPhone la mappa prende tutta la larghezza e i riquadri (prenotazione scelta, senza tavolo, riepilogo) scendono sotto; tasti da pollice (2026-11-24); v2.9 — «In opzione»: tavolo ambra tratteggiato, «✓ Conferma» (2026-11-13); v2.8 — «✂️ Dividi» anche da un tavolo occupato (scheda prenotazione); v2.7 — Sposta, Unisci e Sala com'era vicini; v2.6 — «✂️ Stacca» anche da un'unione occupata (scheda prenotazione); v2.5-sposta — tavoli trascinabili per il turno (in assegnazione o con «✋ Sposta»), «↺ Sala com'era»; v2.4-unioni — «🔗 Unisci» (anche assegnando): tavoli uniti per il turno disegnati come un rettangolo unico, «Stacca»; uniti anche i tavoli di una stessa prenotazione; v2.3-menu-nei-bordi — menu del tavolo sempre dentro la mappa; v2.2-dividi — tavoli dividibili spezzati in A/B per il turno; v2.1-menu-tavolo — clic su tavolo libero: aggiungi prenotazione / blocca tavolo (come TheFork Manager)
 // Modulo: prenotazioni
 // Mappa serale tavoli — vista operativa con assegnazione, Fase 2 Prenotazioni
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { API_BASE, apiFetch } from "../../config/api";
 import PrenotazioniNav from "./PrenotazioniNav";
 import StatoBadge from "./components/StatoBadge";
 import PrenotazioniForm from "./PrenotazioniForm";
+import PrenotazioniServizio from "./PrenotazioniServizio";
 import { Btn } from "../../components/ui";
 import { CANVAS_W, CANVAS_H, COLORE_TAVOLO, FormaTavolo, FormaElemento, SchedeSale } from "./components/Piantina";
 import TestataGiorno, { TastoNuova } from "./components/Testata";
@@ -25,7 +26,7 @@ const COLORI_STATO = {
   BLOCCATO:  { fill: "#e5e7eb", stroke: "#6b7280", text: "#6b7280" }, // grigio tratteggiato
 };
 
-export default function TavoliMappa() {
+function TavoliMappaSala() {
   const { data: paramData, turno: paramTurno } = useParams();
   const navigate = useNavigate();
 
@@ -315,6 +316,10 @@ export default function TavoliMappa() {
                   className="ml-2 px-2 py-0.5 rounded-lg bg-white border border-amber-300 hover:bg-amber-50">🔗 Unisci tavoli</button>
                 <button onClick={() => setAssegnando(null)} className="ml-2 text-amber-600 hover:text-amber-800">✕</button>
               </div>
+            )}
+            {!assegnando && !unendo && (
+              <button onClick={() => navigate(`/prenotazioni/mappa/${data}/${turno}`)}
+                className="px-3 min-h-[44px] rounded-lg text-sm font-medium border border-neutral-300 text-neutral-800 bg-white hover:bg-neutral-50">← Mappa del servizio</button>
             )}
             {!assegnando && !unendo && (
               <button onClick={() => setSpostando(!spostando)}
@@ -690,4 +695,11 @@ export default function TavoliMappa() {
       )}
     </div>
   );
+}
+
+// La vista «Mappa» è la stessa pagina di Servizio con la sala grande (Marco 2026-11-28). Questa pagina resta per
+// sistemare la sala del turno (sposta, unisci, blocca, dividi): ci si arriva dalla matita, con ?sposta=1.
+export default function TavoliMappa() {
+  const [parametri] = useSearchParams();
+  return parametri.get("sposta") === "1" ? <TavoliMappaSala /> : <PrenotazioniServizio soloMappa />;
 }

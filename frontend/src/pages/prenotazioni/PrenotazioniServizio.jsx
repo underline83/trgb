@@ -1,4 +1,4 @@
-// @version: v1.27 — sulla mappa ogni tavolo porta persone e ora («4p 19:30») e, sotto, chi viene dopo (2026-11-28); v1.26 — accanto a Pranzo e Cena il totale dei coperti prenotati (2026-11-28); v1.25 — nell'elenco il numero del tavolo in grassetto (2026-11-28); v1.24 — filtri rapidi sopra l'elenco: Tutte · Imminenti (toglie chi è già arrivato) · Al tavolo · Senza tavolo, col conto (2026-11-28); v1.23 — i tavoli uniti per una prenotazione restano separati finché non arriva lei, se prima sono di altri: 1, 2 e 0 col loro nome e il bollino, uniti dalle 21:30 (2026-11-28); v1.22 — nell'avviso TheFork: «Vuoi bloccare le stesse fasce anche su TRGB?» Sì / No (2026-11-27); v1.21 — avviso (non bloccante) quando su TheFork le fasce non sono prenotabili online e in TRGB risultano aperte, o il contrario (2026-11-27); v1.20 — spostando un tavolo che ha un'altra prenotazione abbinata (non ancora andata via) propone di spostarle insieme (2026-11-27); v1.19 — il bollino sui tavoli conta solo chi deve arrivare o è seduto, non chi è già andato via (2026-11-27); v1.18 — «tavolo +» su un altro tavolo quando ne ha già uno: chiede se spostare o unire; tavoli scelti come pastiglie che si tolgono una a una (2026-11-27); v1.17 — «tavolo +» su un tavolo occupato: chiede se sovrapporre o invertire (2026-11-27); v1.16 — numero sul tavolo quando ha più prenotazioni nel turno; ogni tocco passa alla successiva (2026-11-27); v1.15 — senza un orario toccato la mappa mostra tutto il turno, non più «adesso» (2026-11-27); v1.14 — colori secondo la regola del modulo (blu = azione, indaco scuro = scelto) e caselle dello stato da components/GiroStato (2026-11-26); v1.13 — riconferma WhatsApp: ✓ solo se il messaggio è partito davvero, «?» se WhatsApp è stato solo aperto (2026-11-26); v1.12 — azioni della prenotazione su una riga sola, tasti quadrati col disegno (matita, tavolo +, persona, WhatsApp, ⋯) (2026-11-26); v1.11 — tasto «tavolo +»: si assegnano i tavoli a una prenotazione toccandoli sulla mappa (2026-11-26); v1.10 — stato a quattro caselle in una riga (Prenotato · Confermato · Seduto · Libero): si tocca quella dove deve andare, avanti o indietro; le altre azioni sotto, piccole e uguali (2026-11-26); v1.9 — sul telefono gli orari sono un elenco a tendina (i tasti erano inutilizzabili) (2026-11-26); v1.8 — un tasto solo per lo stato che avanza (Prenotato → Confermato → Seduto → libera il tavolo), «↩» per tornare indietro, gli altri cambi in «Altro» (2026-11-26); v1.7 — riepilogo del turno nella riga sopra la sala (la testata resta su una riga) (2026-11-26); v1.6 — tutti i cambi di stato del Planning (stessi bottoni) e riconferma WhatsApp; testata comune del modulo (components/Testata.jsx) (2026-11-26); v1.5 — nell'elenco le stesse etichette del Planning (canale, stelle, segmento, bollino, no-show, allergie, doppione…), nome che apre la scheda cliente, note in riga (2026-11-26); v1.4 — niente barre di scorrimento (orari a colonne uguali, schede sale, elenco), piantina stretta sui tavoli, «tavoli liberi» solo nelle sale aperte (2026-11-26); v1.3 — nell'ingranaggio «Blocca le prenotazioni online» e «Chiudi servizio» (anche su TheFork), con conferma (2026-11-26); v1.2 — ingranaggio «Modifica servizio» (sale aperte, fasce e online, tavoli del turno) e matita per la sala (2026-11-26); v1.1 — stessa larghezza di pagina di Planning e Mappa, elenco a larghezza fissa e sala che non cambia misura; iPad in piedi: sala sopra, elenco sotto (2026-11-26); v1.0 — vista «Servizio»: elenco del turno e sala nella stessa schermata, striscia degli orari per vedere la sala a un'altra ora, due schede sul telefono (2026-11-26)
+// @version: v1.28 — è anche la vista «Mappa» (soloMappa): sala grande e, accanto, la stessa scheda di Servizio per il tavolo toccato (2026-11-28); v1.27 — sulla mappa ogni tavolo porta persone e ora («4p 19:30») e, sotto, chi viene dopo (2026-11-28); v1.26 — accanto a Pranzo e Cena il totale dei coperti prenotati (2026-11-28); v1.25 — nell'elenco il numero del tavolo in grassetto (2026-11-28); v1.24 — filtri rapidi sopra l'elenco: Tutte · Imminenti (toglie chi è già arrivato) · Al tavolo · Senza tavolo, col conto (2026-11-28); v1.23 — i tavoli uniti per una prenotazione restano separati finché non arriva lei, se prima sono di altri: 1, 2 e 0 col loro nome e il bollino, uniti dalle 21:30 (2026-11-28); v1.22 — nell'avviso TheFork: «Vuoi bloccare le stesse fasce anche su TRGB?» Sì / No (2026-11-27); v1.21 — avviso (non bloccante) quando su TheFork le fasce non sono prenotabili online e in TRGB risultano aperte, o il contrario (2026-11-27); v1.20 — spostando un tavolo che ha un'altra prenotazione abbinata (non ancora andata via) propone di spostarle insieme (2026-11-27); v1.19 — il bollino sui tavoli conta solo chi deve arrivare o è seduto, non chi è già andato via (2026-11-27); v1.18 — «tavolo +» su un altro tavolo quando ne ha già uno: chiede se spostare o unire; tavoli scelti come pastiglie che si tolgono una a una (2026-11-27); v1.17 — «tavolo +» su un tavolo occupato: chiede se sovrapporre o invertire (2026-11-27); v1.16 — numero sul tavolo quando ha più prenotazioni nel turno; ogni tocco passa alla successiva (2026-11-27); v1.15 — senza un orario toccato la mappa mostra tutto il turno, non più «adesso» (2026-11-27); v1.14 — colori secondo la regola del modulo (blu = azione, indaco scuro = scelto) e caselle dello stato da components/GiroStato (2026-11-26); v1.13 — riconferma WhatsApp: ✓ solo se il messaggio è partito davvero, «?» se WhatsApp è stato solo aperto (2026-11-26); v1.12 — azioni della prenotazione su una riga sola, tasti quadrati col disegno (matita, tavolo +, persona, WhatsApp, ⋯) (2026-11-26); v1.11 — tasto «tavolo +»: si assegnano i tavoli a una prenotazione toccandoli sulla mappa (2026-11-26); v1.10 — stato a quattro caselle in una riga (Prenotato · Confermato · Seduto · Libero): si tocca quella dove deve andare, avanti o indietro; le altre azioni sotto, piccole e uguali (2026-11-26); v1.9 — sul telefono gli orari sono un elenco a tendina (i tasti erano inutilizzabili) (2026-11-26); v1.8 — un tasto solo per lo stato che avanza (Prenotato → Confermato → Seduto → libera il tavolo), «↩» per tornare indietro, gli altri cambi in «Altro» (2026-11-26); v1.7 — riepilogo del turno nella riga sopra la sala (la testata resta su una riga) (2026-11-26); v1.6 — tutti i cambi di stato del Planning (stessi bottoni) e riconferma WhatsApp; testata comune del modulo (components/Testata.jsx) (2026-11-26); v1.5 — nell'elenco le stesse etichette del Planning (canale, stelle, segmento, bollino, no-show, allergie, doppione…), nome che apre la scheda cliente, note in riga (2026-11-26); v1.4 — niente barre di scorrimento (orari a colonne uguali, schede sale, elenco), piantina stretta sui tavoli, «tavoli liberi» solo nelle sale aperte (2026-11-26); v1.3 — nell'ingranaggio «Blocca le prenotazioni online» e «Chiudi servizio» (anche su TheFork), con conferma (2026-11-26); v1.2 — ingranaggio «Modifica servizio» (sale aperte, fasce e online, tavoli del turno) e matita per la sala (2026-11-26); v1.1 — stessa larghezza di pagina di Planning e Mappa, elenco a larghezza fissa e sala che non cambia misura; iPad in piedi: sala sopra, elenco sotto (2026-11-26); v1.0 — vista «Servizio»: elenco del turno e sala nella stessa schermata, striscia degli orari per vedere la sala a un'altra ora, due schede sul telefono (2026-11-26)
 // Modulo: prenotazioni
 // Idea presa da TheFork Manager (Marco 2026-11-26: «il mix tra prenotazioni e tavoli è una visual molto utile»).
 // Non sostituisce Planning né Mappa Tavoli: è una terza vista, da provare in servizio.
@@ -38,7 +38,9 @@ const COLORI = {
 const LEGENDA = [["libero", "libero"], ["arrivo", "prenotato, deve arrivare"], ["seduto", "al tavolo"], ["scelto", "selezionato"]];
 
 
-export default function PrenotazioniServizio() {
+// `soloMappa`: la vista «Mappa» è questa stessa pagina con la sala grande e, accanto, la scheda della prenotazione
+// del tavolo toccato (Marco 2026-11-28: «se clicco sul tavolo dovrei avere la stessa visualizzazione di Servizio»).
+export default function PrenotazioniServizio({ soloMappa = false }) {
   const { data: paramData, turno: paramTurno } = useParams();
   const navigate = useNavigate();
   const telefono = useTelefono();
@@ -56,7 +58,7 @@ export default function PrenotazioniServizio() {
   const [cerca, setCerca] = useState("");
   const [contatori, setContatori] = useState({});   // coperti di pranzo e cena, accanto ai due tasti del turno
   const [filtro, setFiltro] = useState("tutte");   // filtro rapido dell'elenco: tutte | imminenti | tavolo | senza
-  const [scheda, setScheda] = useState("elenco");     // solo telefono: elenco | mappa
+  const [scheda, setScheda] = useState(soloMappa ? "mappa" : "elenco");     // solo telefono: elenco | mappa
   const [form, setForm] = useState(null);             // {nuova:{tavolo}} | {modifica: riga}
   const [toast, setToast] = useState(null);
   const [impServizio, setImpServizio] = useState(false);   // ingranaggio: «Modifica servizio» di questo giorno e turno
@@ -103,7 +105,7 @@ export default function PrenotazioniServizio() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { setLoading(true); setOra(null); setSceltaId(null); setAssegno(null); carica(); }, [carica]);
   useEffect(() => { const t = setInterval(carica, 30000); return () => clearInterval(t); }, [carica]);
-  useEffect(() => { navigate(`/prenotazioni/servizio/${data}/${turno}`, { replace: true }); }, [data, turno]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { navigate(`/prenotazioni/${soloMappa ? "mappa" : "servizio"}/${data}/${turno}`, { replace: true }); }, [data, turno, soloMappa]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Chi c'è, e quando ──
   const fuori = gruppo("fuori");
@@ -232,10 +234,14 @@ export default function PrenotazioniServizio() {
   const filtroAttivo = filtriRapidi.find((f) => f.k === filtro && (f.quante > 0 || f.k === "tutte")) || filtriRapidi[0];
   const filtrate = useMemo(() => {
     const q = cerca.trim().toLowerCase();
-    const base = attive.filter(filtroAttivo.passa);
+    // Vista Mappa: accanto alla sala c'è solo la prenotazione scelta (o, senza una scelta, quelle ancora senza tavolo);
+    // scrivendo nella ricerca si cerca in tutto il turno
+    const base = !soloMappa ? attive.filter(filtroAttivo.passa)
+      : q ? attive
+      : attive.filter((p) => (sceltaId ? p.id === sceltaId : !nomiTavolo(p.tavolo).length));
     if (!q) return base;
     return base.filter((p) => `${nomeDi(p)} ${p.telefono || ""} ${p.tavolo || ""}`.toLowerCase().includes(q));
-  }, [attive, cerca, filtroAttivo.k, venuti.join()]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [attive, cerca, filtroAttivo.k, venuti.join(), soloMappa, sceltaId]); // eslint-disable-line react-hooks/exhaustive-deps
   const gruppi = useMemo(() => {
     const m = new Map();
     for (const p of filtrate) { const k = String(p.ora_pasto || "").slice(0, 5); if (!m.has(k)) m.set(k, []); m.get(k).push(p); }
@@ -543,7 +549,7 @@ export default function PrenotazioniServizio() {
     <div className="flex flex-col gap-1.5">
       <input type="text" value={cerca} onChange={(e) => setCerca(e.target.value)} placeholder="Cerca: nome, telefono, tavolo" aria-label="Cerca nel turno"
         className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-base sm:text-sm min-h-[44px] bg-white" />
-      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filtri rapidi dell'elenco">
+      {!soloMappa && <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filtri rapidi dell'elenco">
         {filtriRapidi.filter((f) => f.k === "tutte" || f.quante > 0).map((f) => (
           <button key={f.k} type="button" aria-pressed={filtroAttivo.k === f.k}
             onClick={() => setFiltro(filtroAttivo.k === f.k ? "tutte" : f.k)}
@@ -551,8 +557,9 @@ export default function PrenotazioniServizio() {
             {f.nome} <span className={`ml-1 tabular-nums ${filtroAttivo.k === f.k ? "text-indigo-100" : "text-neutral-500"}`}>{f.quante}</span>
           </button>
         ))}
-      </div>
-      {gruppi.length === 0 && <div className="text-sm text-neutral-500 py-6 text-center">{loading ? "Caricamento…" : "Nessuna prenotazione in questo turno."}</div>}
+      </div>}
+      {soloMappa && !sceltaId && !cerca.trim() && <div className="text-sm text-neutral-600 px-0.5">Tocca un tavolo per vedere la sua prenotazione.{gruppi.length > 0 ? " Qui sotto quelle ancora senza tavolo." : ""}</div>}
+      {gruppi.length === 0 && !(soloMappa && !sceltaId && !cerca.trim()) && <div className="text-sm text-neutral-500 py-6 text-center">{loading ? "Caricamento…" : "Nessuna prenotazione in questo turno."}</div>}
       {gruppi.map(([o, lista]) => (
         <div key={o} className="flex flex-col gap-1.5">
           <div className="flex items-baseline gap-2 pt-1.5 px-0.5">
@@ -786,7 +793,7 @@ export default function PrenotazioniServizio() {
           </div>
         )}
 
-        <TestataGiorno data={data} onData={setData} turno={turno} onTurno={setTurno} vista="servizio" corto={telefono}
+        <TestataGiorno data={data} onData={setData} turno={turno} onTurno={setTurno} vista={soloMappa ? "mappa" : "servizio"} corto={telefono}
           totali={{ pranzo: contatori.pranzo_pax, cena: contatori.cena_pax }}
           destra={<>
             <TastoNuova onClick={() => setForm({ nuova: {} })} />
@@ -810,10 +817,17 @@ export default function PrenotazioniServizio() {
           // iPad orizzontale e computer: elenco a larghezza fissa e sala accanto, così la sala non cambia misura
           // da un turno all'altro. Nessun riquadro con la sua barra: se l'elenco è lungo scorre la pagina e la sala
           // resta ferma in vista. iPad in piedi: sala sopra, elenco sotto.
+          soloMappa ? (
+            <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-4 items-start">
+              <div className="min-w-0">{Sala}</div>
+              <div className="lg:sticky lg:top-3">{Elenco}</div>
+            </div>
+          ) : (
           <div className="grid grid-cols-1 lg:grid-cols-[360px_minmax(0,1fr)] gap-4 items-start">
             <div className="order-2 lg:order-1">{Elenco}</div>
             <div className="order-1 lg:order-2 min-w-0 lg:sticky lg:top-3">{Sala}</div>
           </div>
+          )
         )}
       </div>
 

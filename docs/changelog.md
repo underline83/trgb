@@ -8,6 +8,9 @@
 ### Aggiunto
 - Servizio, mappa (`PrenotazioniServizio.jsx` v1.27): su ogni tavolo occupato il cognome e una targhetta scura con persone e ora («4p 19:30»); sotto il tavolo, bordata di rosso, la prenotazione che viene dopo sullo stesso tavolo («Vermi 5p 21:30»). Chiesto da Marco: in sala lo trovano comodo su TheFork Manager. Non visto dal vero.
 
+### Cambiato
+- Vista «Mappa»: è la stessa pagina di Servizio (`PrenotazioniServizio` con `soloMappa`) con la sala grande; toccando un tavolo compare accanto la stessa scheda dell'elenco di Servizio (stato a caselle, modifica, tavolo +, scheda cliente, WhatsApp, altro), con striscia degli orari, targhette e sale come lì. Senza una scelta, accanto ci sono le prenotazioni ancora senza tavolo. La vecchia pagina (`TavoliMappa.jsx` v2.14: sposta, unisci, blocca, dividi) si apre dalla matita e ha «← Mappa del servizio» per tornare.
+
 ## 2026-11-28 — Prenotazioni 2.65: il tetto online conta solo chi prenota da solo online `[core]`
 
 ### Corretto
