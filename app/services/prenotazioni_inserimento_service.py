@@ -377,7 +377,8 @@ def cliente_dal_sito(conn, nome: str, cognome: str, telefono: Optional[str], ema
 def cliente_dal_form(conn, dati: Dict[str, Any]) -> Tuple[Optional[int], bool]:
     """Passo 4 per l'operatore: scheda scelta, oppure scheda nuova se nessuno la riconosce
     (2026-11-26: un numero o un'email già di una scheda → si sceglie quella, 409)."""
-    if not dati.get("cliente_id") and not (dati.get("nuovo_cognome") or "").strip() and (dati.get("canale") or "") == "Walk-in":
+    if not dati.get("cliente_id") and not (dati.get("nuovo_cognome") or "").strip() and not (dati.get("nuovo_nome") or "").strip() \
+            and (dati.get("canale") or "") == "Walk-in":
         # Walk-in senza nome (Marco 2026-11-28: «non chiedere il nome, lascia walk-in»): tutti sulla
         # stessa scheda «Walk-in», senza telefono né email, creata la prima volta.
         gia = conn.execute("""
@@ -390,7 +391,9 @@ def cliente_dal_form(conn, dati: Dict[str, Any]) -> Tuple[Optional[int], bool]:
             INSERT INTO clienti (nome, cognome, lingua, origine, protetto) VALUES ('', 'Walk-in', 'it_IT', 'diretto', 1)
         """)
         return cur.lastrowid, True
-    if dati.get("cliente_id") or not dati.get("nuovo_cognome"):
+    # Basta il nome O il cognome (Marco 2026-11-28: «talvolta mettiamo solo il nome»)
+    nome_n, cognome_n = (dati.get("nuovo_nome") or "").strip(), (dati.get("nuovo_cognome") or "").strip()
+    if dati.get("cliente_id") or not (nome_n or cognome_n):
         return dati.get("cliente_id"), False
     numero = tel.normalizza(dati.get("nuovo_telefono"), dati.get("nuovo_prefisso")) or (dati.get("nuovo_telefono") or None)
     email = (dati.get("nuovo_email") or "").strip() or None
@@ -404,7 +407,7 @@ def cliente_dal_form(conn, dati: Dict[str, Any]) -> Tuple[Optional[int], bool]:
     cur = conn.execute("""
         INSERT INTO clienti (nome, cognome, telefono, email, lingua, titolo, origine, protetto)
         VALUES (?, ?, ?, ?, COALESCE(?, 'it_IT'), ?, 'diretto', 1)
-    """, (dati.get("nuovo_nome") or "", dati["nuovo_cognome"], numero, email,
+    """, (nome_n, cognome_n, numero, email,
           dati.get("nuovo_lingua") or (paese["lingua"] if paese else None),
           (dati.get("nuovo_titolo") or "").strip() or None))
     log.info("Nuovo cliente creato da prenotazione: id=%s", cur.lastrowid)
