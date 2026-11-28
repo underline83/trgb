@@ -3,6 +3,11 @@
 
 ---
 
+## 2026-11-28 — Prenotazioni 2.62: tavoli assegnati su TheFork Manager `[core]`
+
+### Corretto
+- Un tavolo assegnato su TheFork Manager a una prenotazione già arrivata non compariva in TRGB («senza tavolo»): per TheFork assegnare il tavolo non è una modifica, quindi quella prenotazione non rientrava nel recupero periodico. Ora ogni giro (15 minuti) rilegge anche le prenotazioni di oggi e domani per data del pasto. I giorni in avanti si regolano con `THEFORK_RECUPERO_GIORNI_PASTO` (default 1). Resta la regola del tavolo: quello messo a mano in TRGB non viene sovrascritto.
+
 ## 2026-11-28 — Prenotazioni 2.61: il cliente cercato su TheFork dal numero `[core]`
 
 ### Aggiunto

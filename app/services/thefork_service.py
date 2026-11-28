@@ -928,8 +928,9 @@ def elenco_eventi(stato: Optional[str] = None, limite: int = 100) -> List[Dict[s
 # ============================================================
 # TheFork non rimanda un avviso perso (TRGB spento per un push o un riavvio).
 # Ogni THEFORK_RECUPERO_MINUTI (default 15, 0 = spento) si rileggono le
-# prenotazioni modificate su TheFork ieri e oggi e si sistemano solo quelle
-# diverse da TRGB. Nel registro finiscono solo quelle corrette davvero.
+# prenotazioni modificate su TheFork ieri e oggi, più quelle di oggi e domani per
+# data del pasto (il tavolo assegnato su TheFork Manager non risulta come modifica),
+# e si sistemano solo quelle diverse da TRGB. Nel registro finiscono solo quelle corrette davvero.
 
 _stato_recupero: Dict[str, Any] = {}
 
@@ -943,18 +944,39 @@ def recupero_automatico() -> Dict[str, Any]:
 
     oggi = date.today()
     dal = date.fromordinal(oggi.toordinal() - 1).isoformat()
-    uuids: List[str] = []
-    pagina = 1
-    while len(uuids) < 2000:
-        dati = api_get("/v1/reservations", {
-            "restaurantUuid": ristorante, "startDate": dal, "endDate": oggi.isoformat(),
-            "filterBy": "updatedDate", "limit": 100, "page": pagina,
-        }) or {}
-        blocco = dati.get("data") or []
-        uuids.extend(blocco)
-        if not blocco or len(uuids) >= int(dati.get("totalCount") or 0):
-            break
-        pagina += 1
+
+    def _elenco(filtro: str, da: str, a: str) -> List[str]:
+        trovati: List[str] = []
+        pagina = 1
+        while len(trovati) < 2000:
+            dati = api_get("/v1/reservations", {
+                "restaurantUuid": ristorante, "startDate": da, "endDate": a,
+                "filterBy": filtro, "limit": 100, "page": pagina,
+            }) or {}
+            blocco = dati.get("data") or []
+            trovati.extend(blocco)
+            if not blocco or len(trovati) >= int(dati.get("totalCount") or 0):
+                break
+            pagina += 1
+        return trovati
+
+    uuids: List[str] = _elenco("updatedDate", dal, oggi.isoformat())
+    # Il tavolo assegnato su TheFork Manager non conta come «modifica» per TheFork: quelle prenotazioni
+    # non comparivano tra le modificate e in TRGB restavano «senza tavolo» (Marco 2026-11-28). Si rileggono
+    # quindi anche le prenotazioni dei prossimi giorni per data del pasto (oggi + THEFORK_RECUPERO_GIORNI_PASTO).
+    try:
+        avanti = max(0, int(_env("THEFORK_RECUPERO_GIORNI_PASTO", "1") or 0))
+    except ValueError:
+        avanti = 1
+    try:
+        fino = date.fromordinal(oggi.toordinal() + avanti).isoformat()
+        visti = set(uuids)
+        for u in _elenco("mealDate", oggi.isoformat(), fino):
+            if u not in visti:
+                visti.add(u)
+                uuids.append(u)
+    except Exception as e:  # noqa: BLE001 — il recupero delle modificate resta valido
+        logger.warning("TheFork recupero per data del pasto: %s", e)
 
     corrette, errori = 0, 0
     for u in uuids:
