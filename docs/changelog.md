@@ -3,6 +3,11 @@
 
 ---
 
+## 2026-11-28 — Prenotazioni 2.66: persone e ora sui tavoli della mappa `[core]`
+
+### Aggiunto
+- Servizio, mappa (`PrenotazioniServizio.jsx` v1.27): su ogni tavolo occupato il cognome e una targhetta scura con persone e ora («4p 19:30»); sotto il tavolo, bordata di rosso, la prenotazione che viene dopo sullo stesso tavolo («Vermi 5p 21:30»). Chiesto da Marco: in sala lo trovano comodo su TheFork Manager. Non visto dal vero.
+
 ## 2026-11-28 — Prenotazioni 2.65: il tetto online conta solo chi prenota da solo online `[core]`
 
 ### Corretto
