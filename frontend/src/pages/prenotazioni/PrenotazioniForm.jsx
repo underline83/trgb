@@ -1,7 +1,10 @@
-// @version: v1.13 — canale «Walk-in»: il nome non si chiede, va sulla scheda «Walk-in» (2026-11-28); v1.12-thefork — numero sconosciuto a TRGB ma noto a TheFork: nome, email e prossime prenotazioni da TheFork, «Usa questi dati» (2026-11-28); v1.11 — orari a 6 per riga senza testo che esce dalla casella, seggioloni dentro il riquadro (2026-11-26); v1.10-ordine — «Crea nuovo cliente» porta nei campi quello che era scritto nella ricerca (numero, email o nome); orari in griglia a caselle uguali con «Altro orario» a parte; tavolo a caselle per sala (libero, occupato, bloccato, suggerito; due tocchi = unione) al posto della tendina (2026-11-26); v1.9-thefork — copiato dal form di TheFork Manager: carico su ogni orario (arrivi e coperti in sala), durata sulla singola prenotazione, titolo e lingua del cliente nuovo, «apri WhatsApp con la conferma» al salvataggio (2026-11-26); v1.8-fonte — il form è la fonte: prefisso per paese, scheda riconosciuta da telefono o email mentre scrivi, persone della scheda («chi sta prenotando»), esito verso TheFork (2026-11-26); v1.7-telefono — su iPhone a tutto schermo con titolo e «Salva» sempre a vista, campi a 16 px (Safari non ingrandisce la pagina), orari e ± da pollice (2026-11-24); v1.6-stati — si nasce Confermata, In opzione (con «tenuto fino al») o in Lista d'attesa; in modifica la data dell'opzione (2026-11-13); v1.5-motore — «entra / non entra» col tavolo suggerito dal motore per tavoli, «Usa» lo scrive (anche le unioni) (2026-10-29); v1.4 — stesso form per modificare una prenotazione (prop «prenotazione», PUT) (2026-10-28); v1.3 — defaultCliente: aperto dalla scheda cliente con il cliente già scelto (2026-10-19); v1.2-fasce — slot chiusi/pieni segnati e avviso sulla fascia; v1.1-tavolo-turno — apribile dalla mappa con tavolo e turno già scelti; tavoli bloccati non selezionabili
+// @version: v2.0 — su iPad e Mac tre zone affiancate (prenotazione · altri dettagli · sala col tavolo da toccare), persone e canale a pastiglie, Pranzo/Cena accanto agli orari, stato e riepilogo in fondo; sul telefono resta in colonna (2026-11-28); v1.13 — canale «Walk-in»: il nome non si chiede, va sulla scheda «Walk-in» (2026-11-28); v1.12-thefork — numero sconosciuto a TRGB ma noto a TheFork: nome, email e prossime prenotazioni da TheFork, «Usa questi dati» (2026-11-28); v1.11 — orari a 6 per riga senza testo che esce dalla casella, seggioloni dentro il riquadro (2026-11-26); v1.10-ordine — «Crea nuovo cliente» porta nei campi quello che era scritto nella ricerca (numero, email o nome); orari in griglia a caselle uguali con «Altro orario» a parte; tavolo a caselle per sala (libero, occupato, bloccato, suggerito; due tocchi = unione) al posto della tendina (2026-11-26); v1.9-thefork — copiato dal form di TheFork Manager: carico su ogni orario (arrivi e coperti in sala), durata sulla singola prenotazione, titolo e lingua del cliente nuovo, «apri WhatsApp con la conferma» al salvataggio (2026-11-26); v1.8-fonte — il form è la fonte: prefisso per paese, scheda riconosciuta da telefono o email mentre scrivi, persone della scheda («chi sta prenotando»), esito verso TheFork (2026-11-26); v1.7-telefono — su iPhone a tutto schermo con titolo e «Salva» sempre a vista, campi a 16 px (Safari non ingrandisce la pagina), orari e ± da pollice (2026-11-24); v1.6-stati — si nasce Confermata, In opzione (con «tenuto fino al») o in Lista d'attesa; in modifica la data dell'opzione (2026-11-13); v1.5-motore — «entra / non entra» col tavolo suggerito dal motore per tavoli, «Usa» lo scrive (anche le unioni) (2026-10-29); v1.4 — stesso form per modificare una prenotazione (prop «prenotazione», PUT) (2026-10-28); v1.3 — defaultCliente: aperto dalla scheda cliente con il cliente già scelto (2026-10-19); v1.2-fasce — slot chiusi/pieni segnati e avviso sulla fascia; v1.1-tavolo-turno — apribile dalla mappa con tavolo e turno già scelti; tavoli bloccati non selezionabili
+// Modulo: prenotazioni
 // Form modale per nuova prenotazione — modulo Prenotazioni TRGB
 import React, { useState, useEffect, useRef } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
+import SalaForm from "./components/SalaForm";
+import { SCELTO } from "./components/statiPrenotazioni";
 
 const CANALI = ["Telefono", "WhatsApp", "Walk-in", "Email", "Altro"];
 // Chi è la persona che prenota per la scheda (facoltativo)
@@ -378,25 +381,8 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
     setSubmitting(false);
   };
 
-  return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center sm:pt-8 overflow-y-auto overscroll-contain">
-      {/* Telefono: tutto schermo, titolo e tasti fissi. Da sm in su: la finestra di sempre */}
-      <div className="bg-white shadow-2xl w-full min-h-full sm:min-h-0 sm:rounded-2xl sm:max-w-lg sm:mx-4 sm:mb-8">
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 sm:px-5 py-3 border-b border-neutral-200 max-sm:sticky max-sm:top-0 max-sm:z-20 bg-white sm:rounded-t-2xl">
-          <h2 className="text-lg font-bold text-neutral-800">{modifica ? "Modifica prenotazione" : "Nuova Prenotazione"}</h2>
-          <button type="button" onClick={onClose} aria-label="Chiudi" className="text-neutral-400 hover:text-neutral-600 text-xl max-sm:min-w-[44px] max-sm:min-h-[44px] max-sm:-mr-2">✕</button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="p-4 sm:p-5 space-y-4">
-          {modifica && P.thefork_booking_id && (
-            <div className="px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-xs">
-              Arriva da TheFork: giorno, ora e persone cambiali anche in TheFork Manager, altrimenti al prossimo
-              aggiornamento da TheFork tornano come lì. Nota staff, occasione, tavolo, allergie e lo stato «In opzione» restano quelli di TRGB.
-            </div>
-          )}
-          {/* Stato di partenza (2026-11-13) */}
-          {!modifica && (
+  // Pezzi del form che compaiono in due punti secondo lo schermo (telefono: in colonna; iPad e Mac: tre zone)
+  const bloccoStato = (
             <div>
               <label className="block text-xs font-medium text-neutral-600 mb-1">Stato</label>
               <div className="grid grid-cols-3 gap-2">
@@ -424,7 +410,81 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
                 <div className="mt-2 text-xs text-violet-800">Non occupa tavoli: se nel turno si libera un posto arriva l'avviso nel campanello.</div>
               )}
             </div>
+  );
+  const elencoTavoli = (
+            <div className="sm:col-span-2">
+              <div className="flex items-baseline justify-between gap-2 mb-1">
+                <label className="block text-xs font-medium text-neutral-600">
+                  Tavolo{tavoliScelti.length > 0 && <span className="ml-1 text-neutral-900 font-semibold">{tavoliScelti.join(" + ")}{postiScelti ? ` · ${postiScelti} posti` : ""}</span>}
+                </label>
+                {tavoliScelti.length > 0
+                  ? <button type="button" onClick={() => setForm({ ...form, tavolo: "" })} className="text-xs text-indigo-600 hover:underline">Assegna dopo</button>
+                  : <span className="text-xs text-neutral-400">nessuno: si assegna dopo</span>}
+              </div>
+              {/* Un tocco sceglie, un altro tocco su un secondo tavolo li unisce */}
+              <div className="space-y-2 rounded-lg border border-neutral-200 p-2">
+                {zoneTavoli.map(([zona, lista]) => (
+                  <div key={zona} className="flex items-start gap-2">
+                    <span className="w-16 flex-shrink-0 pt-2 text-[11px] uppercase tracking-wide text-neutral-400 truncate" title={zona}>{zona}</span>
+                    <div className="grid grid-cols-5 sm:grid-cols-8 gap-1.5 flex-1">
+                      {lista.map((t) => {
+                        const scelto = tavoliScelti.includes(t.nome);
+                        const suo = modifica && (P.tavolo || "").split("+").map((x) => x.trim()).includes(t.nome);
+                        const fermo = (t.occupato || t.bloccato) && !suo && !scelto;
+                        const proposto = !scelto && propostiSet.has(t.nome);
+                        return (
+                          <button
+                            key={t.nome}
+                            type="button"
+                            disabled={fermo}
+                            onClick={() => toggleTavolo(t.nome)}
+                            title={t.bloccato ? "Bloccato" : t.occupato && !suo ? "Occupato in questo turno" : proposto ? "Suggerito" : `${t.posti_min}-${t.posti_max} posti`}
+                            className={`w-full px-1 py-1 rounded-lg border text-sm tabular-nums transition max-sm:min-h-[44px] ${
+                              scelto ? "bg-indigo-900 text-white border-indigo-900"
+                              : fermo ? "bg-neutral-100 text-neutral-400 border-neutral-200"
+                              : proposto ? "bg-emerald-50 text-emerald-800 border-emerald-400"
+                              : "bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50"
+                            }`}
+                          >
+                            <span className={`block font-medium ${fermo && t.occupato ? "line-through" : ""}`}>{t.nome}</span>
+                            <span className={`block text-[10px] leading-tight ${scelto ? "text-indigo-100" : fermo ? "text-neutral-400" : "text-neutral-400"}`}>
+                              {t.bloccato && !suo ? "blocc." : t.occupato && !suo ? "occup." : t.posti_max ? `${t.posti_max} p` : "\u00a0"}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+                {zoneTavoli.length === 0 && <div className="text-xs text-neutral-400 px-1 py-1">Nessun tavolo per questo turno.</div>}
+              </div>
+            </div>
+  );
+  const dataBreve = (() => { try { return new Date(form.data_pasto + "T12:00").toLocaleDateString("it-IT", { weekday: "short", day: "numeric", month: "short" }); } catch { return form.data_pasto; } })();
+  const testoSalva = submitting ? "Salvataggio..." : modifica ? "Salva modifiche"
+    : form.stato === "OPTION" ? "Metti in opzione" : form.stato === "WAITLIST" ? "Aggiungi alla lista d'attesa" : "Crea prenotazione";
+
+  return (
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center sm:pt-8 lg:pt-3 overflow-y-auto overscroll-contain">
+      {/* Telefono: tutto schermo, titolo e tasti fissi. Da sm in su: la finestra di sempre */}
+      <div className="bg-white shadow-2xl w-full min-h-full sm:min-h-0 sm:rounded-2xl sm:max-w-lg sm:mx-4 sm:mb-8 lg:max-w-[1200px] lg:mb-3 lg:h-[calc(100vh_-_1.5rem)] lg:flex lg:flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 sm:px-5 py-3 border-b border-neutral-200 max-sm:sticky max-sm:top-0 max-sm:z-20 bg-white sm:rounded-t-2xl">
+          <h2 className="text-lg font-bold text-neutral-800">{modifica ? "Modifica prenotazione" : "Nuova Prenotazione"}</h2>
+          <button type="button" onClick={onClose} aria-label="Chiudi" className="text-neutral-400 hover:text-neutral-600 text-xl max-sm:min-w-[44px] max-sm:min-h-[44px] max-sm:-mr-2">✕</button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="lg:flex lg:flex-col lg:flex-1 lg:min-h-0">
+          <div className="p-4 sm:p-5 lg:p-0 flex flex-col gap-4 lg:gap-0 lg:flex-row lg:flex-1 lg:min-h-0">
+          {/* 1 — la prenotazione: persone, giorno, ora, cliente, canale */}
+          <div className="space-y-4 lg:w-[350px] lg:flex-shrink-0 lg:p-5 lg:border-r lg:border-neutral-200 lg:overflow-y-auto">
+          {modifica && P.thefork_booking_id && (
+            <div className="px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-xs">
+              Arriva da TheFork: giorno, ora e persone cambiali anche in TheFork Manager, altrimenti al prossimo
+              aggiornamento da TheFork tornano come lì. Nota staff, occasione, tavolo, allergie e lo stato «In opzione» restano quelli di TRGB.
+            </div>
           )}
+          {!modifica && <div className="lg:hidden">{bloccoStato}</div>}
           {modifica && P.stato === "OPTION" && (
             <div className="flex items-center gap-2 text-xs text-amber-900 px-3 py-2 rounded-lg bg-amber-50 border border-dashed border-amber-300">
               <span>⏳ In opzione — tavolo tenuto fino al</span>
@@ -434,6 +494,26 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
             </div>
           )}
 
+          {/* Persone: a pastiglie (come su TheFork Manager), oltre le 8 con più e meno */}
+          <div>
+            <span className="block text-xs font-medium text-neutral-600 mb-1">Persone</span>
+            <div className="grid grid-cols-9 gap-1">
+              {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
+                <button key={n} type="button" onClick={() => setForm({ ...form, pax: n })} aria-pressed={form.pax === n}
+                  className={`min-h-[44px] rounded-lg border text-base font-medium tabular-nums ${form.pax === n ? SCELTO : "bg-white border-neutral-300 text-neutral-800 hover:bg-neutral-50"}`}>{n}</button>
+              ))}
+              <button type="button" aria-label="Più di otto persone" aria-pressed={form.pax > 8}
+                onClick={() => setForm({ ...form, pax: Math.min(50, Math.max(9, form.pax + 1)) })}
+                className={`min-h-[44px] rounded-lg border text-base font-medium tabular-nums ${form.pax > 8 ? SCELTO : "bg-white border-neutral-300 text-neutral-800 hover:bg-neutral-50"}`}>{form.pax > 8 ? form.pax : "+"}</button>
+            </div>
+            {form.pax > 8 && (
+              <div className="mt-1 flex items-center gap-2 text-sm text-neutral-700">
+                <button type="button" aria-label="Una persona in meno" onClick={() => setForm({ ...form, pax: form.pax - 1 })} className="w-11 h-11 rounded-lg border border-neutral-300 text-lg hover:bg-neutral-50">−</button>
+                <span><strong>{form.pax}</strong> persone</span>
+                <button type="button" aria-label="Una persona in più" onClick={() => setForm({ ...form, pax: Math.min(50, form.pax + 1) })} className="w-11 h-11 rounded-lg border border-neutral-300 text-lg hover:bg-neutral-50">+</button>
+              </div>
+            )}
+          </div>
           {/* Data e Ora: una sotto l'altra, gli orari in griglia a caselle uguali */}
           <div className="grid grid-cols-1 gap-3">
             <div>
@@ -447,10 +527,19 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-neutral-600 mb-1">
-                Ora <span className="text-neutral-400">({turnoCorrente})</span>
-              </label>
-              <div className="grid grid-cols-4 sm:grid-cols-6 gap-1.5">
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <span className="block text-xs font-medium text-neutral-600">Ora{carico.capienza ? <span className="font-normal text-neutral-500"> · coperti in sala su {carico.capienza}</span> : null}</span>
+                <span className="flex gap-1">
+                  {[["pranzo", "Pranzo", slotPranzo], ["cena", "Cena", slotCena]].map(([k, nome, slots]) => (
+                    <button key={k} type="button" disabled={!slots.length}
+                      onClick={() => { if (turnoCorrente !== k && slots.length) setForm({ ...form, ora_pasto: slots[0] }); }}
+                      className={`px-3 min-h-[36px] max-sm:min-h-[44px] rounded-lg border text-xs font-medium ${turnoCorrente === k ? SCELTO : "bg-white border-neutral-300 text-neutral-700 hover:bg-neutral-50"}`}>
+                      {nome}
+                    </button>
+                  ))}
+                </span>
+              </div>
+              <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-4 gap-1.5">
                 {slotCorrente.map((s) => {
                   const f = fasce.find((x) => x.ora === s);
                   const chiusa = f && !f.aperta;
@@ -500,55 +589,6 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
           {avvisoFascia && (
             <div className="px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-xs">⚠️ {avvisoFascia}. Puoi inserirla lo stesso.</div>
           )}
-          {posto && !posto.entra && form.stato !== "WAITLIST" && (
-            <div className="px-3 py-2 rounded-lg bg-red-50 border border-red-200 text-red-800 text-xs">
-              🔴 A quest'ora non c'è un tavolo o un'unione salvata libera per {form.pax} persone{posto.gia_fuori > 0 ? ` (e ${posto.gia_fuori} prenotazioni sono già senza posto)` : ""}. Prova un altro orario, apri una sala o inseriscila lo stesso.
-            </div>
-          )}
-          {posto && posto.entra && posto.tavolo && (
-            <div className="px-3 py-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2">
-              <span>🪑 Entra: tavolo suggerito <strong>{posto.tavolo.nome}</strong> ({posto.tavolo.posti} posti{posto.tavolo.prolunghe ? ", con prolunga" : ""})</span>
-              {form.tavolo !== tavoloProposto && (
-                <button type="button" onClick={() => setForm({ ...form, tavolo: tavoloProposto })}
-                  className="ml-auto px-2 py-0.5 rounded-lg border border-emerald-400 bg-white hover:bg-emerald-100">Usa</button>
-              )}
-            </div>
-          )}
-
-          {/* Pax e Canale */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-medium text-neutral-600 mb-1">Persone</label>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setForm({ ...form, pax: Math.max(1, form.pax - 1) })}
-                  className="w-11 h-11 sm:w-8 sm:h-8 rounded-lg border border-neutral-300 text-lg hover:bg-neutral-50"
-                >
-                  −
-                </button>
-                <span className="text-lg font-bold w-8 text-center">{form.pax}</span>
-                <button
-                  type="button"
-                  onClick={() => setForm({ ...form, pax: Math.min(50, form.pax + 1) })}
-                  className="w-11 h-11 sm:w-8 sm:h-8 rounded-lg border border-neutral-300 text-lg hover:bg-neutral-50"
-                >
-                  +
-                </button>
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-neutral-600 mb-1">Canale</label>
-              <select
-                value={form.canale}
-                onChange={(e) => setForm({ ...form, canale: e.target.value })}
-                className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-base sm:text-sm max-sm:min-h-[44px]"
-              >
-                {CANALI.map((c) => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-          </div>
-
           {/* Cliente autocomplete */}
           <div>
             <label className="block text-xs font-medium text-neutral-600 mb-1">Cliente</label>
@@ -780,55 +820,19 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
             )}
           </div>
 
-          {/* Tavolo */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="sm:col-span-2">
-              <div className="flex items-baseline justify-between gap-2 mb-1">
-                <label className="block text-xs font-medium text-neutral-600">
-                  Tavolo{tavoliScelti.length > 0 && <span className="ml-1 text-neutral-900 font-semibold">{tavoliScelti.join(" + ")}{postiScelti ? ` · ${postiScelti} posti` : ""}</span>}
-                </label>
-                {tavoliScelti.length > 0
-                  ? <button type="button" onClick={() => setForm({ ...form, tavolo: "" })} className="text-xs text-indigo-600 hover:underline">Assegna dopo</button>
-                  : <span className="text-xs text-neutral-400">nessuno: si assegna dopo</span>}
-              </div>
-              {/* Un tocco sceglie, un altro tocco su un secondo tavolo li unisce */}
-              <div className="space-y-2 rounded-lg border border-neutral-200 p-2">
-                {zoneTavoli.map(([zona, lista]) => (
-                  <div key={zona} className="flex items-start gap-2">
-                    <span className="w-16 flex-shrink-0 pt-2 text-[11px] uppercase tracking-wide text-neutral-400 truncate" title={zona}>{zona}</span>
-                    <div className="grid grid-cols-5 sm:grid-cols-8 gap-1.5 flex-1">
-                      {lista.map((t) => {
-                        const scelto = tavoliScelti.includes(t.nome);
-                        const suo = modifica && (P.tavolo || "").split("+").map((x) => x.trim()).includes(t.nome);
-                        const fermo = (t.occupato || t.bloccato) && !suo && !scelto;
-                        const proposto = !scelto && propostiSet.has(t.nome);
-                        return (
-                          <button
-                            key={t.nome}
-                            type="button"
-                            disabled={fermo}
-                            onClick={() => toggleTavolo(t.nome)}
-                            title={t.bloccato ? "Bloccato" : t.occupato && !suo ? "Occupato in questo turno" : proposto ? "Suggerito" : `${t.posti_min}-${t.posti_max} posti`}
-                            className={`w-full px-1 py-1 rounded-lg border text-sm tabular-nums transition max-sm:min-h-[44px] ${
-                              scelto ? "bg-indigo-900 text-white border-indigo-900"
-                              : fermo ? "bg-neutral-100 text-neutral-400 border-neutral-200"
-                              : proposto ? "bg-emerald-50 text-emerald-800 border-emerald-400"
-                              : "bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50"
-                            }`}
-                          >
-                            <span className={`block font-medium ${fermo && t.occupato ? "line-through" : ""}`}>{t.nome}</span>
-                            <span className={`block text-[10px] leading-tight ${scelto ? "text-indigo-100" : fermo ? "text-neutral-400" : "text-neutral-400"}`}>
-                              {t.bloccato && !suo ? "blocc." : t.occupato && !suo ? "occup." : t.posti_max ? `${t.posti_max} p` : "\u00a0"}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-                {zoneTavoli.length === 0 && <div className="text-xs text-neutral-400 px-1 py-1">Nessun tavolo per questo turno.</div>}
-              </div>
+          <div>
+            <span className="block text-xs font-medium text-neutral-600 mb-1">Canale</span>
+            <div className="grid grid-cols-5 gap-1">
+              {CANALI.map((c) => (
+                <button key={c} type="button" onClick={() => setForm({ ...form, canale: c })} aria-pressed={form.canale === c}
+                  className={`min-h-[44px] px-0.5 rounded-lg border text-xs font-medium ${form.canale === c ? SCELTO : "bg-white border-neutral-300 text-neutral-700 hover:bg-neutral-50"}`}>{c}</button>
+              ))}
             </div>
+          </div>
+          </div>
+          {/* 2 — altri dettagli */}
+          <div className="space-y-4 max-lg:order-3 lg:w-[290px] lg:flex-shrink-0 lg:p-5 lg:border-r lg:border-neutral-200 lg:overflow-y-auto">
+            <h3 className="hidden lg:block text-sm font-semibold text-neutral-800">Altri dettagli</h3>
             {carico.durata_regola ? (
             <div>
               <label className="block text-xs font-medium text-neutral-600 mb-1">Durata</label>
@@ -867,30 +871,7 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
                 />
               </div>
             </div>
-          </div>
-
-          {/* Note e occasione */}
-          <div>
-            <label className="block text-xs font-medium text-neutral-600 mb-1">Note staff (interne)</label>
-            <textarea
-              value={form.nota_ristorante}
-              onChange={(e) => setForm({ ...form, nota_ristorante: e.target.value })}
-              className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-base sm:text-sm max-sm:min-h-[44px]"
-              rows={2}
-              placeholder="Note per cucina/sala..."
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-neutral-600 mb-1">Note / richieste cliente</label>
-            <textarea
-              value={form.nota_cliente}
-              onChange={(e) => setForm({ ...form, nota_cliente: e.target.value })}
-              className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-base sm:text-sm max-sm:min-h-[44px]"
-              rows={2}
-              placeholder="Richieste speciali del cliente..."
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-1 gap-3">
             <div>
               <label className="block text-xs font-medium text-neutral-600 mb-1">Occasione</label>
               <select
@@ -912,30 +893,92 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
               />
             </div>
           </div>
-
+          {/* Note e occasione */}
+          <div>
+            <label className="block text-xs font-medium text-neutral-600 mb-1">Note staff (interne)</label>
+            <textarea
+              value={form.nota_ristorante}
+              onChange={(e) => setForm({ ...form, nota_ristorante: e.target.value })}
+              className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-base sm:text-sm max-sm:min-h-[44px]"
+              rows={2}
+              placeholder="Note per cucina/sala..."
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-neutral-600 mb-1">Note / richieste cliente</label>
+            <textarea
+              value={form.nota_cliente}
+              onChange={(e) => setForm({ ...form, nota_cliente: e.target.value })}
+              className="w-full px-3 py-2 border border-neutral-300 rounded-lg text-base sm:text-sm max-sm:min-h-[44px]"
+              rows={2}
+              placeholder="Richieste speciali del cliente..."
+            />
+          </div>
           {!modifica && (
             <label className="flex items-center gap-2 text-sm text-neutral-700 max-sm:min-h-[44px]">
               <input type="checkbox" checked={mandaConferma} onChange={(e) => setMandaConferma(e.target.checked)} />
               Apri WhatsApp con la conferma, dopo il salvataggio
             </label>
           )}
+          </div>
+          {/* 3 — la sala: il tavolo si sceglie toccandolo (iPad e Mac); sul telefono l'elenco di sempre */}
+          <div className="space-y-3 max-lg:order-2 lg:flex-1 lg:min-w-0 lg:p-5 lg:bg-brand-cream lg:overflow-y-auto">
+          {posto && !posto.entra && form.stato !== "WAITLIST" && (
+            <div className="px-3 py-2 rounded-lg bg-red-50 border border-red-200 text-red-800 text-xs">
+              🔴 A quest'ora non c'è un tavolo o un'unione salvata libera per {form.pax} persone{posto.gia_fuori > 0 ? ` (e ${posto.gia_fuori} prenotazioni sono già senza posto)` : ""}. Prova un altro orario, apri una sala o inseriscila lo stesso.
+            </div>
+          )}
+          {posto && posto.entra && posto.tavolo && (
+            <div className="px-3 py-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center gap-2">
+              <span>🪑 Entra: tavolo suggerito <strong>{posto.tavolo.nome}</strong> ({posto.tavolo.posti} posti{posto.tavolo.prolunghe ? ", con prolunga" : ""})</span>
+              {form.tavolo !== tavoloProposto && (
+                <button type="button" onClick={() => setForm({ ...form, tavolo: tavoloProposto })}
+                  className="ml-auto px-2 py-0.5 rounded-lg border border-emerald-400 bg-white hover:bg-emerald-100">Usa</button>
+              )}
+            </div>
+          )}
 
-          {/* Submit: sul telefono resta attaccato in basso */}
-          <div className="flex justify-end gap-2 pt-2 border-t border-neutral-100 max-sm:sticky max-sm:bottom-0 max-sm:z-10 max-sm:-mx-4 max-sm:px-4 max-sm:py-3 max-sm:bg-white max-sm:border-neutral-200 max-sm:pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-sm text-neutral-600 border border-neutral-300 rounded-lg hover:bg-neutral-50 max-sm:min-h-[48px]"
-            >
-              Annulla
-            </button>
-            <button
-              type="submit"
-              disabled={submitting}
-              className="px-4 py-2 text-sm bg-brand-blue text-white rounded-lg hover:bg-blue-700 font-medium disabled:opacity-50 max-sm:flex-1 max-sm:min-h-[48px] max-sm:text-base"
-            >
-              {submitting ? "Salvataggio..." : modifica ? "Salva modifiche" : "Salva Prenotazione"}
-            </button>
+            <div className="hidden lg:block">
+              <SalaForm data={form.data_pasto} turno={turnoCorrente} ora={form.ora_pasto} pax={form.pax} durataMin={form.durata_min}
+                carico={carico} escludiId={modifica ? P.id : null} scelti={tavoliScelti} proposti={propostiSet} onToggle={toggleTavolo} />
+              <div className="mt-3 flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-white border border-neutral-200 text-sm">
+                {tavoliScelti.length > 0
+                  ? <span><strong>Tavolo {tavoliScelti.join(" + ")}</strong>{postiScelti ? ` · ${postiScelti} posti` : ""}</span>
+                  : <span className="text-neutral-600">Nessun tavolo: si assegna dopo</span>}
+                {tavoliScelti.length > 0 && <button type="button" onClick={() => setForm({ ...form, tavolo: "" })} className="min-h-[36px] px-2 text-xs font-medium text-indigo-900 hover:underline">Togli</button>}
+              </div>
+              <details className="mt-2">
+                <summary className="text-xs text-neutral-600 cursor-pointer min-h-[32px]">Tutti i tavoli in elenco (anche le metà)</summary>
+                <div className="mt-2">{elencoTavoli}</div>
+              </details>
+            </div>
+            <div className="lg:hidden">{elencoTavoli}</div>
+          </div>
+          </div>
+
+          {/* Fondo: sul telefono resta attaccato in basso; su iPad e Mac riepilogo, stato e tasti */}
+          <div className="flex flex-wrap items-end justify-end gap-x-4 gap-y-2 px-4 sm:px-5 py-3 border-t border-neutral-200 bg-white sm:rounded-b-2xl lg:bg-neutral-50 max-sm:sticky max-sm:bottom-0 max-sm:z-10 max-sm:pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+            <div className="hidden lg:block mr-auto text-sm text-neutral-700 self-center">
+              <strong className="text-neutral-900">{form.pax} persone · {dataBreve} {form.ora_pasto}{form.tavolo ? ` · tavolo ${form.tavolo}` : ""}</strong>
+              {selectedCliente && <span> · {selectedCliente.nome} {selectedCliente.cognome}</span>}
+            </div>
+            {!modifica && <div className="hidden lg:block lg:w-[400px]">{bloccoStato}</div>}
+            <div className="flex gap-2 max-sm:w-full">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 text-sm text-neutral-600 border border-neutral-300 rounded-lg hover:bg-neutral-50 min-h-[44px] max-sm:min-h-[48px] bg-white"
+              >
+                Annulla
+              </button>
+              <button
+                type="submit"
+                disabled={submitting}
+                className="px-5 py-2 text-sm bg-brand-blue text-white rounded-lg hover:bg-blue-700 font-semibold disabled:opacity-50 min-h-[44px] max-sm:flex-1 max-sm:min-h-[48px] max-sm:text-base"
+              >
+                {testoSalva}
+              </button>
+            </div>
           </div>
         </form>
       </div>

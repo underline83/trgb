@@ -923,7 +923,11 @@ const MODULE_VERSIONS = {
     //   Una prenotazione segnata a orario già passato (chi è già a tavola) parte per TheFork col primo quarto d'ora
     //   utile invece di essere rifiutata (INVALID_MEALDATE); in TRGB resta l'ora vera (mig 256).
     //   Canale «Walk-in»: il nome non si chiede più, la prenotazione va sulla scheda comune «Walk-in».
-    version: "2.63",
+    // 2.64 (2026-11-28): form «Nuova prenotazione» a tre zone su iPad e Mac (prenotazione · altri dettagli · sala col
+    //   tavolo da toccare, libero/occupato all'ora scelta), persone e canale a pastiglie, Pranzo/Cena accanto agli orari,
+    //   stato e riepilogo in fondo; sul telefono resta in colonna. Servizio: filtri rapidi sull'elenco
+    //   (Tutte · Imminenti · Al tavolo · Senza tavolo).
+    version: "2.64",
     label: "Prenotazioni",
     status: "beta",
     color: "blue",

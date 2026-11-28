@@ -3,6 +3,14 @@
 
 ---
 
+## 2026-11-28 — Prenotazioni 2.64: form a tre zone e filtri rapidi `[core]`
+
+### Cambiato
+- Form «Nuova prenotazione» / «Modifica» (`PrenotazioniForm.jsx` v2.0): da 1024 px in su tre zone affiancate, prenotazione · altri dettagli · sala. La sala (`components/SalaForm.jsx`, nuovo) disegna i tavoli all'ora e per le persone scelte (libero e adatto, libero ma piccolo, occupato a quell'ora) e il tavolo si sceglie toccandolo; l'elenco dei tavoli resta sotto, richiudibile. Persone e canale a pastiglie, Pranzo/Cena accanto agli orari, stato e riepilogo in fondo, tasto «Crea prenotazione» / «Metti in opzione» / «Aggiungi alla lista d'attesa». Stessi salvataggi e controlli di prima. Sul telefono resta in colonna (ordine: persone, giorno, ora, cliente, canale, tavolo, altri dettagli). Schermate approvate da Marco: artifact «TRGB · Prenotazioni › Nuova prenotazione: proposte», proposta B.
+
+### Aggiunto
+- Servizio (`PrenotazioniServizio.jsx` v1.24): filtri rapidi sopra l'elenco, come su TheFork Manager: Tutte · Imminenti (toglie chi è già arrivato) · Al tavolo · Senza tavolo, ognuno col conto; un filtro compare solo se ha righe.
+
 ## 2026-11-28 — Prenotazioni 2.63: tavoli uniti solo da quando servono `[core]`
 
 ### Corretto
