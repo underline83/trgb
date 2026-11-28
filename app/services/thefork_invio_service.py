@@ -47,7 +47,7 @@ CIVILITY = ("mr", "mrs", "ms", "mr_and_mrs", "mx", "doctor", "professor", "compa
 SENZA_NOME = "-"                         # segnaposto mandato a TheFork per il nome o il cognome che manca
 _MANCA = "Manca sulla scheda — "         # inizio della nota quando la scheda del cliente non basta
 _RIPROVA = ("NO_AVAILABILITY",)          # l'orario non è prenotabile online: si aspetta
-_cache_modello: Dict[str, Any] = {"quando": 0.0, "regex": None}
+_cache_modello: Dict[str, Any] = {"quando": 0.0, "regex": []}
 # Le prenotazioni nate in TRGB, da qualunque porta del percorso unico (2026-11-27: anche il sito).
 FONTI_TRGB = ("manuale", "sito")
 # Tengono il tavolo in TRGB ma verso TheFork aspettano: partono quando diventano confermate.
@@ -84,12 +84,15 @@ def email_di_servizio(email: Optional[str]) -> bool:
     if time.time() - _cache_modello["quando"] > 60:
         conn = get_clienti_conn()
         try:
-            _cache_modello["regex"] = _regex_servizio(_cfg(conn, "thefork_email_servizio"))
+            # Il modello di oggi e quelli usati prima (2026-11-28: da prenotazioni+{numero}@ a {numero}@,
+            # come chiesto da Régis): le schede TheFork che hanno ancora la vecchia restano «di servizio».
+            modelli = [_cfg(conn, "thefork_email_servizio")] + re.split(r"[\s,;]+", _cfg(conn, "thefork_email_servizio_precedenti"))
+            _cache_modello["regex"] = [rx for rx in (_regex_servizio(m) for m in modelli if m) if rx]
         finally:
             conn.close()
         _cache_modello["quando"] = time.time()
-    rx = _cache_modello["regex"]
-    return bool(rx and rx.match(str(email).strip().lower()))
+    e = str(email).strip().lower()
+    return any(rx.match(e) for rx in (_cache_modello["regex"] or []))
 
 
 def email_vera(email: Optional[str]) -> Optional[str]:
@@ -134,6 +137,54 @@ def _cliente_per_thefork(conn, c) -> Dict[str, Any]:
     if numero:
         dati["phone"] = numero
     return {"dati": dati, "servizio": servizio}
+
+
+def _completa_da_thefork(conn, c):
+    """Prima di mandare un'email di servizio si chiede a TheFork chi è quel numero (Régis, 2026-11-28).
+    Priorità al nostro sistema (Marco 28/11): si chiede solo se la scheda non ha un'email vera, e di TheFork
+    si riempiono solo i campi vuoti (email, thefork_id); nome, telefono e il resto restano quelli della scheda.
+    TheFork aggancia la scheda dal telefono e sovrascrive l'email (Q #333): se lui ha l'email vera del
+    cliente si manda quella e si salva sulla scheda, così non la si cancella con la nostra.
+    Ritorna la scheda (riletta se cambiata). Solleva TheForkErroreAPI se TheFork non risponde (si riprova)."""
+    email = (c["email"] or "").strip()
+    if email and "@" in email and not email_di_servizio(email):
+        return c
+    numero = tel.normalizza(c["telefono"]) or tel.normalizza(c["telefono2"])
+    if not numero:
+        return c
+    try:
+        tf_cli = tf.cerca_cliente_per_telefono(numero)
+    except tf.TheForkErroreAPI as e:
+        if e.status in (0, 429) or e.status >= 500:
+            raise
+        # Permesso mancante o richiesta rifiutata: si va avanti come prima (email di servizio)
+        logger.warning("ricerca cliente TheFork per telefono (scheda #%s): %s", c["id"], e)
+        return c
+    if not tf_cli:
+        return c
+    sets, vals = [], []
+    vera = (tf_cli.get("email") or "").strip()
+    if vera and "@" in vera and not email_di_servizio(vera):
+        altra = conn.execute(
+            "SELECT id FROM clienti WHERE id <> ? AND attivo = 1 AND LOWER(TRIM(email)) = ?",
+            (c["id"], vera.lower())).fetchone()
+        if altra:
+            logger.info("email TheFork di %s già sulla scheda #%s: non la copio sulla #%s", numero, altra["id"], c["id"])
+        else:
+            sets.append("email = ?"); vals.append(vera)
+    cust = tf_cli.get("customerUuid")
+    if cust and not (c["thefork_id"] or "").strip():
+        if not conn.execute("SELECT 1 FROM clienti WHERE id <> ? AND thefork_id = ?", (c["id"], cust)).fetchone():
+            sets.append("thefork_id = ?"); vals.append(cust)
+    if sets:
+        conn.execute(f"UPDATE clienti SET {', '.join(sets)} WHERE id = ?", (*vals, c["id"]))
+        conn.commit()
+        logger.info("scheda #%s completata da TheFork (%s)", c["id"], ", ".join(x.split(" ")[0] for x in sets))
+        c = conn.execute("SELECT * FROM clienti WHERE id = ?", (c["id"],)).fetchone()
+    if vera and "@" in vera and not email_di_servizio(vera) and (c["email"] or "").strip().lower() != vera.lower():
+        # L'email è già di un'altra scheda: non la si copia, ma a TheFork si manda la sua (è già legata a quel numero)
+        return {**dict(c), "email": vera}
+    return c
 
 
 def _segna(conn, pid: int, stato: Optional[str], nota: Optional[str], uuid: Optional[str] = None) -> None:
@@ -187,6 +238,14 @@ def invia(conn, pid: int) -> Dict[str, Any]:
         return {"stato": p["thefork_invio"], "nota": perche_no}
     c = conn.execute("SELECT * FROM clienti WHERE id = ?", (p["cliente_id"],)).fetchone()
     try:
+        c = _completa_da_thefork(conn, c)
+    except tf.TheForkNonConfigurato as e:
+        _segna(conn, pid, "da_mandare", str(e))
+        return {"stato": "da_mandare", "nota": str(e)}
+    except tf.TheForkErroreAPI as e:
+        _segna(conn, pid, "da_mandare", f"TheFork non raggiungibile ({e.status}): si riprova")
+        return {"stato": "da_mandare", "nota": str(e)[:120]}
+    try:
         cli = _cliente_per_thefork(conn, c)
     except (ValueError, TypeError) as e:
         # Manca qualcosa sulla scheda (telefono, email, nome): resta in coda e parte da sola
@@ -224,6 +283,7 @@ def invia(conn, pid: int) -> Dict[str, Any]:
                 return {"stato": "no", "nota": "garanzia con carta senza email"}
             nota = "Da confermare su TheFork Manager" if r.get("status") == "REQUESTED" else None
             _segna(conn, pid, "inviata", nota, uuid)
+            tf.dimentica_telefono(dati.get("phone"))   # la prossima ricerca di quel numero vede anche questa
         return {"stato": "inviata", "nota": nota, "uuid": uuid}
     except tf.TheForkNonConfigurato as e:
         _segna(conn, pid, "da_mandare", str(e))

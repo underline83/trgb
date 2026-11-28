@@ -895,6 +895,57 @@ def riconosci_cliente(
         conn.close()
 
 
+@router.get("/clienti/thefork")
+def cliente_su_thefork(
+    telefono: Optional[str] = Query(None),
+    prefisso: Optional[str] = Query(None),
+    user: dict = Depends(get_current_user),
+):
+    """Il cliente che TheFork conosce con quel numero, con le sue prossime prenotazioni (Régis, 2026-11-28).
+    Per il form: chi non è nelle nostre schede ma è su TheFork arriva con nome ed email già pronti.
+    Non solleva: se TheFork non risponde torna «trovato: false» con l'errore."""
+    from app.services import thefork_service as tf
+    numero = tel_util.normalizza(telefono, prefisso)
+    out: Dict[str, Any] = {"numero": numero, "trovato": False}
+    if not numero or not tf.credenziali_presenti():
+        return out
+    try:
+        r = tf.cerca_cliente_per_telefono(numero)
+    except (tf.TheForkErroreAPI, tf.TheForkNonConfigurato) as e:
+        logging.getLogger(__name__).warning("cliente TheFork per telefono: %s", e)
+        return {**out, "errore": str(e)[:160]}
+    if not r:
+        return out
+    conn = get_clienti_conn()
+    try:
+        scheda = conn.execute(
+            "SELECT id, nome, cognome, telefono, email FROM clienti WHERE thefork_id = ? AND attivo = 1",
+            (r.get("customerUuid"),)).fetchone()
+        prossime = []
+        for p in (r.get("nextReservationsList") or [])[:10]:
+            dt = tf._ora_locale(p.get("mealDate"))
+            riga = conn.execute(
+                "SELECT id, stato FROM clienti_prenotazioni WHERE thefork_booking_id = ?",
+                (p.get("reservationUuid"),)).fetchone()
+            prossime.append({
+                "data": dt.strftime("%Y-%m-%d") if dt else None, "ora": dt.strftime("%H:%M") if dt else None,
+                "stato": p.get("status"), "prenotazione_id": riga["id"] if riga else None,
+            })
+    finally:
+        conn.close()
+    return {
+        **out, "trovato": True,
+        "cliente": {
+            "uuid": r.get("customerUuid"), "nome": (r.get("firstName") or "").strip(),
+            "cognome": (r.get("lastName") or "").strip(), "telefono": r.get("phone"),
+            # l'email di servizio (nostra) per il form è come se non ci fosse
+            "email": invio_tf.email_vera((r.get("email") or "").strip() or None),
+        },
+        "scheda": dict(scheda) if scheda else None,
+        "prossime": prossime,
+    }
+
+
 @router.get("/clienti/{cliente_id}/persone")
 def get_persone(cliente_id: int, user: dict = Depends(get_current_user)):
     conn = get_clienti_conn()

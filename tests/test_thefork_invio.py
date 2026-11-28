@@ -41,7 +41,7 @@ class Base(unittest.TestCase):
         c.executescript("""
             CREATE TABLE clienti (id INTEGER PRIMARY KEY, titolo TEXT, nome TEXT, cognome TEXT, email TEXT,
                 telefono TEXT, telefono2 TEXT, lingua TEXT, vip INTEGER, allergie TEXT,
-                restrizioni_dietetiche TEXT, attivo INTEGER DEFAULT 1);
+                restrizioni_dietetiche TEXT, attivo INTEGER DEFAULT 1, thefork_id TEXT);
             CREATE TABLE clienti_persone (id INTEGER PRIMARY KEY, cliente_id INTEGER, nome TEXT, relazione TEXT,
                 creato_da TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP, UNIQUE (cliente_id, nome));
             CREATE TABLE clienti_prenotazioni (id INTEGER PRIMARY KEY, cliente_id INTEGER, thefork_booking_id TEXT UNIQUE,
@@ -61,8 +61,15 @@ class Base(unittest.TestCase):
         self.chiamate = []
         self.modo = "ok"
 
+        self.tf_cliente = None          # cosa risponde TheFork alla ricerca per telefono (None = 404)
+        tf._cache_telefono.clear()
+
         def finto(metodo, percorso, params=None, corpo=None, _riprova=True):
             self.chiamate.append((metodo, percorso, corpo))
+            if metodo == "QUERY":
+                if self.tf_cliente == "giù":
+                    raise tf.TheForkErroreAPI(503, "non disponibile")
+                return self.tf_cliente
             if metodo == "POST":
                 if self.modo == "chiuso":
                     raise tf.TheForkErroreAPI(400, '{"data":{"code":"NO_AVAILABILITY"}}')
@@ -261,6 +268,65 @@ class Invio(Base):
         altra = {"thefork_booking_id": "ALTRA", "cliente_id": 5, "canale": "TheFork"}
         invio.tieni_trgb(c, altra)
         self.assertEqual(altra["cliente_id"], 5)
+
+
+class RicercaPerTelefono(Base):
+    """Régis (TheFork) 28/11: prima dell'email di servizio si chiede a TheFork chi è quel numero."""
+
+    def test_theFork_ha_l_email_vera(self):
+        self.tf_cliente = {"customerUuid": "C-EMMA", "firstName": "Emma", "lastName": "W",
+                           "phone": "+447700900123", "email": "emma@esempio.co.uk", "nextReservationsList": []}
+        pid = self.pren(cliente=2)
+        invio.dopo_creazione(pid)
+        q = [x for x in self.chiamate if x[0] == "QUERY"]
+        self.assertEqual(q[0][2], {"phoneNumber": "+447700900123"})        # numero nel corpo, E.164
+        self.assertEqual(self.chiamate[-1][2]["customer"]["email"], "emma@esempio.co.uk")
+        c = self.conn()
+        self.assertEqual(tuple(c.execute("SELECT email, thefork_id FROM clienti WHERE id = 2").fetchone()),
+                         ("emma@esempio.co.uk", "C-EMMA"))                 # salvata sulla scheda
+        c.close()
+
+    def test_non_c_e_va_quella_di_servizio(self):
+        self.tf_cliente = None
+        invio.dopo_creazione(self.pren(cliente=2))
+        self.assertEqual(self.chiamate[-1][2]["customer"]["email"], "casella+447700900123@esempio.it")
+
+    def test_chi_ha_l_email_non_chiede(self):
+        invio.dopo_creazione(self.pren(cliente=1))
+        self.assertFalse([x for x in self.chiamate if x[0] == "QUERY"])
+
+    def test_email_gia_di_un_altra_scheda(self):
+        # TheFork lega a quel numero l'email di Ciro: non la si copia sulla scheda 2, ma a TheFork va quella
+        self.tf_cliente = {"customerUuid": "C-X", "email": "ciro@esempio.it", "phone": "+447700900123"}
+        invio.dopo_creazione(self.pren(cliente=2))
+        self.assertEqual(self.chiamate[-1][2]["customer"]["email"], "ciro@esempio.it")
+        c = self.conn()
+        self.assertIsNone(c.execute("SELECT email FROM clienti WHERE id = 2").fetchone()[0])
+        c.close()
+
+    def test_theFork_giu_resta_in_coda(self):
+        self.tf_cliente = "giù"
+        pid = self.pren(cliente=2)
+        invio.dopo_creazione(pid)
+        self.assertFalse([x for x in self.chiamate if x[0] == "POST"])     # niente email di servizio alla cieca
+        c = self.conn()
+        self.assertEqual(c.execute("SELECT thefork_invio FROM clienti_prenotazioni WHERE id = ?", (pid,)).fetchone()[0],
+                         "da_mandare")
+        c.close()
+
+    def test_vecchio_modello_resta_di_servizio(self):
+        c = self.conn()
+        c.execute("UPDATE prenotazioni_config SET valore = '{numero}@esempio.it' WHERE chiave = 'thefork_email_servizio'")
+        c.execute("INSERT INTO prenotazioni_config VALUES ('thefork_email_servizio_precedenti', 'casella+{numero}@esempio.it', '')")
+        c.commit(); c.close()
+        invio._cache_modello["quando"] = 0.0
+        self.assertTrue(invio.email_di_servizio("447700900123@esempio.it"))
+        self.assertTrue(invio.email_di_servizio("casella+447700900123@esempio.it"))
+        self.assertFalse(invio.email_di_servizio("emma@esempio.it"))
+        # TheFork ha ancora la vecchia email di servizio: non è vera, parte la nuova
+        self.tf_cliente = {"customerUuid": "C-EMMA", "email": "casella+447700900123@esempio.it", "phone": "+447700900123"}
+        invio.dopo_creazione(self.pren(cliente=2))
+        self.assertEqual(self.chiamate[-1][2]["customer"]["email"], "447700900123@esempio.it")
 
 
 class Numeri(unittest.TestCase):

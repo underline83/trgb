@@ -900,12 +900,23 @@ const MODULE_VERSIONS = {
     //   Archivio: ordinamento per data e ora del pasto o per inserimento, nei due versi.
     //   Lo stato cambiato in sala (tavolo liberato, passo indietro) non viene più rimesso da TheFork (mig 254).
     //   «Tavolo +» su un altro tavolo quando ne ha già uno: chiede «Sposta» o «Unisci»; i tavoli scelti si tolgono uno a uno.
+    // 2.61 (2026-11-28): cliente cercato su TheFork per telefono (Régis: QUERY /v1/restaurants/{id}/customers/phone).
+    //   Form: un numero che non è nelle schede ma TheFork conosce porta nome, email e prossime prenotazioni («Usa questi dati»).
+    //   Invio: prima dell'email di servizio si chiede a TheFork; se ha l'email vera si manda quella e si salva sulla scheda
+    //   (TheFork aggancia la scheda dal numero e sovrascriveva l'email). Email di servizio {numero}@tregobbi.it (mig 255),
+    //   la vecchia prenotazioni+{numero}@ resta riconosciuta (thefork_email_servizio_precedenti).
+    // 2.60 (2026-11-27): PERCORSO UNICO — form, sito, walk-in e Q inseriscono con gli stessi passi
+    //   (app/services/prenotazioni_inserimento_service.py): chiusure, posto, stato, cliente, riga, dopo.
+    //   Cambia solo chi dice sì quando un controllo dice no (REGOLE): l'operatore vede l'avviso e salva,
+    //   il cliente dal sito no. Sito: niente anticipo minimo/massimo, orari non liberi in lista d'attesa,
+    //   prenotazioni anche a TheFork (richiesta e lista d'attesa «sospese» fino alla conferma), annullamento
+    //   dal link anche su TheFork, numero che vince sull'email di un'altra scheda, «a nome di».
     // 2.59 (2026-11-27): il bollino sui tavoli con più prenotazioni non conta più chi è già andato via.
     //   Spostando col «tavolo +» una prenotazione che divide il tavolo con un'altra (doppio turno) propone di spostarle
     //   tutte e due; chi è già andato via resta sul suo tavolo, per lo storico e la consumazione.
     //   Avviso (non bloccante) in Servizio se su TheFork le fasce non sono prenotabili online mentre in TRGB sono aperte,
     //   con «Vuoi bloccare le stesse fasce anche su TRGB?» (Sì chiude l'online solo in TRGB, a TheFork non manda niente).
-    version: "2.59",
+    version: "2.61",
     label: "Prenotazioni",
     status: "beta",
     color: "blue",

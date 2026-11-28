@@ -1,4 +1,4 @@
-// @version: v1.11 — orari a 6 per riga senza testo che esce dalla casella, seggioloni dentro il riquadro (2026-11-26); v1.10-ordine — «Crea nuovo cliente» porta nei campi quello che era scritto nella ricerca (numero, email o nome); orari in griglia a caselle uguali con «Altro orario» a parte; tavolo a caselle per sala (libero, occupato, bloccato, suggerito; due tocchi = unione) al posto della tendina (2026-11-26); v1.9-thefork — copiato dal form di TheFork Manager: carico su ogni orario (arrivi e coperti in sala), durata sulla singola prenotazione, titolo e lingua del cliente nuovo, «apri WhatsApp con la conferma» al salvataggio (2026-11-26); v1.8-fonte — il form è la fonte: prefisso per paese, scheda riconosciuta da telefono o email mentre scrivi, persone della scheda («chi sta prenotando»), esito verso TheFork (2026-11-26); v1.7-telefono — su iPhone a tutto schermo con titolo e «Salva» sempre a vista, campi a 16 px (Safari non ingrandisce la pagina), orari e ± da pollice (2026-11-24); v1.6-stati — si nasce Confermata, In opzione (con «tenuto fino al») o in Lista d'attesa; in modifica la data dell'opzione (2026-11-13); v1.5-motore — «entra / non entra» col tavolo suggerito dal motore per tavoli, «Usa» lo scrive (anche le unioni) (2026-10-29); v1.4 — stesso form per modificare una prenotazione (prop «prenotazione», PUT) (2026-10-28); v1.3 — defaultCliente: aperto dalla scheda cliente con il cliente già scelto (2026-10-19); v1.2-fasce — slot chiusi/pieni segnati e avviso sulla fascia; v1.1-tavolo-turno — apribile dalla mappa con tavolo e turno già scelti; tavoli bloccati non selezionabili
+// @version: v1.12-thefork — numero sconosciuto a TRGB ma noto a TheFork: nome, email e prossime prenotazioni da TheFork, «Usa questi dati» (2026-11-28); v1.11 — orari a 6 per riga senza testo che esce dalla casella, seggioloni dentro il riquadro (2026-11-26); v1.10-ordine — «Crea nuovo cliente» porta nei campi quello che era scritto nella ricerca (numero, email o nome); orari in griglia a caselle uguali con «Altro orario» a parte; tavolo a caselle per sala (libero, occupato, bloccato, suggerito; due tocchi = unione) al posto della tendina (2026-11-26); v1.9-thefork — copiato dal form di TheFork Manager: carico su ogni orario (arrivi e coperti in sala), durata sulla singola prenotazione, titolo e lingua del cliente nuovo, «apri WhatsApp con la conferma» al salvataggio (2026-11-26); v1.8-fonte — il form è la fonte: prefisso per paese, scheda riconosciuta da telefono o email mentre scrivi, persone della scheda («chi sta prenotando»), esito verso TheFork (2026-11-26); v1.7-telefono — su iPhone a tutto schermo con titolo e «Salva» sempre a vista, campi a 16 px (Safari non ingrandisce la pagina), orari e ± da pollice (2026-11-24); v1.6-stati — si nasce Confermata, In opzione (con «tenuto fino al») o in Lista d'attesa; in modifica la data dell'opzione (2026-11-13); v1.5-motore — «entra / non entra» col tavolo suggerito dal motore per tavoli, «Usa» lo scrive (anche le unioni) (2026-10-29); v1.4 — stesso form per modificare una prenotazione (prop «prenotazione», PUT) (2026-10-28); v1.3 — defaultCliente: aperto dalla scheda cliente con il cliente già scelto (2026-10-19); v1.2-fasce — slot chiusi/pieni segnati e avviso sulla fascia; v1.1-tavolo-turno — apribile dalla mappa con tavolo e turno già scelti; tavoli bloccati non selezionabili
 // Form modale per nuova prenotazione — modulo Prenotazioni TRGB
 import React, { useState, useEffect, useRef } from "react";
 import { API_BASE, apiFetch } from "../../config/api";
@@ -59,6 +59,8 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
   // 2026-11-26: prefissi per paese, schede riconosciute dal numero o dall'email, persone della scheda
   const [prefissi, setPrefissi] = useState({ locale: "+39", frequenti: [], altri: [] });
   const [riconosciuti, setRiconosciuti] = useState([]);
+  // 2026-11-28 (Régis, TheFork): il numero che non è nelle nostre schede, TheFork lo conosce?
+  const [suTheFork, setSuTheFork] = useState(null);
   const [persone, setPersone] = useState([]);
   const [nuovaPersona, setNuovaPersona] = useState(false);
   // Carico del turno per orario (arrivi e coperti in sala) e conferma WhatsApp al salvataggio
@@ -139,6 +141,38 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
     }, 350);
     return () => clearTimeout(t);
   }, [telDaCercare, emailDaCercare, form.nuovo_prefisso, selectedCliente, modifica]);
+
+  // Lo stesso numero su TheFork (nome, email, prossime prenotazioni). Priorità al nostro sistema (Marco 28/11):
+  // si chiede a TheFork SOLO se il numero non è già di una scheda TRGB; i dati di TheFork riempiono solo i campi vuoti.
+  const numeroGiaNostro = riconosciuti.some((c) => c.riconosciuto_da === "telefono");
+  useEffect(() => {
+    const cifre = (telDaCercare || "").replace(/\D/g, "");
+    if (selectedCliente || modifica || numeroGiaNostro || cifre.length < 8) { setSuTheFork(null); return; }
+    const q = new URLSearchParams({ telefono: telDaCercare });
+    if (form.nuovo_prefisso) q.set("prefisso", form.nuovo_prefisso);
+    const t = setTimeout(() => {
+      apiFetch(`${API_BASE}/prenotazioni/clienti/thefork?${q}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => setSuTheFork(d && d.trovato ? d : null))
+        .catch(() => setSuTheFork(null));
+    }, 700);
+    return () => clearTimeout(t);
+  }, [telDaCercare, form.nuovo_prefisso, selectedCliente, modifica, numeroGiaNostro]);
+  const mostraTheFork = suTheFork && !numeroGiaNostro;
+
+  const usaDatiTheFork = () => {
+    if (!suTheFork) return;
+    if (suTheFork.scheda) { selezionaCliente(suTheFork.scheda); setSuTheFork(null); return; }
+    const c = suTheFork.cliente || {};
+    setForm((f) => ({
+      ...f,
+      nuovo_nome: f.nuovo_nome || (c.nome && c.nome !== "-" ? c.nome : ""),
+      nuovo_cognome: f.nuovo_cognome || (c.cognome && c.cognome !== "-" ? c.cognome : ""),
+      nuovo_email: f.nuovo_email || c.email || "",
+      nuovo_telefono: f.nuovo_telefono || telDaCercare || "",
+    }));
+    setShowNuovo(true);
+  };
 
   // Persone della scheda scelta (chi può prenotare con quel numero)
   useEffect(() => {
@@ -583,6 +617,29 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
                   </div>
                 ))}
                 <div className="text-xs text-indigo-700">Se chiama un'altra persona (moglie, figlio, segreteria) scegli la scheda e poi indica chi sta prenotando.</div>
+              </div>
+            )}
+
+            {/* 2026-11-28 — non è nelle nostre schede ma TheFork lo conosce: nome ed email pronti */}
+            {!selectedCliente && !modifica && mostraTheFork && (
+              <div className="mt-2 p-3 bg-indigo-50 border border-indigo-200 rounded-lg space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="text-sm text-indigo-900">
+                    <strong>Su TheFork questo numero è di {[suTheFork.cliente?.nome, suTheFork.cliente?.cognome].filter((x) => x && x !== "-").join(" ") || "un cliente senza nome"}</strong>
+                    {suTheFork.cliente?.email && <span className="ml-2 text-xs text-indigo-700">{suTheFork.cliente.email}</span>}
+                    {suTheFork.scheda && <span className="ml-2 text-xs text-indigo-700">· in TRGB è la scheda {suTheFork.scheda.nome} {suTheFork.scheda.cognome}</span>}
+                  </div>
+                  <button type="button" onClick={usaDatiTheFork}
+                    className="min-h-[44px] px-3 rounded-lg bg-brand-blue text-white text-sm font-medium hover:bg-blue-700">
+                    {suTheFork.scheda ? "Usa questa scheda" : "Usa questi dati"}
+                  </button>
+                </div>
+                {(suTheFork.prossime || []).length > 0 && (
+                  <div className="px-2 py-1.5 bg-amber-50 border border-amber-200 rounded text-xs text-amber-800">
+                    Ha già {suTheFork.prossime.length === 1 ? "una prenotazione" : `${suTheFork.prossime.length} prenotazioni`}:{" "}
+                    {suTheFork.prossime.map((p) => `${(p.data || "").split("-").reverse().join("/")} ${p.ora || ""}${p.prenotazione_id ? "" : " (solo su TheFork)"}`).join(" · ")}
+                  </div>
+                )}
               </div>
             )}
 

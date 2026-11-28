@@ -3,6 +3,29 @@
 
 ---
 
+## 2026-11-28 — Prenotazioni 2.61: il cliente cercato su TheFork dal numero `[core]`
+
+### Aggiunto
+- Priorità al nostro sistema (Marco 28/11): TheFork si interroga solo quando TRGB non ha il dato, e i suoi dati riempiono solo i campi vuoti, mai sovrascrivono la scheda.
+- Form: scrivendo un numero che non è in nessuna scheda, TRGB chiede a TheFork. Se lo conosce compare «Su TheFork questo numero è di …» con l'email e le sue prossime prenotazioni (quelle solo su TheFork segnate); «Usa questi dati» riempie nome, cognome ed email del cliente nuovo, o apre la scheda TRGB già legata a quel cliente TheFork. Consiglio di Régis (TheFork) del 28/11.
+
+### Cambiato
+- Invio a TheFork: se la scheda non ha l'email, prima di usare quella di servizio si chiede a TheFork chi è quel numero. Se ha l'email vera del cliente parte quella e si salva sulla scheda (anche il codice cliente TheFork). Prima TheFork agganciava la sua scheda dal numero e poteva sostituire l'email vera con la nostra. Se TheFork non risponde la prenotazione resta «da mandare» e si riprova.
+- Email di servizio nella forma chiesta da TheFork: `{numero}@tregobbi.it` (mig 255; prima `prenotazioni+{numero}@tregobbi.it`, che resta riconosciuta come non vera).
+
+## 2026-11-27 — Prenotazioni 2.60: un solo percorso per form e sito `[core]`
+
+### Cambiato
+- Form, sito, walk-in e Q inseriscono una prenotazione con gli stessi passi, nello stesso ordine: giorno e turno aperti, posto (fasce, tavoli, capienza, TheFork), stato di partenza, cliente, salvataggio, quello che segue (TheFork, vendita online, avvisi, conferma). Prima il sito aveva una strada sua e su diverse cose ragionava in un altro modo. Cambia solo chi può dire sì quando un controllo dice no: dal form si vede l'avviso e si salva lo stesso, dal sito il cliente no.
+- Sito: niente più limite delle 2 ore prima né dei 60 giorni avanti. Si prenota se il servizio è aperto e c'è posto. Tolti i due campi da Impostazioni › Dal sito.
+- Sito: le prenotazioni vanno anche su TheFork, come quelle del form. La richiesta di un gruppo e la lista d'attesa restano in sospeso e partono quando le confermate; se le rifiutate non partono.
+- Sito: chi annulla dal link nell'email annulla anche su TheFork.
+- Sito: il cliente si riconosce come nel form. Se il numero è di una scheda e l'email di un'altra vale il numero, l'email non si scrive e la prenotazione porta una nota da verificare. Se il nome è diverso da quello della scheda (la moglie col numero del marito) la prenotazione è «a nome di» e la persona si aggiunge alla scheda.
+
+### Aggiunto
+- Sito: lista d'attesa. Il cliente vede solo gli orari liberi; per un altro orario del turno può mettersi in lista d'attesa (email «Sei in lista d'attesa», avviso allo staff, email di conferma quando lo confermate). Il pulsante nella pagina arriva con la nuova grafica del widget.
+- Sito: un orario che TheFork non lascia prenotare online (fermato da TheFork Manager) non si vende nemmeno dal sito.
+
 ## 2026-11-27 — Prenotazioni 2.59: bollino dei tavoli, spostamento dei tavoli abbinati `[core]`
 
 ### Aggiunto

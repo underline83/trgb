@@ -824,7 +824,7 @@ function InvioTheFork() {
       <div className="flex flex-wrap items-end gap-3">
         <div>
           <label className="block text-xs font-medium text-neutral-600 mb-1">Email di servizio per chi non ne ha una</label>
-          <input value={cfg.thefork_email_servizio || ""} placeholder="casella+{numero}@dominio"
+          <input value={cfg.thefork_email_servizio || ""} placeholder="{numero}@dominio"
                  onChange={(e) => setCfg({ ...cfg, thefork_email_servizio: e.target.value })}
                  onBlur={(e) => modelloOk && salva({ thefork_email_servizio: e.target.value.trim() })}
                  className={`px-3 py-2 border rounded-lg text-sm w-72 ${modelloOk ? "border-neutral-300" : "border-red-400"}`} />

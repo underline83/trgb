@@ -33,6 +33,7 @@ import hmac
 import json
 import logging
 import os
+import re
 import threading
 import time
 import urllib.error
@@ -213,6 +214,44 @@ def api_get(percorso: str, params: Optional[Dict[str, Any]] = None) -> Optional[
 def api_put(percorso: str, corpo: Dict[str, Any]) -> Optional[Any]:
     """PUT sull'API TheFork. None se 404."""
     return _richiesta("PUT", percorso, corpo=corpo)
+
+
+# ── Cliente per numero di telefono (Régis, TheFork, 2026-11-28) ──
+# QUERY /v1/restaurants/{id}/customers/phone, body {"phoneNumber": "+39…"} (E.164, uguaglianza esatta).
+# Risponde customerUuid, firstName, lastName, phone, email, nextReservationsList [{reservationUuid,
+# mealDate, status}]; 404 = nessun cliente con quel numero. Il numero va nel corpo, mai nell'URL.
+# Cache breve (anche i «non c'è») perché il form chiede mentre l'operatore scrive.
+_E164 = re.compile(r"^\+[1-9]\d{1,14}$")
+_cache_telefono: Dict[str, Any] = {}
+_CACHE_TELEFONO_SEC = 300
+
+
+def cerca_cliente_per_telefono(numero: Optional[str], usa_cache: bool = True) -> Optional[Dict[str, Any]]:
+    """Il cliente di TheFork con quel numero (E.164), o None se non c'è.
+    Solleva TheForkNonConfigurato / TheForkErroreAPI: chi chiama decide cosa fare."""
+    numero = (numero or "").strip()
+    if not _E164.match(numero):
+        return None
+    uuid = _restaurant_uuid_atteso()
+    if not uuid:
+        raise TheForkNonConfigurato("manca l'identificativo del ristorante TheFork")
+    ora = time.time()
+    if usa_cache:
+        gia = _cache_telefono.get(numero)
+        if gia and ora - gia[0] < _CACHE_TELEFONO_SEC:
+            return gia[1]
+    r = _richiesta("QUERY", f"/v1/restaurants/{uuid}/customers/phone", corpo={"phoneNumber": numero})
+    if r is not None and not (isinstance(r, dict) and r.get("customerUuid")):
+        r = None
+    if len(_cache_telefono) > 500:
+        _cache_telefono.clear()
+    _cache_telefono[numero] = (ora, r)
+    return r
+
+
+def dimentica_telefono(numero: Optional[str]) -> None:
+    """Dopo aver creato una prenotazione: la prossima ricerca di quel numero va chiesta di nuovo."""
+    _cache_telefono.pop((numero or "").strip(), None)
 
 
 # ── Disponibilità online (fasce orarie) ──
