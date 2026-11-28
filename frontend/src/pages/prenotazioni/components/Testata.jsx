@@ -20,12 +20,13 @@ export function TitoloTestata({ children, className = "" }) {
   return <h1 className={`text-xl sm:text-2xl font-bold text-neutral-900 capitalize ${className}`} style={{ fontFamily: "'Playfair Display', Georgia, serif" }}>{children}</h1>;
 }
 
-export function SceltaTurno({ turno, onChange }) {
+// `totali` (facoltativo): {pranzo, cena} = coperti prenotati, scritti accanto al nome (come su TheFork Manager)
+export function SceltaTurno({ turno, onChange, totali = null }) {
   return (
     <span className="flex rounded-lg border border-neutral-400 overflow-hidden text-sm">
       {["pranzo", "cena"].map((t) => (
         <button key={t} type="button" onClick={() => onChange(t)} aria-pressed={turno === t}
-          className={`px-3.5 min-h-[44px] capitalize ${turno === t ? "bg-indigo-900 text-white font-bold" : "bg-white text-neutral-700 hover:bg-neutral-50"}`}>{t}</button>
+          className={`px-3.5 min-h-[44px] capitalize ${turno === t ? "bg-indigo-900 text-white font-bold" : "bg-white text-neutral-700 hover:bg-neutral-50"}`}>{t}{totali && totali[t] != null && <span className={`ml-1.5 font-normal tabular-nums ${turno === t ? "text-indigo-100" : "text-neutral-500"}`}>{totali[t]}<span className="sr-only"> coperti</span></span>}</button>
       ))}
     </span>
   );
@@ -105,7 +106,7 @@ function MiniMese({ data, onScegli, onChiudi }) {
 }
 
 // ◀ Giovedì 26 novembre ▶ [Oggi] [pranzo|cena] {children} ……… [Servizio|Elenco|Mappa] {destra}
-export default function TestataGiorno({ data, onData, turno, onTurno, vista, corto = false, children, destra }) {
+export default function TestataGiorno({ data, onData, turno, onTurno, vista, corto = false, children, destra, totali = null }) {
   const d = new Date(`${data}T12:00:00`);
   const oggi = giornoLocale();
   const altroAnno = d.getFullYear() !== new Date().getFullYear();
@@ -133,7 +134,7 @@ export default function TestataGiorno({ data, onData, turno, onTurno, vista, cor
         </span>
         <TastoTestata onClick={() => onData(spostaGiorno(data, 1))} aria-label="Giorno dopo">▶</TastoTestata>
         {data !== oggi && <TastoTestata onClick={() => onData(oggi)}>Oggi</TastoTestata>}
-        {turno && onTurno && <SceltaTurno turno={turno} onChange={onTurno} />}
+        {turno && onTurno && <SceltaTurno turno={turno} onChange={onTurno} totali={totali} />}
         {children}
       </div>
       {(destra || vista) && (
