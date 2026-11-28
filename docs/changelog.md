@@ -3,6 +3,13 @@
 
 ---
 
+## 2026-11-28 — Prenotazioni 2.63: tavoli uniti solo da quando servono `[core]`
+
+### Corretto
+- TheFork rifiutava (`INVALID_MEALDATE`) le prenotazioni segnate a orario già passato: Zavaglio, inserito alle 12:20 per le 12:15, era rimasto solo in TRGB. Ora parte col primo quarto d'ora utile (`THEFORK_PASSO_MINUTI`, 15) e in TRGB resta l'ora vera; `clienti_prenotazioni.ora_thefork` (mig 256, sistema 6.20) evita che la sincronizzazione riporti in TRGB l'ora mandata. Vale anche per le modifiche riportate a TheFork.
+- Form, canale «Walk-in»: il nome non si chiede più; senza cliente scelto la prenotazione va sulla scheda comune «Walk-in» (creata la prima volta). `prenotazioni_inserimento_service.cliente_dal_form`, `PrenotazioniForm.jsx` v1.13.
+- Servizio: un'unione fatta per una prenotazione (es. «1+2+0» alle 21:30) teneva i tavoli uniti per tutto il turno e nascondeva chi li aveva prima da soli (Reilly al 2, Ruffini all'1 alle 19:30). Ora, se quei tavoli nel turno sono anche di altri, in «Tutta la serata» e agli orari prima dell'arrivo si vedono separati, col bollino di chi segue; dall'ora della prenotazione in poi uniti. `GET /prenotazioni/tavoli/mappa` dà in più `pezzi` e `dalle`; `PrenotazioniServizio.jsx` v1.23. La vista Mappa e il motore dei posti non cambiano.
+
 ## 2026-11-28 — Prenotazioni 2.62: tavoli assegnati su TheFork Manager `[core]`
 
 ### Corretto

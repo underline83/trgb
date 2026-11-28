@@ -47,7 +47,7 @@ class Base(unittest.TestCase):
             CREATE TABLE clienti_prenotazioni (id INTEGER PRIMARY KEY, cliente_id INTEGER, thefork_booking_id TEXT UNIQUE,
                 data_pasto TEXT, ora_pasto TEXT, stato TEXT, pax INTEGER, canale TEXT, fonte TEXT,
                 nota_ristorante TEXT, nota_cliente TEXT, persona_nome TEXT,
-                thefork_invio TEXT, thefork_invio_nota TEXT, thefork_invio_at TEXT);
+                thefork_invio TEXT, thefork_invio_nota TEXT, thefork_invio_at TEXT, ora_thefork TEXT);
             CREATE TABLE prenotazioni_config (chiave TEXT PRIMARY KEY, valore TEXT NOT NULL, descrizione TEXT);
             INSERT INTO prenotazioni_config VALUES ('thefork_invio_attivo','1',''),
                 ('thefork_email_servizio','casella+{numero}@esempio.it',''), ('thefork_titolo_predefinito','mx','');
@@ -120,6 +120,31 @@ class Riconoscimento(Base):
         self.pren(persona="Rosa Lucia")
         p = ric.riconosci(c, "340 123 4567")["clienti"][0]["persone"]
         self.assertEqual([(x["nome"], x["relazione"], x["prenotazioni"]) for x in p], [("Rosa Lucia", "moglie", 1)])
+
+
+class OraGiaPassata(Base):
+    def test_ora_per_thefork(self):
+        from datetime import datetime
+        ora = invio._ora_per_thefork
+        adesso = datetime(2026, 11, 28, 12, 20)
+        self.assertEqual(ora("2026-11-28", "12:15", adesso), "12:30")     # già passata: primo quarto d'ora utile
+        self.assertEqual(ora("2026-11-28", "12:15:00", datetime(2026, 11, 28, 12, 30)), "12:45")
+        self.assertEqual(ora("2026-11-28", "13:00", adesso), "13:00")     # futura: resta
+        self.assertEqual(ora("2026-11-29", "12:15", adesso), "12:15")     # altro giorno: resta
+        self.assertEqual(ora("2026-11-28", "23:40", datetime(2026, 11, 28, 23, 50)), "23:40")   # oltre mezzanotte: resta
+
+    def test_parte_col_quarto_dora_dopo(self):
+        from datetime import date as _d
+        c = self.conn()
+        cur = c.execute("INSERT INTO clienti_prenotazioni (cliente_id, data_pasto, ora_pasto, stato, pax, canale, fonte) "
+                        "VALUES (1, ?, '00:00', 'RECORDED', 2, 'Telefono', 'manuale')", (_d.today().isoformat(),))
+        c.commit(); c.close()
+        self.assertEqual(invio.dopo_creazione(cur.lastrowid)["stato"], "inviata")
+        r = self.riga(cur.lastrowid)
+        self.assertEqual(r["ora_pasto"], "00:00")                          # in TRGB resta l'ora vera
+        self.assertNotEqual(r["ora_thefork"], "00:00")
+        self.assertIn(f"T{r['ora_thefork']}:00", self.chiamate[-1][2]["mealDate"])
+        self.assertIn("ora vera era già passata", r["thefork_invio_nota"])
 
 
 class Invio(Base):

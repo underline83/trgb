@@ -346,6 +346,7 @@ def init_clienti_db() -> None:
         # segue TheFork; se è diverso è stato messo a mano in TRGB e resta quello.
         ("tavolo_thefork", "TEXT"),
         ("stato_thefork", "TEXT"),               # ultimo stato detto da TheFork (mig 254)
+        ("ora_thefork", "TEXT"),                 # ora mandata a TheFork se diversa da quella vera (mig 256)
     ]
     existing_pren = [r[1] for r in cur.execute("PRAGMA table_info(clienti_prenotazioni)").fetchall()]
     for col_name, col_type in pren_cols:

@@ -637,6 +637,14 @@ def _priorita_trgb(conn, rec: Dict[str, Any]) -> List[str]:
                 not detto and gia["stato"] == "LEFT" and rec["stato"] in ("ARRIVED", "PARTIALLY_ARRIVED", "SEATED")):
             rec.pop("stato")
             tenuti.append("stato")
+    # L'ora che TRGB ha detto a TheFork al posto di quella vera (già passata: mig 256). Se TheFork
+    # la ripete non è una notizia e resta l'ora di TRGB; un'ora diversa (cambiata su TheFork) passa.
+    detta = gia["ora_thefork"] if "ora_thefork" in gia.keys() else None
+    if detta and rec.get("ora_pasto") and str(rec["ora_pasto"])[:5] == str(detta)[:5] \
+            and str(gia["ora_pasto"] or "")[:5] != str(detta)[:5] and rec.get("data_pasto") == gia["data_pasto"]:
+        rec.pop("ora_pasto")
+        rec.pop("turno", None)
+        tenuti.append("ora_pasto")
     return tenuti
 
 

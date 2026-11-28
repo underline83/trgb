@@ -918,7 +918,12 @@ const MODULE_VERSIONS = {
     //   tutte e due; chi è già andato via resta sul suo tavolo, per lo storico e la consumazione.
     //   Avviso (non bloccante) in Servizio se su TheFork le fasce non sono prenotabili online mentre in TRGB sono aperte,
     //   con «Vuoi bloccare le stesse fasce anche su TRGB?» (Sì chiude l'online solo in TRGB, a TheFork non manda niente).
-    version: "2.62",
+    // 2.63 (2026-11-28): in Servizio i tavoli uniti per una prenotazione restano separati finché non arriva lei, se
+    //   prima sono di altri (1+2+0 delle 21:30 nascondeva chi alle 19:30 era all'1 e al 2): uniti da quell'ora in poi.
+    //   Una prenotazione segnata a orario già passato (chi è già a tavola) parte per TheFork col primo quarto d'ora
+    //   utile invece di essere rifiutata (INVALID_MEALDATE); in TRGB resta l'ora vera (mig 256).
+    //   Canale «Walk-in»: il nome non si chiede più, la prenotazione va sulla scheda comune «Walk-in».
+    version: "2.63",
     label: "Prenotazioni",
     status: "beta",
     color: "blue",
@@ -1093,6 +1098,7 @@ const MODULE_VERSIONS = {
     color: "blue",
   },
   sistema: {
+    // 6.20 (2026-11-28): mig 256 — clienti_prenotazioni.ora_thefork (ora mandata a TheFork se quella vera è già passata); mig 255 (email di servizio col numero).
     // 6.19 (2026-11-27): mig 254 — clienti_prenotazioni.stato_thefork (ultimo stato detto da TheFork).
     // 6.18 (2026-11-27): mig 253 — template_wa_reminder: «per domani» → «per {quando}».
     // 6.17 (2026-11-26): mig 252 — clienti_prenotazioni.reminder_at (ora del tocco su «Riconferma su WhatsApp»).
@@ -1290,7 +1296,7 @@ const MODULE_VERSIONS = {
     // 5.43 (2026-10-04): mig 180 — edizione Menu Carta «Autunno 2026» (ott-nov-dic)
     //   [locale:tregobbi], seed da PDF, traduzioni copiate per le voci invariate;
     //   mig 181 — traduzioni EN/FR/ES/DE/UK delle voci nuove.
-    version: "6.19",
+    version: "6.20",
     label: "Sistema",
     status: "stabile",
     color: "green",

@@ -1638,6 +1638,8 @@ def _unisci_in_mappa(tavoli: List[Dict[str, Any]], gruppi: List[Dict[str, Any]],
             "dividibile": 0, "diviso_da": None, "legato": g["origine"],
             "unione_id": g.get("unione_id"), "prolunghe": g.get("prolunghe") or 0,
             "membri": [m["id"] for m in membri], "membri_nomi": [m["nome"] for m in membri],
+            # i tavoli com'erano da soli: Servizio li disegna separati finché l'unione non serve
+            "pezzi": [dict(m) for m in membri],
             "non_ci_sta": non_ci_sta, "sopra": sopra,
         })
     return [t for t in tavoli if t["nome"] not in usati] + nuovi
@@ -2328,6 +2330,18 @@ def get_mappa_tavoli(
             td["blocco"] = blocchi.get(td["id"]) if not td.get("membri") else next(
                 (blocchi[i] for i in td["membri"] if i in blocchi), None)
             td["stato_tavolo"] = pren["stato"] if pren else ("BLOCCATO" if td["blocco"] else "LIBERO")
+            if td.get("pezzi"):
+                # Da che ora serve l'unione: l'arrivo della prima prenotazione che ha proprio quei tavoli.
+                # Prima di allora i tavoli sono ancora singoli (Marco 2026-11-28: 1+2+0 delle 21:30
+                # nascondeva chi alle 19:30 era all'1 e al 2).
+                insieme = set(td["membri_nomi"])
+                ore = sorted(str(p["ora_pasto"])[:5] for p in prenotazioni
+                             if p["ora_pasto"] and set(tavoli_srv.nomi_tavolo(p["tavolo"])) == insieme)
+                td["dalle"] = ore[0] if ore else None
+                for m in td["pezzi"]:
+                    m["prenotazione"], m["occupato"] = None, False
+                    m["blocco"] = blocchi.get(m["id"])
+                    m["stato_tavolo"] = "BLOCCATO" if m["blocco"] else "LIBERO"
             tavoli_result.append(td)
 
         # Combinazioni attive

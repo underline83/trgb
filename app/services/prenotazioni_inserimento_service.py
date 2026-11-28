@@ -377,6 +377,19 @@ def cliente_dal_sito(conn, nome: str, cognome: str, telefono: Optional[str], ema
 def cliente_dal_form(conn, dati: Dict[str, Any]) -> Tuple[Optional[int], bool]:
     """Passo 4 per l'operatore: scheda scelta, oppure scheda nuova se nessuno la riconosce
     (2026-11-26: un numero o un'email già di una scheda → si sceglie quella, 409)."""
+    if not dati.get("cliente_id") and not (dati.get("nuovo_cognome") or "").strip() and (dati.get("canale") or "") == "Walk-in":
+        # Walk-in senza nome (Marco 2026-11-28: «non chiedere il nome, lascia walk-in»): tutti sulla
+        # stessa scheda «Walk-in», senza telefono né email, creata la prima volta.
+        gia = conn.execute("""
+            SELECT id FROM clienti WHERE cognome = 'Walk-in' AND COALESCE(nome, '') = ''
+              AND COALESCE(telefono, '') = '' AND COALESCE(email, '') = '' ORDER BY id LIMIT 1
+        """).fetchone()
+        if gia:
+            return gia[0], False
+        cur = conn.execute("""
+            INSERT INTO clienti (nome, cognome, lingua, origine, protetto) VALUES ('', 'Walk-in', 'it_IT', 'diretto', 1)
+        """)
+        return cur.lastrowid, True
     if dati.get("cliente_id") or not dati.get("nuovo_cognome"):
         return dati.get("cliente_id"), False
     numero = tel.normalizza(dati.get("nuovo_telefono"), dati.get("nuovo_prefisso")) or (dati.get("nuovo_telefono") or None)

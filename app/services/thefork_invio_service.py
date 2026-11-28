@@ -31,6 +31,7 @@ sincronizzazione ritrova la stessa riga (`tieni_trgb` le lascia cliente e canale
 from __future__ import annotations
 
 import logging
+import os
 import re
 import time
 from datetime import datetime
@@ -197,6 +198,37 @@ def _segna(conn, pid: int, stato: Optional[str], nota: Optional[str], uuid: Opti
     conn.commit()
 
 
+def _ora_per_thefork(data, ora, adesso: Optional[datetime] = None) -> str:
+    """
+    L'ora da dire a TheFork: quella vera, oppure, se oggi è già passata, il primo quarto d'ora utile
+    (TheFork rifiuta il passato con INVALID_MEALDATE; Marco 2026-11-28). In TRGB resta l'ora vera.
+    Il passo è THEFORK_PASSO_MINUTI (15, come gli orari di TheFork).
+    """
+    ora = str(ora or "")[:5]
+    adesso = adesso or datetime.now()
+    try:
+        quando = datetime.fromisoformat(f"{data}T{ora}")
+    except ValueError:
+        return ora
+    if quando > adesso or quando.date() != adesso.date():
+        return ora
+    try:
+        passo = max(1, int(os.environ.get("THEFORK_PASSO_MINUTI", "15")))
+    except ValueError:
+        passo = 15
+    m = ((adesso.hour * 60 + adesso.minute) // passo + 1) * passo
+    return ora if m >= 24 * 60 else f"{m // 60:02d}:{m % 60:02d}"
+
+
+def _segna_ora(conn, pid: int, ora: str) -> None:
+    """Ricorda l'ora detta a TheFork (mig 256). Senza la colonna non fa niente."""
+    try:
+        conn.execute("UPDATE clienti_prenotazioni SET ora_thefork = ? WHERE id = ?", (ora, pid))
+        conn.commit()
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def _codice(e: tf.TheForkErroreAPI) -> str:
     m = re.search(r'"code"\s*:\s*"([A-Z_]+)"', str(e))
     return m.group(1) if m else ""
@@ -257,7 +289,8 @@ def invia(conn, pid: int) -> Dict[str, Any]:
         (f"A nome {p['persona_nome']}" if p["persona_nome"] else ""), (p["nota_ristorante"] or "").strip()) if x)
     try:
         with tf._lock_elabora:   # la sincronizzazione non deve vedere la prenotazione prima che la riga abbia il suo codice
-            quando = f"{p['data_pasto']}T{str(p['ora_pasto'])[:5]}"
+            ora_tf = _ora_per_thefork(p["data_pasto"], p["ora_pasto"])
+            quando = f"{p['data_pasto']}T{ora_tf}"
             dati = cli["dati"]
             try:
                 r = prenota.crea_prenotazione(quando, int(p["pax"]), dati,
@@ -282,7 +315,10 @@ def invia(conn, pid: int) -> Dict[str, Any]:
                 _segna(conn, pid, "no", "Solo in TRGB: TheFork chiede la garanzia con carta e il cliente non ha un'email")
                 return {"stato": "no", "nota": "garanzia con carta senza email"}
             nota = "Da confermare su TheFork Manager" if r.get("status") == "REQUESTED" else None
+            if ora_tf != str(p["ora_pasto"])[:5]:
+                nota = " · ".join(x for x in (nota, f"Su TheFork alle {ora_tf}: l'ora vera era già passata") if x)
             _segna(conn, pid, "inviata", nota, uuid)
+            _segna_ora(conn, pid, ora_tf)
             tf.dimentica_telefono(dati.get("phone"))   # la prossima ricerca di quel numero vede anche questa
         return {"stato": "inviata", "nota": nota, "uuid": uuid}
     except tf.TheForkNonConfigurato as e:
@@ -336,9 +372,11 @@ def dopo_modifica(pid: int, prima: Dict[str, Any]) -> Dict[str, Any]:
                 elif any(k in prima and str(p[k] or "") != str(prima.get(k) or "") for k in ("data_pasto", "ora_pasto", "pax", "nota_ristorante", "persona_nome")):
                     nota_r = " · ".join(x for x in (
                         (f"A nome {p['persona_nome']}" if p["persona_nome"] else ""), (p["nota_ristorante"] or "").strip()) if x)
+                    ora_tf = _ora_per_thefork(p["data_pasto"], p["ora_pasto"])
                     tf._richiesta("PATCH", f"/v1/reservations/{p['thefork_booking_id']}", corpo={
-                        "mealDate": prenota._con_fuso(p["data_pasto"], str(p["ora_pasto"])[:5]),
+                        "mealDate": prenota._con_fuso(p["data_pasto"], ora_tf),
                         "partySize": int(p["pax"]), "restaurantNote": nota_r or None})
+                    _segna_ora(conn, pid, ora_tf)
                     _segna(conn, pid, "inviata", "Modifica riportata su TheFork")
             except (tf.TheForkErroreAPI, tf.TheForkNonConfigurato) as e:
                 _segna(conn, pid, "inviata", f"ATTENZIONE: modifica NON arrivata a TheFork ({_codice(e) or str(e)[:120]})")
