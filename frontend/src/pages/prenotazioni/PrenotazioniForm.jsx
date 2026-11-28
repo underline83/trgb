@@ -1,4 +1,4 @@
-// @version: v2.0 — su iPad e Mac tre zone affiancate (prenotazione · altri dettagli · sala col tavolo da toccare), persone e canale a pastiglie, Pranzo/Cena accanto agli orari, stato e riepilogo in fondo; sul telefono resta in colonna (2026-11-28); v1.13 — canale «Walk-in»: il nome non si chiede, va sulla scheda «Walk-in» (2026-11-28); v1.12-thefork — numero sconosciuto a TRGB ma noto a TheFork: nome, email e prossime prenotazioni da TheFork, «Usa questi dati» (2026-11-28); v1.11 — orari a 6 per riga senza testo che esce dalla casella, seggioloni dentro il riquadro (2026-11-26); v1.10-ordine — «Crea nuovo cliente» porta nei campi quello che era scritto nella ricerca (numero, email o nome); orari in griglia a caselle uguali con «Altro orario» a parte; tavolo a caselle per sala (libero, occupato, bloccato, suggerito; due tocchi = unione) al posto della tendina (2026-11-26); v1.9-thefork — copiato dal form di TheFork Manager: carico su ogni orario (arrivi e coperti in sala), durata sulla singola prenotazione, titolo e lingua del cliente nuovo, «apri WhatsApp con la conferma» al salvataggio (2026-11-26); v1.8-fonte — il form è la fonte: prefisso per paese, scheda riconosciuta da telefono o email mentre scrivi, persone della scheda («chi sta prenotando»), esito verso TheFork (2026-11-26); v1.7-telefono — su iPhone a tutto schermo con titolo e «Salva» sempre a vista, campi a 16 px (Safari non ingrandisce la pagina), orari e ± da pollice (2026-11-24); v1.6-stati — si nasce Confermata, In opzione (con «tenuto fino al») o in Lista d'attesa; in modifica la data dell'opzione (2026-11-13); v1.5-motore — «entra / non entra» col tavolo suggerito dal motore per tavoli, «Usa» lo scrive (anche le unioni) (2026-10-29); v1.4 — stesso form per modificare una prenotazione (prop «prenotazione», PUT) (2026-10-28); v1.3 — defaultCliente: aperto dalla scheda cliente con il cliente già scelto (2026-10-19); v1.2-fasce — slot chiusi/pieni segnati e avviso sulla fascia; v1.1-tavolo-turno — apribile dalla mappa con tavolo e turno già scelti; tavoli bloccati non selezionabili
+// @version: v2.1 — sala più larga, niente barra orizzontale sotto la finestra; «Nuovo cliente» con campi più alti e telefono ed email ognuno sulla sua riga (2026-11-28); v2.0 — su iPad e Mac tre zone affiancate (prenotazione · altri dettagli · sala col tavolo da toccare), persone e canale a pastiglie, Pranzo/Cena accanto agli orari, stato e riepilogo in fondo; sul telefono resta in colonna (2026-11-28); v1.13 — canale «Walk-in»: il nome non si chiede, va sulla scheda «Walk-in» (2026-11-28); v1.12-thefork — numero sconosciuto a TRGB ma noto a TheFork: nome, email e prossime prenotazioni da TheFork, «Usa questi dati» (2026-11-28); v1.11 — orari a 6 per riga senza testo che esce dalla casella, seggioloni dentro il riquadro (2026-11-26); v1.10-ordine — «Crea nuovo cliente» porta nei campi quello che era scritto nella ricerca (numero, email o nome); orari in griglia a caselle uguali con «Altro orario» a parte; tavolo a caselle per sala (libero, occupato, bloccato, suggerito; due tocchi = unione) al posto della tendina (2026-11-26); v1.9-thefork — copiato dal form di TheFork Manager: carico su ogni orario (arrivi e coperti in sala), durata sulla singola prenotazione, titolo e lingua del cliente nuovo, «apri WhatsApp con la conferma» al salvataggio (2026-11-26); v1.8-fonte — il form è la fonte: prefisso per paese, scheda riconosciuta da telefono o email mentre scrivi, persone della scheda («chi sta prenotando»), esito verso TheFork (2026-11-26); v1.7-telefono — su iPhone a tutto schermo con titolo e «Salva» sempre a vista, campi a 16 px (Safari non ingrandisce la pagina), orari e ± da pollice (2026-11-24); v1.6-stati — si nasce Confermata, In opzione (con «tenuto fino al») o in Lista d'attesa; in modifica la data dell'opzione (2026-11-13); v1.5-motore — «entra / non entra» col tavolo suggerito dal motore per tavoli, «Usa» lo scrive (anche le unioni) (2026-10-29); v1.4 — stesso form per modificare una prenotazione (prop «prenotazione», PUT) (2026-10-28); v1.3 — defaultCliente: aperto dalla scheda cliente con il cliente già scelto (2026-10-19); v1.2-fasce — slot chiusi/pieni segnati e avviso sulla fascia; v1.1-tavolo-turno — apribile dalla mappa con tavolo e turno già scelti; tavoli bloccati non selezionabili
 // Modulo: prenotazioni
 // Form modale per nuova prenotazione — modulo Prenotazioni TRGB
 import React, { useState, useEffect, useRef } from "react";
@@ -467,7 +467,7 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-start justify-center sm:pt-8 lg:pt-3 overflow-y-auto overscroll-contain">
       {/* Telefono: tutto schermo, titolo e tasti fissi. Da sm in su: la finestra di sempre */}
-      <div className="bg-white shadow-2xl w-full min-h-full sm:min-h-0 sm:rounded-2xl sm:max-w-lg sm:mx-4 sm:mb-8 lg:max-w-[1200px] lg:mb-3 lg:h-[calc(100vh_-_1.5rem)] lg:flex lg:flex-col">
+      <div className="bg-white shadow-2xl w-full min-h-full sm:min-h-0 sm:rounded-2xl sm:max-w-lg sm:mx-4 sm:mb-8 lg:max-w-[1240px] lg:mx-3 lg:w-[calc(100%_-_1.5rem)] lg:mb-0 lg:h-[calc(100vh_-_1.5rem)] lg:flex lg:flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-4 sm:px-5 py-3 border-b border-neutral-200 max-sm:sticky max-sm:top-0 max-sm:z-20 bg-white sm:rounded-t-2xl">
           <h2 className="text-lg font-bold text-neutral-800">{modifica ? "Modifica prenotazione" : "Nuova Prenotazione"}</h2>
@@ -477,7 +477,7 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
         <form onSubmit={handleSubmit} className="lg:flex lg:flex-col lg:flex-1 lg:min-h-0">
           <div className="p-4 sm:p-5 lg:p-0 flex flex-col gap-4 lg:gap-0 lg:flex-row lg:flex-1 lg:min-h-0">
           {/* 1 — la prenotazione: persone, giorno, ora, cliente, canale */}
-          <div className="space-y-4 lg:w-[350px] lg:flex-shrink-0 lg:p-5 lg:border-r lg:border-neutral-200 lg:overflow-y-auto">
+          <div className="space-y-4 lg:w-[340px] lg:flex-shrink-0 lg:p-5 lg:border-r lg:border-neutral-200 lg:overflow-y-auto">
           {modifica && P.thefork_booking_id && (
             <div className="px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-xs">
               Arriva da TheFork: giorno, ora e persone cambiali anche in TheFork Manager, altrimenti al prossimo
@@ -734,7 +734,7 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
 
             {/* Form nuovo cliente */}
             {showNuovo && !selectedCliente && (
-              <div className="mt-2 p-3 bg-neutral-50 border border-neutral-200 rounded-lg space-y-2">
+              <div className="mt-2 p-3 bg-neutral-50 border border-neutral-200 rounded-lg space-y-2.5">
                 <div className="text-xs font-medium text-neutral-600">Nuovo cliente</div>
                 <div className="grid grid-cols-2 gap-2">
                   <input
@@ -742,24 +742,25 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
                     placeholder="Nome"
                     value={form.nuovo_nome}
                     onChange={(e) => setForm({ ...form, nuovo_nome: e.target.value })}
-                    className="min-w-0 px-2 py-1.5 border border-neutral-300 rounded-lg text-base sm:text-sm max-sm:min-h-[44px]"
+                    className="min-w-0 px-3 py-2 border border-neutral-300 rounded-lg text-base sm:text-sm min-h-[44px]"
                   />
                   <input
                     type="text"
                     placeholder={form.canale === "Walk-in" ? "Cognome (se lo dice)" : "Cognome *"}
                     value={form.nuovo_cognome}
                     onChange={(e) => setForm({ ...form, nuovo_cognome: e.target.value })}
-                    className="min-w-0 px-2 py-1.5 border border-neutral-300 rounded-lg text-base sm:text-sm max-sm:min-h-[44px]"
+                    className="min-w-0 px-3 py-2 border border-neutral-300 rounded-lg text-base sm:text-sm min-h-[44px]"
                     required={showNuovo && !form.cliente_id && form.canale !== "Walk-in"}
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="flex gap-1 min-w-0">
+                {/* telefono ed email ognuno sulla sua riga: affiancati non ci stavano (Marco 2026-11-28) */}
+                <div className="grid grid-cols-1 gap-2.5">
+                  <div className="flex gap-2 min-w-0">
                     <select
                       aria-label="Prefisso del paese"
                       value={form.nuovo_prefisso || prefissi.locale}
                       onChange={(e) => setForm({ ...form, nuovo_prefisso: e.target.value })}
-                      className="w-[5.5rem] flex-shrink-0 px-1 py-1.5 border border-neutral-300 rounded-lg text-base sm:text-sm max-sm:min-h-[44px] bg-white"
+                      className="w-[7.5rem] flex-shrink-0 px-2 py-2 border border-neutral-300 rounded-lg text-base sm:text-sm min-h-[44px] bg-white"
                     >
                       {prefissi.frequenti.length === 0 && <option value={prefissi.locale}>{prefissi.locale}</option>}
                       {prefissi.frequenti.length > 0 && (
@@ -778,7 +779,7 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
                       placeholder="Telefono"
                       value={form.nuovo_telefono}
                       onChange={(e) => setForm({ ...form, nuovo_telefono: e.target.value })}
-                      className="flex-1 min-w-0 px-2 py-1.5 border border-neutral-300 rounded-lg text-base sm:text-sm max-sm:min-h-[44px]"
+                      className="flex-1 min-w-0 px-3 py-2 border border-neutral-300 rounded-lg text-base sm:text-sm min-h-[44px]"
                     />
                   </div>
                   <input
@@ -786,7 +787,7 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
                     placeholder="Email"
                     value={form.nuovo_email}
                     onChange={(e) => setForm({ ...form, nuovo_email: e.target.value })}
-                    className="min-w-0 px-2 py-1.5 border border-neutral-300 rounded-lg text-base sm:text-sm max-sm:min-h-[44px]"
+                    className="min-w-0 px-3 py-2 border border-neutral-300 rounded-lg text-base sm:text-sm min-h-[44px]"
                   />
                 </div>
                 {!form.nuovo_telefono.trim() && !form.nuovo_email.trim() && (
@@ -795,12 +796,12 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
                   </div>
                 )}
                 {/* Titolo e lingua: servono a TheFork e ai messaggi; la lingua, se vuota, viene dal prefisso */}
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-[6.5rem_minmax(0,1fr)] gap-2">
                   <select
                     aria-label="Titolo"
                     value={form.nuovo_titolo}
                     onChange={(e) => setForm({ ...form, nuovo_titolo: e.target.value })}
-                    className="min-w-0 px-2 py-1.5 border border-neutral-300 rounded-lg text-base sm:text-sm max-sm:min-h-[44px] bg-white"
+                    className="min-w-0 px-3 py-2 border border-neutral-300 rounded-lg text-base sm:text-sm min-h-[44px] bg-white"
                   >
                     <option value="">Titolo —</option>
                     <option value="Mr">Sig.</option>
@@ -810,7 +811,7 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
                     aria-label="Lingua"
                     value={form.nuovo_lingua}
                     onChange={(e) => setForm({ ...form, nuovo_lingua: e.target.value })}
-                    className="min-w-0 px-2 py-1.5 border border-neutral-300 rounded-lg text-base sm:text-sm max-sm:min-h-[44px] bg-white"
+                    className="min-w-0 px-3 py-2 border border-neutral-300 rounded-lg text-base sm:text-sm min-h-[44px] bg-white"
                   >
                     <option value="">Lingua: dal prefisso{linguaDalPrefisso ? ` (${NOMI_LINGUA[linguaDalPrefisso.slice(0, 2)] || linguaDalPrefisso})` : ""}</option>
                     {lingueScelta.map((l) => <option key={l} value={l}>{NOMI_LINGUA[l.slice(0, 2)] || l}</option>)}
@@ -825,13 +826,13 @@ export default function PrenotazioniForm({ defaultData, defaultTavolo, defaultTu
             <div className="grid grid-cols-5 gap-1">
               {CANALI.map((c) => (
                 <button key={c} type="button" onClick={() => setForm({ ...form, canale: c })} aria-pressed={form.canale === c}
-                  className={`min-h-[44px] px-0.5 rounded-lg border text-xs font-medium ${form.canale === c ? SCELTO : "bg-white border-neutral-300 text-neutral-700 hover:bg-neutral-50"}`}>{c}</button>
+                  className={`min-h-[44px] px-0 rounded-lg border text-[11px] font-medium ${form.canale === c ? SCELTO : "bg-white border-neutral-300 text-neutral-700 hover:bg-neutral-50"}`}>{c}</button>
               ))}
             </div>
           </div>
           </div>
           {/* 2 — altri dettagli */}
-          <div className="space-y-4 max-lg:order-3 lg:w-[290px] lg:flex-shrink-0 lg:p-5 lg:border-r lg:border-neutral-200 lg:overflow-y-auto">
+          <div className="space-y-4 max-lg:order-3 lg:w-[250px] lg:flex-shrink-0 lg:p-5 lg:border-r lg:border-neutral-200 lg:overflow-y-auto">
             <h3 className="hidden lg:block text-sm font-semibold text-neutral-800">Altri dettagli</h3>
             {carico.durata_regola ? (
             <div>

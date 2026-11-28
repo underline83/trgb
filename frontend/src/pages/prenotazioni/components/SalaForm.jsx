@@ -1,11 +1,11 @@
-// @version: v1.0 — la sala dentro il form «Nuova prenotazione»: i tavoli all'ora e per le persone scelte, il tavolo si sceglie toccandolo (2026-11-28)
+// @version: v1.1 — numeri e nomi dei tavoli più grandi, sale a pastiglie senza barra di scorrimento (2026-11-28); v1.0 — la sala dentro il form «Nuova prenotazione»: i tavoli all'ora e per le persone scelte, il tavolo si sceglie toccandolo (2026-11-28)
 // Modulo: prenotazioni
 // Legge quello che legge la vista Servizio: /prenotazioni/tavoli/mappa/{data}/{turno} (disegno) e
 // /prenotazioni/planning/{data} (chi c'è); gli intervalli arrivano dal form (carico.intervalli).
 import React, { useEffect, useMemo, useState } from "react";
 import { API_BASE, apiFetch } from "../../../config/api";
 import usePrenotazioniStati from "./statiPrenotazioni";
-import { CANVAS_W, CANVAS_H, FormaTavolo, FormaElemento, SchedeSale } from "./Piantina";
+import { CANVAS_W, CANVAS_H, FormaTavolo, FormaElemento } from "./Piantina";
 
 const minuti = (hhmm) => { const [h, m] = String(hhmm || "").split(":").map(Number); return Number.isFinite(h) ? h * 60 + (m || 0) : null; };
 const nomiTavolo = (t) => String(t || "").replace(/,/g, "+").split("+").map((x) => x.trim()).filter(Boolean);
@@ -61,12 +61,19 @@ export default function SalaForm({ data, turno, ora, pax, durataMin, carico, esc
 
   return (
     <div>
-      <div className="flex items-end justify-between gap-2">
-        <SchedeSale sale={sale} attiva={salaAttiva} onChange={setSala} aperte={aperte} />
-        <span className="text-xs text-neutral-600 pb-4 whitespace-nowrap">alle <strong className="text-neutral-900">{ora}</strong> per <strong className="text-neutral-900">{pax}</strong></span>
-      </div>
+      {sale.length > 1 && (
+        <div className="flex flex-wrap gap-1.5 mb-2" role="group" aria-label="Sale">
+          {sale.map((s) => (
+            <button key={s} type="button" onClick={() => setSala(s)} aria-pressed={salaAttiva === s}
+              className={`px-3 min-h-[40px] rounded-lg border text-sm font-medium ${salaAttiva === s ? "bg-indigo-900 text-white border-indigo-900" : "bg-white text-neutral-700 border-neutral-300 hover:bg-neutral-50"}`}>
+              {s}{aperte[s] === false ? <span className={`ml-1 text-xs font-normal ${salaAttiva === s ? "text-indigo-100" : "text-neutral-500"}`}>chiusa</span> : null}
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="text-xs text-neutral-600 mb-1">La sala alle <strong className="text-neutral-900">{ora}</strong> per <strong className="text-neutral-900">{pax}</strong> {pax === 1 ? "persona" : "persone"}</div>
       <div className="bg-white border border-neutral-200 rounded-xl p-2">
-        <svg viewBox={riquadro} className="w-full h-auto max-h-[46vh]" role="group" aria-label={`Sala ${salaAttiva}`}>
+        <svg viewBox={riquadro} className="w-full h-auto max-h-[52vh]" role="group" aria-label={`Sala ${salaAttiva}`}>
           {elementi.map((e) => <FormaElemento key={`e${e.id}`} e={e} />)}
           {tavoli.map((t) => {
             const scelto = scelti.includes(t.nome);
@@ -88,8 +95,8 @@ export default function SalaForm({ data, turno, ora, pax, durataMin, carico, esc
                 onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); tocca(); } }}
                 style={{ cursor: fermo ? "default" : "pointer" }}>
                 <FormaTavolo t={t} {...stile} />
-                <text x={cx} y={cy - 3} textAnchor="middle" fontSize="15" fontWeight="700" fill={testo} className="select-none pointer-events-none">{t.nome}</text>
-                <text x={cx} y={cy + 11} textAnchor="middle" fontSize="9" fill={testo} className="select-none pointer-events-none">{String(sotto).slice(0, 10)}</text>
+                <text x={cx} y={cy - 2} textAnchor="middle" fontSize="20" fontWeight="700" fill={testo} className="select-none pointer-events-none">{t.nome}</text>
+                <text x={cx} y={cy + 14} textAnchor="middle" fontSize="12" fill={testo} className="select-none pointer-events-none">{String(sotto).slice(0, Math.max(4, Math.floor(t.larghezza / 7)))}</text>
               </g>
             );
           })}
